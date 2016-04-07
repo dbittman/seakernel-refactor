@@ -1,0 +1,41 @@
+OUTPUT_FORMAT("elf64-littleaarch64", "elf64-bigaarch64", "elf64-littleaarch64")
+OUTPUT_ARCH(aarch64)
+ENTRY (_start)
+
+SECTIONS
+{
+	. = %KERNEL_VIRT_BASE% + %KERNEL_LOAD_OFFSET%;
+	.text : AT(%KERNEL_PHYS_BASE% + %KERNEL_LOAD_OFFSET%) {
+		kernel_text_start = .;
+		KEEP(*(.text.boot))
+		*(.text*)
+		kernel_text_end = .;
+	}
+
+	.init_array :
+	{
+		_init_array_start = .;
+	    KEEP(*(.init_array*))
+	    _init_array_end = .;
+	}
+	
+	.data : ALIGN(0x1000) {
+		*(.data*)
+	}
+
+	.bss : ALIGN(0x1000) {
+		*(COMMON)
+		*(.bss*)
+	}
+
+	.rodata : ALIGN(0x1000) {
+		*(.rodata)
+		*(.rodata.symbols)
+	}
+
+	. = ALIGN(8);
+	kernel_end = .;
+
+	/DISCARD/ : { *(.comment .note) }
+}
+

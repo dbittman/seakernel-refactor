@@ -1,0 +1,4 @@
+#include <ksymbol.h>
+
+const struct ksymbol kernel_symbol_table[] = {
+

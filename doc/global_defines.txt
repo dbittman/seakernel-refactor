@@ -1,0 +1,21 @@
+Preprocessor defines
+--------------------
+KERNEL_VIRT_BASE - Virtual address of kernel base
+KERNEL_PHYS_BASE - Physical address of kernel base
+KERNEL_LOAD_OFFSET - Offset from kernel base where kernel image is placed
+KERNEL_STACK_SIZE - Size of a thread's kernel stack
+
+Global constant variables
+-------------------------
+initial_boot_stack - Stack used during boot of BSP
+kernel_context - The struct vm_context used by the kernel (and kernel threads)
+kernel_end - End of kernel image (used by MM)
+
+Global defines, constant per thread
+-----------------------------------
+current_thread - The current executing thread, by view of the code.
+
+Global defines, non-constant per thread in special circumstances
+----------------------------------------------------------------
+current_context - The context for current_thread (just current_thread->ctx)
+

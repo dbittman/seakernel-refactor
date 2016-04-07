@@ -1,0 +1,63 @@
+OUTPUT_FORMAT("elf64-x86-64")
+ENTRY (_start)
+
+SECTIONS
+{
+	. = %KERNEL_VIRT_BASE% + %KERNEL_LOAD_OFFSET%;
+	
+	/* let the alignment of virtual memory match the offset into the file */
+	. += SIZEOF_HEADERS;
+
+	/* there is an extra alignment here for the kernel symbols to work.
+	 * we can't have the start of .text change between stage1 and final linkings. */
+	.text : AT(%KERNEL_PHYS_BASE% + %KERNEL_LOAD_OFFSET%) ALIGN(0x100) {
+		kernel_text_start = .;
+		*(.boot)
+		*(.text*)
+		kernel_text_end = .;
+	}
+    .ctors : ALIGN(4) {
+    	KEEP (*crtbegin.o(.ctors))
+    	KEEP (*crtbegin?.o(.ctors))
+    	/* We don't want to include the .ctor section from
+       	   the crtend.o file until after the sorted ctors.
+       	   The .ctor section from the crtend file contains the
+       	   end of ctors marker and it must be last */
+    	KEEP (*(EXCLUDE_FILE (*crtend.o *crtend?.o ) .ctors))
+    	KEEP (*(SORT(.ctors.*)))
+    	KEEP (*(.ctors))
+    }
+  	.dtors : ALIGN(4) {
+    	KEEP (*crtbegin.o(.dtors))
+    	KEEP (*crtbegin?.o(.dtors))
+    	KEEP (*(EXCLUDE_FILE (*crtend.o *crtend?.o ) .dtors))
+    	KEEP (*(SORT(.dtors.*)))
+    	KEEP (*(.dtors))
+  	}
+	.data : ALIGN(0x1000) {
+		kernel_data_start = .;
+		*(.data*)
+	}
+	.rodata : ALIGN(0x1000) {
+		*(.rodata*)
+	}
+	kernel_data_end = .;
+	.bss : ALIGN(0x1000) {
+		*(COMMON)
+		*(.bss*)
+	}
+	kernel_bss_end = .;
+
+	.extra :
+	{
+	   	*(.gnu.linkonce.t*)
+	   	*(.gnu.linkonce.r*)
+	   	. = ALIGN(4096);
+	}
+
+	. = ALIGN(8);
+	kernel_end = .;
+
+	/DISCARD/ : { *(.comment .note) }
+}
+

@@ -1,0 +1,76 @@
+Blockpoints and Blocklists
+==========================
+
+Any good operating system needs a way to look at what it's going with its life
+and just stop doing some things.
+
+A thread which wishes to wait on a resource needs primitives for stopping and
+being restarted by an event in the future, e.g. waiting for an IO to complete,
+etc. This is where blocking comes into play. Note that this is NOT
+synchronization - see spinlocks and mutexes for that.
+
+A thread may only block itself. Only a thread may add and remove itself from a
+blocklist. These are invariants. However, any thread may restore a blocked
+thread to its processor's runqueue.
+
+Thread Blocking
+---------------
+A thread blocks by putting itself on a blocklist, using a blockpoint. A
+blocklist is an object that is, essentially, a list of threads. These threads
+on this list probably have their state as THREADSTATE_BLOCKED, but they don't
+have to be. A blockpoint is a (likely stack-allocated) object that is used to
+keep track of thread information for each thread in a blocklist.
+
+To start blocking, a code decalares a blockpoint and initializes it. This is
+done as follows:
+
+    struct blockpoint bp;
+    blockpoint_create(&bp, <flags>, <timeout>);
+
+The flags parameter is an or'd set of bits: BLOCK_UNINTERRUPT, and
+BLOCK_TIMEOUT. BLOCK_UNINTERRUPT specifies that this thread's blocking may not
+be interrupted by any kind of asynchonous signal, only unblocking explicitely.
+BLOCK_TIMEOUT enables the timeout parameter, which specifies a timeout on the
+blocking.
+
+Next, the blocking is actually initialized:
+
+    blockpoint_startblock(<blocklist*>, &bp);
+
+WARNING: AFTER THIS POINT YOU'RE RUNNING ON "BORROWED TIME". This call makes a
+call to processor_disable_preempt, thus disabling preemption. It also removes
+the current thread from its processor's runqueue. So once a schedule() happens,
+the thread will not get rescheduled until it unblocks!
+
+This function will return, though, and allow the blocking thread to do some
+final work before it actually blocks. This is because there may be resources
+held that need to be released before the blocking actually starts (check out
+the mutex code for an example). Once you're ready to block, just make a call to
+schedule(). This will schedule away from your thread and will only return to
+your thread if its been unblocked.
+
+After the call to schedule(), you MUST cleanup the blockpoint. This is because
+the unblocking operation does not actually remove the blockpoint from the
+blocklist, it only puts the thread back on the runqueue and changes its state.
+This is done like this:
+
+    result = blockpoint_cleanup(&bp);
+
+The result is an enum block_result, which tells you the cause of the unblocking
+for the thread (e.g. BLOCK_RESULT_TIMEOUT). After this point, you can just
+continue doing your thing!
+
+Thread Unblocking
+-----------------
+You can unblock at most one thread from a blocklist with blocklist_unblock_one.
+
+You may also resume a thread directly with thread_unblock. This resets the
+state of the thread to THREADSTATE_RUNNING, and re-add it to the processor's
+runqueue. It is then, of course, up to that thread to remove itself from the
+blocklist. Note that this implies that a thread can be resumed without knowing
+what its blocking on! This is because we're supporting a thread blocking on
+multiple blocklists...
+
+A blocking can be canceled by a thread after it has called
+blockpoint_startblock. This is done by calling blockpoint_unblock before
+calling schedule(). Calling blockpoint_cleanup is still required after this.

@@ -1,0 +1,80 @@
+Architecture Requirements
+=========================
+An architecture implementation must provide the following functions to the
+kernel:
+
+MMU Functions
+-------------
+ * void arch_mm_context_create(struct vm_context *ctx)
+     Set up the architecture-dependent part of a vm_context. This may involve
+     allocating memory.
+
+ * void arch_mm_context_destroy(struct vm_context *ctx)
+     Destroy the architecture-dependent part of a vm_context. This may involve
+     freeing memory.
+
+ * void arch_mm_context_init(struct vm_context *ctx)
+     Re-initialize an already created vm_context.
+
+ * void arch_mm_context_switch(struct vm_context *ctx)
+     Set the MMU of the system to use the page tables of ctx.
+
+ * void arch_mm_init(void)
+     Initialize the MMU of the system.
+
+ * void arch_mm_pagesize(int level)
+     Return the page size for a given 'level'. Level 0 refers to the smallest
+     page-size supported, and each higher level is the next largest page size
+     supported by the virtual memory system.
+
+ * bool arch_mm_virtual_chattr(struct vm_context *ctx, uintptr_t virt, int flags)
+     Change the attributes associated with virtual address virt in context ctx.
+     Return true on success, and false on failure (virt is not mapped). This should
+     be atomic.
+
+ * bool arch_mm_virtual_getmap(struct vm_context *ctx, uintptr_t virt, uintptr_t *phys, int *flags)
+     Return the mapping of virtual address virt in context ctx. The uintptr_t pointed to by
+     phys will contain the physical address of the mapping and the int pointed to be flags will
+     contain the attributes. This should be atomic.
+
+ * uintptr_t arch_mm_virtual_unmap(struct vm_context *ctx, uintptr_t virt)
+     Unmap the virtual address virt in context ctx. Returns 0 if virt is not mapped, and
+     the physical address if it is. This should be atomic.
+
+ * bool arch_mm_virtual_map(struct vm_context *ctx, uintptr_t virt,
+								uintptr_t phys, size_t pagesize, int flags)
+     Map the virtual address virt to physical address phys with attributes specified by 
+     flags in context ctx. The page size is specified by pagesize. Returns true on success
+     and false if the mapping already exists. This should be atomic.
+
+Processor Functions
+-------------------
+ * int arch_processor_current_id(void)
+     Return the ID of the current processor.
+
+ * void arch_processor_poke_secondary(int id, uintptr_t init_stack)
+     Start up secondary processor 'id', giving it stack init_stack.
+
+Thread Functions
+----------------
+ * void arch_thread_context_switch(struct thread *old, struct thread *new)
+     Switch from thread 'old' to thread 'new'.
+
+ * void arch_thread_create(struct thread *t, uintptr_t entry, void *arg)
+     Spawn an initialized thread t in 'entry' with argument arg.
+
+ * void arch_thread_init(struct thread *t)
+     Initialize this processor for threading.
+
+ * struct thread *arch_thread_get_current(void)
+     Return the current thread from the point of view of the code.
+
+ * void arch_thread_usermode_jump(uintptr_t entry, void *arg)
+     Changes the current thread to usermode, starting at 'entry' with argument arg.
+
+ * void arch_timer_init(void)
+     Initialize the system timer.
+
+ * void arch_timer_tick(void)
+     Handle the tick of the timer.
+
