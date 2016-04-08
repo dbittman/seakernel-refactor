@@ -29,4 +29,6 @@ struct inode {
 };
 
 void inode_put(struct inode *inode);
+void inode_release_page(struct inode *node, int nodepage);
+uintptr_t inode_acquire_page(struct inode *node, int nodepage);
 

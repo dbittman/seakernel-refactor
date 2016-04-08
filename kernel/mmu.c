@@ -44,8 +44,8 @@ void mm_physical_deallocate(uintptr_t address)
 void mm_fault_entry(uintptr_t address, int flags)
 {
 	printk("pagefault: %lx, %d\n", address, flags);
-	if(current_thread->process != NULL)
-		process_pagefault_handle(address, flags);
+	//if(current_thread->process != NULL)
+	//	process_pagefault_handle(address, flags);
 }
 
 void mm_early_init(void)

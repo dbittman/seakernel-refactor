@@ -20,6 +20,23 @@ struct hash {
 	struct spinlock lock;
 };
 
+struct hashiter {
+	struct hash *hash;
+	unsigned int bucket;
+	struct linkedentry *entry, *next;
+};
+
+void __hash_unlock(struct hash *h);
+void __hash_lock(struct hash *h);
+
+static inline void *hash_iter_get(struct hashiter *iter) { return iter->entry->obj; }
+static inline bool hash_iter_done(struct hashiter *iter)
+{
+	return iter->bucket >= iter->hash->length;
+}
+
+void hash_iter_init(struct hashiter *iter, struct hash *h);
+void hash_iter_next(struct hashiter *iter);
 static inline size_t hash_count(struct hash *h) { return h->count; }
 static inline size_t hash_length(struct hash *h) { return h->length; }
 

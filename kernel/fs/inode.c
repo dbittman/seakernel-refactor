@@ -39,3 +39,9 @@ void inode_put(struct inode *inode)
 	kobj_lru_put(&inode_lru, inode);
 }
 
+void inode_release_page(struct inode *node, int nodepage)
+{
+	(void)node;
+	(void)nodepage;
+}
+

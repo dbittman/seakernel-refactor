@@ -8,6 +8,16 @@
 #define __lock(h) do { if(!(h->flags & HASH_LOCKLESS)) spinlock_acquire(&h->lock); } while(0)
 #define __unlock(h) do { if(!(h->flags & HASH_LOCKLESS)) spinlock_release(&h->lock); } while(0)
 
+void __hash_lock(struct hash *h)
+{
+	__lock(h);
+}
+
+void __hash_unlock(struct hash *h)
+{
+	__unlock(h);
+}
+
 void hash_create(struct hash *h, int flags, size_t length)
 {
 	spinlock_create(&h->lock);
@@ -98,5 +108,36 @@ void *hash_lookup(struct hash *h, const void *key, size_t keylen)
 	}
 	__unlock(h);
 	return ret;
+}
+
+void hash_iter_init(struct hashiter *iter, struct hash *h)
+{
+	iter->bucket = 0;
+	iter->hash = h;
+	
+	while(++iter->bucket < h->length && h->table[iter->bucket].count == 0)
+		;
+	if(iter->bucket >= h->length)
+		return;
+	iter->next = linkedlist_iter_start(&h->table[iter->bucket]);
+
+	iter->entry = iter->next;
+	iter->next = linkedlist_iter_next(iter->entry);
+}
+
+void hash_iter_next(struct hashiter *iter)
+{
+	struct hash *h = iter->hash;
+	struct linkedlist *curlist = &h->table[iter->bucket];
+	if(iter->next == linkedlist_iter_end(curlist)) {
+		while(++iter->bucket < h->length && h->table[iter->bucket].count == 0)
+			;
+		if(iter->bucket >= h->length)
+			return;
+		iter->next = linkedlist_iter_start(&h->table[iter->bucket]);
+	}
+		
+	iter->entry = iter->next;
+	iter->next = linkedlist_iter_next(iter->entry);
 }
 
