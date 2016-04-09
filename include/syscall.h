@@ -2,7 +2,7 @@
 #define __SYSCALL_H
 
 
-unsigned long syscall_entry(unsigned long num,
+unsigned long syscall_entry(uintptr_t caller, unsigned long num,
 		unsigned long arg1,
 		unsigned long arg2,
 		unsigned long arg3,

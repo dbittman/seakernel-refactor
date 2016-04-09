@@ -4,7 +4,8 @@
 #include <assert.h>
 #include <string.h>
 #include <printk.h>
-#include <obj/process.h>
+#include <process.h>
+#include <thread.h>
 struct vm_context kernel_context;
 
 static bool early_mm = true;
@@ -44,8 +45,11 @@ void mm_physical_deallocate(uintptr_t address)
 void mm_fault_entry(uintptr_t address, int flags)
 {
 	printk("pagefault: %lx, %d\n", address, flags);
-	//if(current_thread->process != NULL)
-	//	process_pagefault_handle(address, flags);
+	if(current_thread->process && address >= USER_REGION_START && address < USER_REGION_END) {
+		if(mmu_mappings_handle_fault(address, flags))
+			return;
+	}
+	panic(0, "PF");
 }
 
 void mm_early_init(void)

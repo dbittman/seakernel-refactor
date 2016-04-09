@@ -5,6 +5,7 @@
 #include <string.h>
 #include <lib/hash.h>
 #include <mmu.h>
+#include <system.h>
 #define __lock(h) do { if(!(h->flags & HASH_LOCKLESS)) spinlock_acquire(&h->lock); } while(0)
 #define __unlock(h) do { if(!(h->flags & HASH_LOCKLESS)) spinlock_release(&h->lock); } while(0)
 
@@ -22,7 +23,9 @@ void hash_create(struct hash *h, int flags, size_t length)
 {
 	spinlock_create(&h->lock);
 	h->flags = flags;
-	h->table = (void *)mm_virtual_allocate(((length * sizeof(struct linkedlist) - 1) & ~(arch_mm_page_size(0) - 1)) + arch_mm_page_size(0), false);
+	if(length * sizeof(struct linkedlist) < arch_mm_page_size(0))
+		length = arch_mm_page_size(0) / sizeof(struct linkedlist);
+	h->table = (void *)mm_virtual_allocate(__round_up_pow2(length * sizeof(struct linkedlist)), false);
 	for(size_t i=0;i<length;i++) {
 		linkedlist_create(&h->table[i], (flags & HASH_LOCKLESS) ? LINKEDLIST_LOCKLESS : 0);
 	}

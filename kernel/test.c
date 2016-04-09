@@ -8,6 +8,7 @@
 #include <mutex.h>
 #include <string.h>
 #include <interrupt.h>
+#include <process.h>
 
 void perf_print_report(void);
 extern unsigned char serial_getc(void);
@@ -33,115 +34,35 @@ static void __echo_entry(struct worker *worker)
 	}
 }
 
-static int _order_test = 0;
-__orderedinitializer(1) static void test_constructor_second(void)
+static void _thread_hello(void)
 {
-	assert(_order_test == 1);
+	for(;;);
 }
 
-__orderedinitializer(0) static void test_constructor_first(void)
+#include <sys.h>
+static void _thread_entry(void *arg)
 {
-	assert(_order_test == 0);
-	_order_test = 1;
+	(void)arg;
+	sys_fork((uintptr_t)&_thread_hello);
+	_thread_hello();
+	for(;;);
 }
 
-#include <charbuffer.h>
-static struct mutex contend_lock;
-static struct spinlock contend_spin;
-static int _init_test = 0;
-__initializer static void test_constructor(void)
-{
-	printk("Test initializer called :)\n");
-	mutex_create(&contend_lock);
-	spinlock_create(&contend_spin);
-	_init_test = 1;
-}
-
-static _Atomic int _c_t = 0;
-void contention_test(struct worker *worker)
-{
-	(void)worker;
-	for(;;) {
-		//spinlock_acquire(&contend_spin);
-		mutex_acquire(&contend_lock);
-		assert(_c_t++ == 0);
-		printk("%ld", current_thread->tid);
-		assert(_c_t-- == 1);
-		mutex_release(&contend_lock);
-		//spinlock_release(&contend_spin);
-		//schedule();
-	}
-}
-
-static struct worker echo;
-struct worker contend[4];
-
-#define MUTEX_TEST 0
-
-#include <slab.h>
-struct inode {
-	struct kobj_header _header;
-
-	int id;
-};
-
-void _inode_create(void *o)
-{
-	printk("inode create %p\n", o);
-}
-void _inode_ko_init(void *o)
-{
-	printk("inode ko init %p\n", o);
-}
-void _inode_put(void *o)
-{
-	printk("inode put %p\n", o);
-}
-
-struct kobj kobj_inode = {
-	.initialized = false,
-	.size = sizeof(struct inode),
-	.name = "inode",
-	.put = _inode_put,
-	.create = _inode_create,
-	.init = _inode_ko_init,
-	.destroy = NULL,
-};
-
-struct kobj_lru inode_lru;
-
-bool _inode_init(void *o, void *id)
-{
-	printk("Init %p : %d\n", o, *(int *)id);
-	struct inode *inode = o;
-	inode->id = *(int *)id;
-	kobj_lru_mark_ready(&inode_lru, o, &inode->id);
-	return true;
-}
-
+struct worker echo;
 void test_late(void)
 {
-	assert(_init_test == 1);
 	worker_start(&echo, __echo_entry, NULL);
-	//worker_start(&workertest, __entry, (void *)0x123456);
-	
-#if MUTEX_TEST
-	for(int i=0;i<4;i++) {
-		printk("Starting contend worker %d\n", i);
-		worker_start(&contend[i], contention_test, NULL);
-	}
-#endif
+	struct process *proc = kobj_allocate(&kobj_process);
+	struct thread *thread = kobj_allocate(&kobj_thread);
+	process_attach_thread(proc, thread);
+	arch_thread_create(thread, (uintptr_t)&_thread_entry, NULL);
+	thread->user_tls_base = (void *)process_allocate_user_tls(proc);
+	thread->state = THREADSTATE_RUNNING;
+	processor_add_thread(current_thread->processor, thread);
 }
 
-#if MUTEX_TEST
-static struct worker _w;
-#endif
 void test_secondaries(void)
 {
-#if MUTEX_TEST
-	printk("Starting contend worker (CPU %d)\n", arch_processor_current_id());
-	worker_start(&_w, contention_test, NULL);
-#endif
 }
 
 #endif

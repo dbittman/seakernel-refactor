@@ -65,6 +65,6 @@ void x86_64_exception_entry(struct exception_frame *frame)
 
 void x86_64_syscall_entry(struct exception_frame *frame)
 {
-	frame->rax = syscall_entry(frame->rax, frame->rdi, frame->rsi, frame->rdx, frame->rcx, frame->r8);
+	frame->rax = syscall_entry(frame->rip, frame->rax, frame->rdi, frame->rsi, frame->rdx, frame->rcx, frame->r8);
 }
 

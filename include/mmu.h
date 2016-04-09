@@ -20,6 +20,7 @@
 #include <arch-mmu.h>
 #include <machine/memmap.h>
 #include <slab.h>
+#include <map.h>
 
 struct vm_context {
 	struct kobj_header _header;

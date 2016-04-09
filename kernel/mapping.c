@@ -118,3 +118,39 @@ void process_remove_mappings(struct process *proc)
 	spinlock_release(&proc->map_lock);
 }
 
+int mmu_mappings_handle_fault(uintptr_t addr, int flags)
+{
+	(void)flags;
+	struct process *proc = current_thread->process;
+	int success = false;
+	uintptr_t vpage = addr / arch_mm_page_size(0);
+	spinlock_acquire(&proc->map_lock);
+	struct mapping *map = hash_lookup(&proc->mappings, &vpage, sizeof(vpage));
+
+	if(!map) {
+		goto out;
+	}
+
+	if((flags & FAULT_WRITE) && !(map->prot & PROT_WRITE)) {
+		goto out;
+	}
+
+	uintptr_t frame = 0;
+	if(map->flags & MAP_ANON) {
+		frame = map->frame = frame_allocate();
+		map->flags |= MAP_MAPPED;
+	} else {
+		frame = inode_get_page(map->node, map->nodepage);
+	}
+
+	arch_mm_virtual_map(proc->ctx, addr & ~(arch_mm_page_size(0) - 1),
+			frame,
+			arch_mm_page_size(0), MAP_USER | MAP_WRITE | MAP_PRIVATE);
+
+	success = true;
+
+out:
+	spinlock_release(&proc->map_lock);
+	return success;
+}
+

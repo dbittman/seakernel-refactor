@@ -89,6 +89,7 @@ void arch_thread_usermode_jump(uintptr_t entry, void *arg)
 			"pushq %%rax;"
 			"pushq $0x1b;"
 			"pushq %0;"
+			"movq $0x0, %%rax;" /* for fork() */
 			"iretq"
 			:: "r"(entry),
 			   "r"((uintptr_t)current_thread->user_tls_base + USER_TLS_SIZE),
