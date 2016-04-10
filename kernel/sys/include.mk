@@ -1,2 +1,2 @@
-C_SOURCES+=kernel/sys/fork.c
+C_SOURCES+=kernel/sys/fork.c kernel/sys/open.c kernel/sys/map.c
 

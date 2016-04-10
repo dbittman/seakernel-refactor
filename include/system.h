@@ -10,6 +10,9 @@
 #define __initializer __attribute__((used,constructor))
 #define __orderedinitializer(x) __attribute__((used,constructor (x + 3000) ))
 
+#define ORDERED_FIRST 0
+#define ORDERED_LAST 3000
+
 #define __orderedafter(x) (x+1)
 #define __orderedbefore(x) (x-1)
 

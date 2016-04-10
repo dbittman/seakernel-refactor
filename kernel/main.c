@@ -18,6 +18,7 @@ extern void _init(void);
 void test_late(void);
 void tlb_shootdown();
 void perf_init(void);
+void initial_rootfs_init(void);
 
 static void init_worker(struct worker *worker)
 {
@@ -40,6 +41,7 @@ void main(void)
 	thread_init();
 	timer_init();
 	processor_start_secondaries();
+	initial_rootfs_init();
 #if CONFIG_PERF_FUNCTIONS
 	perf_init();
 #endif

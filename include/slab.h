@@ -61,7 +61,8 @@ struct kobj_lru {
 	struct hash hash;
 	struct spinlock lock;
 	struct blocklist wait;
-	bool (*init)(void *, void *);
+	void *data;
+	bool (*init)(void *, void *, void *);
 };
 
 static inline void kobj_idmap_create(struct kobj_idmap *idm, size_t idlen)
@@ -98,7 +99,7 @@ static inline void *kobj_idmap_lookup(struct kobj_idmap *idm, void *id)
 }
 
 void kobj_lru_create(struct kobj_lru *lru, size_t idlen, size_t max, struct kobj *kobj,
-		bool (*init)(void *obj, void *id));
+		bool (*init)(void *obj, void *id, void *data), void *data);
 void kobj_lru_mark_ready(struct kobj_lru *lru, void *obj, void *id);
 void kobj_lru_mark_error(struct kobj_lru *lru, void *obj, void *id);
 void kobj_lru_reclaim(struct kobj_lru *lru);

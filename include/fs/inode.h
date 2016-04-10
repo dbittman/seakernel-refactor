@@ -1,35 +1,37 @@
 #pragma once
 #include <slab.h>
 #include <lib/hash.h>
+#include <mutex.h>
 struct inode_id {
-	uint64_t devid;
+	uint64_t fsid;
 	uint64_t inoid;
 };
 
 struct inode;
-struct inode_ops {
-	bool (*read_page)(struct inode *, size_t pagenr, uintptr_t phys);
-	bool (*write_page)(struct inode *, size_t pagenr, uintptr_t phys);
-	bool (*sync)(struct inode *);
-	bool (*update)(struct inode *);
+struct inodepage {
+	int page;
+	uintptr_t frame;
+	struct mutex lock;
+	struct inode *node;
 };
 
 struct inode {
 	struct kobj_header _header;
 
 	struct inode_id id;
-	struct inode_ops *ops;
+
+	struct filesystem *fs;
 
 	uint16_t mode;
 	uint16_t links;
 
 	uint64_t atime, mtime, ctime;
 
-	struct hash pages;
+	struct kobj_lru pages;
 };
 
 void inode_put(struct inode *inode);
-void inode_release_page(struct inode *node, int nodepage);
+void inode_release_page(struct inode *node, struct inodepage *page);
 uintptr_t inode_acquire_page(struct inode *node, int nodepage);
-uintptr_t inode_get_page(struct inode *node, int nodepage);
-
+struct inodepage *inode_get_page(struct inode *node, int nodepage);
+struct inode *inode_lookup(struct inode_id *id);

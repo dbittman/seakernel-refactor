@@ -129,7 +129,7 @@ autotest:
 -include $(OBJECTS:.o=.d)
 
 test: $(BUILDDIR)/kernel.elf
-	qemu-system-$(ARCH) -m 1024  -machine $(MACHINE) $(QEMU_FLAGS) -kernel $(BUILDDIR)/kernel.elf -serial stdio
+	qemu-system-$(ARCH) -m 1024  -machine $(MACHINE) $(QEMU_FLAGS) -kernel $(BUILDDIR)/kernel.elf -serial stdio -initrd Makefile
 
 clean:
 	-rm -r $(BUILDDIR)

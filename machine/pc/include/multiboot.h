@@ -41,6 +41,13 @@ struct multiboot
 	uint32_t vbe_interface_len;
 } __attribute__((packed));
 
+struct mboot_module {
+	uint32_t start;
+	uint32_t end;
+	uint32_t string;
+	uint32_t _res;
+} __attribute__((packed));
+
 typedef struct
 {
   uint32_t size;

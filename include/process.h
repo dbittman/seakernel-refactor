@@ -5,17 +5,23 @@
 
 struct vm_context;
 struct thread;
+
+#define MAX_FD 128
+
+struct filesystem;
 struct process {
 	struct kobj _header;
 	struct vm_context *ctx;
-	struct hash files;
 	struct linkedlist threads;
 
 	struct hash mappings;
 	struct spinlock map_lock;
 
+	struct file * _Atomic files[MAX_FD];
 	int pid;
 	_Atomic uintptr_t next_user_tls;
+
+	struct filesystem *root;
 };
 
 extern struct kobj kobj_process;
@@ -27,3 +33,5 @@ uintptr_t process_allocate_user_tls(struct process *proc);
 
 #define USER_REGION_START     0
 #define USER_REGION_END       0x800000000000
+
+extern struct process *kernel_process;

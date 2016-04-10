@@ -5,16 +5,12 @@
 
 static void _dirent_put(void *obj)
 {
-	struct dirent *dir = obj;
-	if(dir->inode) {
-		inode_put(dir->inode);
-	}
+	(void)obj;
 }
 
 static void _dirent_init(void *obj)
 {
-	struct dirent *dir = obj;
-	dir->inode = NULL;
+	(void)obj;
 }
 
 static void _dirent_create(void *obj)
@@ -31,4 +27,9 @@ struct kobj kobj_dirent = {
 	.put = _dirent_put,
 	.destroy = NULL,
 };
+
+struct inode *dirent_get_inode(struct dirent *dir)
+{
+	return inode_lookup(&dir->ino);
+}
 

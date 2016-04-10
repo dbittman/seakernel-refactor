@@ -59,14 +59,14 @@ bool mapping_remove(struct process *proc, uintptr_t virtual)
 		return false;
 	}
 	hash_delete(&proc->mappings, &vpage, sizeof(vpage));
-	if(map->flags & MAP_ANON) {
+	if(map->flags & MMAP_MAP_ANON) {
 		if(map->frame != 0) {
 			frame_release(map->frame);
 		}
 	} else {
 		assert(map->node != NULL);
-		if(map->flags & MAP_MAPPED)
-			inode_release_page(map->node, map->nodepage);
+		if(map->flags & MMAP_MAP_MAPPED)
+			inode_release_page(map->node, map->page);
 		kobj_putref(map->node);
 	}
 	map->node = NULL;
@@ -136,16 +136,25 @@ int mmu_mappings_handle_fault(uintptr_t addr, int flags)
 	}
 
 	uintptr_t frame = 0;
-	if(map->flags & MAP_ANON) {
+	if(map->flags & MMAP_MAP_ANON) {
 		frame = map->frame = frame_allocate();
-		map->flags |= MAP_MAPPED;
+		map->flags |= MMAP_MAP_MAPPED;
 	} else {
-		frame = inode_get_page(map->node, map->nodepage);
+		map->page = inode_get_page(map->node, map->nodepage);
+		frame = map->page->frame;
 	}
+
+	int setflags = MAP_USER;
+	/* TODO: map_private? */
+
+	if(map->prot & PROT_WRITE)
+		setflags |= MAP_WRITE;
+	if(map->prot & PROT_EXEC)
+		setflags |= MAP_EXECUTE;
 
 	arch_mm_virtual_map(proc->ctx, addr & ~(arch_mm_page_size(0) - 1),
 			frame,
-			arch_mm_page_size(0), MAP_USER | MAP_WRITE | MAP_PRIVATE);
+			arch_mm_page_size(0), setflags);
 
 	success = true;
 

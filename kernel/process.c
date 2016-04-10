@@ -5,6 +5,8 @@
 #include <system.h>
 #include <map.h>
 
+struct process *kernel_process;
+
 static struct kobj_idmap processids;
 
 uintptr_t process_allocate_user_tls(struct process *proc)
@@ -14,7 +16,7 @@ uintptr_t process_allocate_user_tls(struct process *proc)
 		/* TODO: kill process or something */
 	}
 	for(uintptr_t virt = base;virt < base + USER_TLS_SIZE;virt += arch_mm_page_size(0)) {
-		mapping_establish(proc, virt, PROT_WRITE, MAP_ANON, NULL, 0);
+		mapping_establish(proc, virt, PROT_WRITE, MMAP_MAP_ANON, NULL, 0);
 	}
 	return base;
 }
@@ -29,6 +31,7 @@ void process_attach_thread(struct process *proc, struct thread *thread)
 __initializer static void __process_idmap_init(void)
 {
 	kobj_idmap_create(&processids, sizeof(int));
+	kernel_process = kobj_allocate(&kobj_process);
 }
 
 static _Atomic int next_pid = 1;
@@ -39,6 +42,8 @@ static void _process_init(void *obj)
 	proc->next_user_tls = USER_TLS_REGION_START;
 	proc->pid = next_pid++;
 	kobj_idmap_insert(&processids, obj, &proc->pid);
+	for(int i=0;i<MAX_FD;i++)
+		proc->files[i] = NULL;
 }
 
 static void _process_create(void *obj)
@@ -46,8 +51,7 @@ static void _process_create(void *obj)
 	struct process *proc = obj;
 	_process_init(obj);
 	linkedlist_create(&proc->threads, 0);
-	hash_create(&proc->files, 0, 32);
-	hash_create(&proc->mappings, 0, 4096);
+	hash_create(&proc->mappings, HASH_LOCKLESS, 4096);
 	spinlock_create(&proc->map_lock);
 }
 

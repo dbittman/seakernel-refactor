@@ -7,6 +7,7 @@
 #include <thread-bits.h>
 #include <lib/hash.h>
 #include <system.h>
+#include <process.h>
 static _Atomic int threadid = ATOMIC_VAR_INIT(0);
 
 static struct kobj_idmap active_threads;
@@ -27,6 +28,7 @@ static void _thread_init(void *obj)
 	thread->wi_delete.fn = _thread_wi_delete;
 	thread->wi_delete.arg = thread;
 	kobj_idmap_insert(&active_threads, thread, &thread->tid);
+	thread->process = kernel_process;
 }
 
 static void _thread_create(void *obj)
@@ -105,6 +107,7 @@ void thread_init(void)
 	proc->idle_thread.ctx = &kernel_context;
 	proc->idle_thread.tid = threadid++;
 	proc->idle_thread.processor = proc;
+	proc->idle_thread.process = kernel_process;
 	arch_thread_init(&proc->idle_thread);
 	processor_release(proc);
 }

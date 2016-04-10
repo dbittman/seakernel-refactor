@@ -16,6 +16,11 @@ __orderedinitializer(0) static void frames_init(void)
 	frames = (void *)mm_virtual_allocate( __round_up_pow2(numframes * sizeof(struct frame)), true);
 }
 
+uintptr_t frame_get_physical(struct frame *frame)
+{
+	return frame->framenr * arch_mm_page_size(0);
+}
+
 struct frame *frame_get_from_address(uintptr_t phys)
 {
 	return &frames[phys / arch_mm_page_size(0)];

@@ -4,12 +4,13 @@
 #include <assert.h>
 #include <printk.h>
 void kobj_lru_create(struct kobj_lru *lru, size_t idlen, size_t max, struct kobj *kobj,
-		bool (*init)(void *obj, void *id))
+		bool (*init)(void *obj, void *id, void *), void *data)
 {
 	lru->kobj = kobj;
 	lru->init = init;
 	lru->max = max;
 	lru->idlen = idlen;
+	lru->data = data;
 	hash_create(&lru->hash, HASH_LOCKLESS, 2048 / sizeof(struct linkedlist));
 	linkedlist_create(&lru->lru, LINKEDLIST_LOCKLESS);
 	linkedlist_create(&lru->active, LINKEDLIST_LOCKLESS);
@@ -23,9 +24,9 @@ void kobj_lru_mark_ready(struct kobj_lru *lru, void *obj, void *id)
 	spinlock_acquire(&lru->lock);
 	/* yes, we need to do this. The ID field must be stored inside the
 	 * object, and up to here it is not. */
-	hash_delete(&lru->hash, id, lru->idlen);
-	hash_insert(&lru->hash, id, lru->idlen, &header->idelem, obj);
 	header->id = id;
+	hash_delete(&lru->hash, id, lru->idlen);
+	hash_insert(&lru->hash, header->id, lru->idlen, &header->idelem, obj);
 	spinlock_release(&lru->lock);
 	header->flags |= KOBJ_LRU_INIT;
 	blocklist_unblock_all(&lru->wait);
@@ -116,7 +117,7 @@ void *kobj_lru_get(struct kobj_lru *lru, void *id)
 		hash_insert(&lru->hash, id, lru->idlen, &header->idelem, kobj_getref(obj));
 		header->_koh_refs = 3;
 		spinlock_release(&lru->lock);
-		if(!lru->init(obj, id)) {
+		if(!lru->init(obj, id, lru->data)) {
 			kobj_putref(obj);
 			return NULL;
 		}
