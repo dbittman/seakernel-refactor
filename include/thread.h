@@ -52,7 +52,7 @@ void arch_thread_usermode_jump(uintptr_t entry, uintptr_t initial_stack);
 void thread_create(struct thread *, struct vm_context *ctx, uintptr_t entry);
 void arch_thread_create(struct thread *next, uintptr_t entry, void *data);
 void arch_thread_init(struct thread *us);
-void thread_exit(struct thread *thread);
+_Noreturn void thread_exit(struct thread *thread);
 struct thread *thread_get_byid(unsigned long id);
 void thread_init(void);
 void preempt(void);

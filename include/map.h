@@ -28,7 +28,7 @@ struct mapping {
 };
 
 struct process;
-bool mapping_establish(struct process *proc, uintptr_t virtual, int prot,
+struct mapping *mapping_establish(struct process *proc, uintptr_t virtual, int prot,
 		int flags, struct inode *node, int nodepage);
 
 int mmu_mappings_handle_fault(uintptr_t addr, int flags);

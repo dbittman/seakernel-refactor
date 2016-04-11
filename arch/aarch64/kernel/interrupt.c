@@ -23,6 +23,10 @@ static void __fault(unsigned long esr, bool el0, struct exception_frame *frame)
 			aarch64_mm_pagefault(addr, reason, write, exec, el0);
 			break;
 		case 0x15:
+			if(esr & 0xFFFF == SYS_FORK) {
+				frame->x0 = frame->elr;
+				frame->x1 = frame->spsr;
+			}
 			frame->x0 = syscall_entry(esr & 0xFFFF, frame->x0, frame->x1, frame->x2, frame->x3, frame->x4);
 			break;
 		default:

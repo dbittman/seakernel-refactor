@@ -12,6 +12,8 @@ intptr_t sys_mmap(uintptr_t addr, size_t len, int prot, int flags, int fd, size_
 	if(fd >= 0)
 		file = process_get_file(fd);
 	struct inode *ino = file ? file_get_inode(file) : NULL;
+	if(file)
+		kobj_putref(file);
 
 	if(!ino && !(flags & MMAP_MAP_ANON))
 		return -1;

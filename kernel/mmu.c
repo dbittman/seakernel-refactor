@@ -44,7 +44,7 @@ void mm_physical_deallocate(uintptr_t address)
 
 void mm_fault_entry(uintptr_t address, int flags)
 {
-	printk("pagefault: %lx, %d\n", address, flags);
+	printk("pagefault: %lx, %x\n", address, flags);
 	if(current_thread->process && address >= USER_REGION_START && address < USER_REGION_END) {
 		if(mmu_mappings_handle_fault(address, flags))
 			return;

@@ -62,5 +62,10 @@ static inline void mm_virtual_deallocate(uintptr_t addr)
 	mm_physical_deallocate(addr - PHYS_MAP_START);
 }
 
+static inline uintptr_t page_mask(int l)
+{
+	return ~(arch_mm_page_size(l) - 1);
+}
+
 #endif
 

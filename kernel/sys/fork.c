@@ -33,6 +33,7 @@ int sys_fork(uintptr_t caller, uintptr_t ustack)
 	struct process *proc = kobj_allocate(&kobj_process);
 	copy_process(current_thread->process, proc);
 	process_copy_mappings(current_thread->process, proc);
+	process_copy_files(current_thread->process, proc);
 	process_attach_thread(proc, thread);
 	thread->fork_sp = ustack;
 	thread->fork_entry = caller;
@@ -44,5 +45,15 @@ int sys_fork(uintptr_t caller, uintptr_t ustack)
 	thread->state = THREADSTATE_RUNNING;
 	processor_add_thread(current_thread->processor, thread);
 	return proc->pid;
+}
+
+void _Noreturn sys_exit(int code)
+{
+	kobj_putref(current_thread->process);
+	current_thread->process = NULL;
+
+	(void)code;
+
+	thread_exit(current_thread);
 }
 

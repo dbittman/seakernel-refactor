@@ -37,6 +37,7 @@ ssize_t sys_read(int fd, void *buf, size_t count)
 	if(amount > 0) {
 		file->pos += amount;
 	}
+	kobj_putref(file);
 	return amount;
 }
 
@@ -47,6 +48,7 @@ ssize_t sys_write(int fd, void *buf, size_t count)
 	if(amount > 0) {
 		file->pos += amount;
 	}
+	kobj_putref(file);
 	return amount;
 }
 
@@ -54,6 +56,7 @@ ssize_t sys_pread(int fd, size_t off, void *buf, size_t count)
 {
 	struct file *file = process_get_file(fd);
 	ssize_t amount = file_read(file, off, count, buf);
+	kobj_putref(file);
 	return amount;
 }
 
@@ -61,6 +64,7 @@ ssize_t sys_pwrite(int fd, size_t off, void *buf, size_t count)
 {
 	struct file *file = process_get_file(fd);
 	ssize_t amount = file_write(file, off, count, buf);
+	kobj_putref(file);
 	return amount;
 }
 

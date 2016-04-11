@@ -16,7 +16,7 @@ uintptr_t process_allocate_user_tls(struct process *proc)
 		/* TODO: kill process or something */
 	}
 	for(uintptr_t virt = base;virt < base + USER_TLS_SIZE;virt += arch_mm_page_size(0)) {
-		mapping_establish(proc, virt, PROT_WRITE, MMAP_MAP_ANON, NULL, 0);
+		mapping_establish(proc, virt, PROT_WRITE, MMAP_MAP_ANON | MMAP_MAP_PRIVATE, NULL, 0);
 	}
 	return base;
 }
@@ -62,12 +62,15 @@ static void _process_create(void *obj)
 	linkedlist_create(&proc->threads, 0);
 	hash_create(&proc->mappings, HASH_LOCKLESS, 4096);
 	spinlock_create(&proc->map_lock);
+	spinlock_create(&proc->files_lock);
 }
 
 static void _process_put(void *obj)
 {
 	struct process *proc = obj;
 	kobj_putref(proc->ctx);
+	process_close_files(proc, true);
+	process_remove_mappings(proc);
 	kobj_idmap_delete(&processids, obj, &proc->pid);
 }
 

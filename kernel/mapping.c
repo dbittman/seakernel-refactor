@@ -5,6 +5,7 @@
 #include <process.h>
 #include <assert.h>
 #include <printk.h>
+#include <string.h>
 
 static void _mapping_init(void *obj)
 {
@@ -27,7 +28,7 @@ struct kobj kobj_mapping = {
 	.destroy = NULL,
 };
 
-bool mapping_establish(struct process *proc, uintptr_t virtual, int prot,
+struct mapping *mapping_establish(struct process *proc, uintptr_t virtual, int prot,
 		int flags, struct inode *node, int nodepage)
 {
 	uintptr_t vpage = virtual / arch_mm_page_size(0);
@@ -35,7 +36,7 @@ bool mapping_establish(struct process *proc, uintptr_t virtual, int prot,
 	struct mapping *map = hash_lookup(&proc->mappings, &vpage, sizeof(vpage));
 	if(map) {
 		spinlock_release(&proc->map_lock);
-		return false;
+		return NULL;
 	}
 
 	map = kobj_allocate(&kobj_mapping);
@@ -46,7 +47,7 @@ bool mapping_establish(struct process *proc, uintptr_t virtual, int prot,
 	map->nodepage = nodepage;
 	hash_insert(&proc->mappings, &map->vpage, sizeof(map->vpage), &map->elem, map);
 	spinlock_release(&proc->map_lock);
-	return true;
+	return map;
 }
 
 bool mapping_remove(struct process *proc, uintptr_t virtual)
@@ -99,9 +100,20 @@ void process_copy_mappings(struct process *from, struct process *to)
 	struct hashiter iter;
 	for(hash_iter_init(&iter, &from->mappings); !hash_iter_done(&iter); hash_iter_next(&iter)) {
 		struct mapping *map = hash_iter_get(&iter);
-		mapping_establish(to, map->vpage * arch_mm_page_size(0), map->prot, map->flags,
+		struct mapping *nm = mapping_establish(to, map->vpage * arch_mm_page_size(0), map->prot, map->flags,
 				map->node, map->nodepage);
 
+		if(map->flags & MMAP_MAP_ANON) {
+			if(map->page) {
+				nm->page = kobj_getref(map->page);
+			}
+		} else {
+			if(map->frame) {
+				nm->frame = map->frame;
+				frame_acquire(map->frame);
+			}
+		}
+		nm->flags &= ~MMAP_MAP_MAPPED;
 	}
 	spinlock_release(&from->map_lock);
 }
@@ -127,6 +139,13 @@ int mmu_mappings_handle_fault(uintptr_t addr, int flags)
 	uintptr_t vpage = addr / arch_mm_page_size(0);
 	spinlock_acquire(&proc->map_lock);
 	struct mapping *map = hash_lookup(&proc->mappings, &vpage, sizeof(vpage));
+	int setflags = MAP_USER | MAP_PRIVATE;
+
+	if(map->prot & PROT_WRITE)
+		setflags |= MAP_WRITE;
+	if(map->prot & PROT_EXEC)
+		setflags |= MAP_EXECUTE;
+
 
 	if(!map) {
 		goto out;
@@ -136,27 +155,64 @@ int mmu_mappings_handle_fault(uintptr_t addr, int flags)
 		goto out;
 	}
 
-	uintptr_t frame = 0;
-	if(map->flags & MMAP_MAP_ANON) {
-		frame = map->frame = frame_allocate();
+	if(flags & FAULT_ERROR_PRES) {
+		uintptr_t frame = 0;
+		assert(!(map->flags & MMAP_MAP_MAPPED));
+		if(map->flags & MMAP_MAP_ANON) {
+			if(!map->frame)
+				map->frame = frame_allocate();
+			frame = map->frame;
+		} else {
+			if(!map->page)
+				map->page = inode_get_page(map->node, map->nodepage);
+			frame = map->page->frame;
+		}
 		map->flags |= MMAP_MAP_MAPPED;
+
+		if((map->flags & MMAP_MAP_PRIVATE) || !(map->flags & MMAP_MAP_ANON))
+			setflags &= ~MAP_WRITE;
+
+		arch_mm_virtual_map(proc->ctx, addr & page_mask(0),
+				frame, arch_mm_page_size(0), setflags);
 	} else {
-		map->page = inode_get_page(map->node, map->nodepage);
-		frame = map->page->frame;
+		assert(map->flags & MMAP_MAP_MAPPED);
+		if(flags & FAULT_EXEC)
+			goto out;
+
+		if((flags & FAULT_WRITE) && (map->flags & MMAP_MAP_PRIVATE)) {
+			if(map->flags & MMAP_MAP_ANON) {
+				assert(map->frame);
+				struct frame *frame = frame_get_from_address(map->frame);
+
+				assert(frame->count > 0);
+				if(frame->count > 1) {
+					uintptr_t newframe = frame_allocate();
+					memcpy((void *)(newframe + PHYS_MAP_START), (void *)(map->frame + PHYS_MAP_START), arch_mm_page_size(0));
+					arch_mm_virtual_unmap(proc->ctx, addr & page_mask(0));
+					arch_mm_virtual_map(proc->ctx, addr & page_mask(0), newframe, arch_mm_page_size(0), setflags);
+					frame_release(map->frame);
+					map->frame = newframe;
+				} else {
+					arch_mm_virtual_chattr(proc->ctx, addr & page_mask(0), setflags);
+				}
+			} else {
+				struct inodepage *page = map->page;
+				map->flags |= MMAP_MAP_ANON;
+				map->frame = frame_allocate();
+				memcpy((void *)(map->frame + PHYS_MAP_START), (void *)(page->frame + PHYS_MAP_START), arch_mm_page_size(0));
+
+				arch_mm_virtual_unmap(proc->ctx, addr & page_mask(0));
+				arch_mm_virtual_map(proc->ctx, addr & page_mask(0), map->frame, arch_mm_page_size(0), setflags);
+				inode_release_page(map->node, page);
+			}
+		} else if(flags & FAULT_WRITE) {
+			if(!(map->flags & MMAP_MAP_ANON)) {
+				map->page->flags |= INODEPAGE_DIRTY;
+				arch_mm_virtual_chattr(proc->ctx, addr & page_mask(0), setflags);
+			}
+		}
+
 	}
-
-	int setflags = MAP_USER;
-	/* TODO: map_private? */
-
-	if(map->prot & PROT_WRITE)
-		setflags |= MAP_WRITE;
-	if(map->prot & PROT_EXEC)
-		setflags |= MAP_EXECUTE;
-
-	arch_mm_virtual_map(proc->ctx, addr & ~(arch_mm_page_size(0) - 1),
-			frame,
-			arch_mm_page_size(0), setflags);
-
 	success = true;
 
 out:

@@ -27,9 +27,11 @@ static void __fault(struct exception_frame *frame)
 		/* page-fault */
 		uint64_t cr2;
 		asm volatile("mov %%cr2, %0" : "=r"(cr2));
-		int flags = FAULT_ERROR_PRES;
+		int flags = 0;
 		if(frame->err_code & 1) {
 			flags |= FAULT_ERROR_PERM;
+		} else {
+			flags |= FAULT_ERROR_PRES;
 		}
 		if(frame->err_code & (1 << 1)) {
 			flags |= FAULT_WRITE;
@@ -65,6 +67,10 @@ void x86_64_exception_entry(struct exception_frame *frame)
 
 void x86_64_syscall_entry(struct exception_frame *frame)
 {
-	frame->rax = syscall_entry(frame->rip, frame->rax, frame->rdi, frame->rsi, frame->rdx, frame->rcx, frame->r8);
+	if(frame->rax == SYS_FORK) {
+		frame->rdi = frame->rip;
+		frame->rsi = frame->userrsp;
+	}
+	frame->rax = syscall_entry(frame->rdi, frame->rsi, frame->rdx, frame->rcx, frame->r8, frame->r9);
 }
 

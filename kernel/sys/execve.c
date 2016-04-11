@@ -2,7 +2,7 @@
 #include <lib/elf.h>
 #include <string.h>
 #include <thread.h>
-
+#include <process.h>
 #include <printk.h>
 int sys_execve(const char *path, char **arg, char **env)
 {
@@ -20,7 +20,6 @@ int sys_execve(const char *path, char **arg, char **env)
 	}
 
 	if(memcmp(header.ident, "\177ELF", 3)) {
-		printk("here %d %c %c %c\n", fd, header.ident[0], header.ident[1], header.ident[2]);
 		err = -1;
 		goto out_close;
 	}
@@ -31,6 +30,10 @@ int sys_execve(const char *path, char **arg, char **env)
 	if(elf_parse_executable(&header, fd, &max) < 0) {
 		/* ...die */
 	}
+
+	sys_close(fd);
+
+	process_close_files(current_thread->process, false);
 
 	arch_thread_usermode_jump(header.entry, (uintptr_t)current_thread->user_tls_base + USER_TLS_SIZE);
 

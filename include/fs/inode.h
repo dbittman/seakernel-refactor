@@ -8,11 +8,13 @@ struct inode_id {
 };
 
 struct inode;
+#define INODEPAGE_DIRTY 1
 struct inodepage {
 	struct kobj_header _header;
 	int page;
 	uintptr_t frame;
 	struct inode *node;
+	_Atomic int flags;
 };
 
 struct file;

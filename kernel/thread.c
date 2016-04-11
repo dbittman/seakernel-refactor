@@ -72,7 +72,7 @@ int thread_current_priority(struct thread *thr)
 	return (-(MAX_THREAD_PRIORITY * time) / proc->time) + MAX_THREAD_PRIORITY;
 }
 
-void thread_exit(struct thread *thread)
+void _Noreturn thread_exit(struct thread *thread)
 {
 	kobj_idmap_delete(&active_threads, thread, &thread->tid);
 	processor_disable_preempt();
@@ -81,7 +81,7 @@ void thread_exit(struct thread *thread)
 	thread->processor->running = &thread->processor->idle_thread;
 	workqueue_insert(&thread->processor->workqueue, &thread->wi_delete);
 	schedule();
-	assert(false);
+	__builtin_unreachable();
 }
 
 struct kobj kobj_thread = {

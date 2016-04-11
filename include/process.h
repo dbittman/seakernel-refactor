@@ -9,7 +9,7 @@ struct thread;
 #define MAX_FD 128
 
 struct fildes {
-	struct file * _Atomic file;
+	struct file *file;
 	int flags;
 };
 
@@ -24,6 +24,8 @@ struct process {
 	struct spinlock map_lock;
 
 	struct fildes files[MAX_FD];
+	struct spinlock files_lock;
+
 	int pid;
 	_Atomic uintptr_t next_user_tls, next_mmap_reg;
 
@@ -37,6 +39,8 @@ uintptr_t process_allocate_user_tls(struct process *proc);
 uintptr_t process_allocate_mmap_region(struct process *proc, size_t len);
 void process_copy_mappings(struct process *from, struct process *to);
 void process_remove_mappings(struct process *proc);
+void process_copy_files(struct process *from, struct process *to);
+void process_close_files(struct process *proc, bool all);
 
 #define USER_TLS_REGION_END   0x800000000000
 #define USER_TLS_REGION_START 0x700000000000
