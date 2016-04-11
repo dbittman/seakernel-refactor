@@ -29,7 +29,7 @@ struct hashiter {
 void __hash_unlock(struct hash *h);
 void __hash_lock(struct hash *h);
 
-static inline void *hash_iter_get(struct hashiter *iter) { return iter->entry->obj; }
+static inline void *hash_iter_get(struct hashiter *iter) { return ((struct hashelem *)iter->entry->obj)->ptr; }
 static inline bool hash_iter_done(struct hashiter *iter)
 {
 	return iter->bucket >= iter->hash->length;

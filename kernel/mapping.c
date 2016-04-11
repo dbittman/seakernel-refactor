@@ -4,6 +4,7 @@
 #include <thread.h>
 #include <process.h>
 #include <assert.h>
+#include <printk.h>
 
 static void _mapping_init(void *obj)
 {
@@ -67,7 +68,7 @@ bool mapping_remove(struct process *proc, uintptr_t virtual)
 		assert(map->node != NULL);
 		if(map->flags & MMAP_MAP_MAPPED)
 			inode_release_page(map->node, map->page);
-		kobj_putref(map->node);
+		inode_put(map->node);
 	}
 	map->node = NULL;
 	kobj_putref(map);

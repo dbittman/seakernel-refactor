@@ -113,6 +113,7 @@ void *hash_lookup(struct hash *h, const void *key, size_t keylen)
 	return ret;
 }
 
+#include <printk.h>
 void hash_iter_init(struct hashiter *iter, struct hash *h)
 {
 	iter->bucket = 0;

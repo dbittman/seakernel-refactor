@@ -253,7 +253,5 @@ void initial_rootfs_init(void)
 		sys_close(f);
 	}
 
-	printk("ok\n");
-	for(;;);
 }
 

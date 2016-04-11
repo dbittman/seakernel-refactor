@@ -72,11 +72,10 @@ void arch_thread_init(struct thread *us)
 	*(struct thread **)(us->kernel_tls_base) = us;
 }
 
-void arch_thread_usermode_jump(uintptr_t entry, void *arg)
+void arch_thread_usermode_jump(uintptr_t entry, uintptr_t initial_stack)
 {
 	asm volatile("cli;"
 			"movq $0, %%rbp;"
-			"movq %2, %%rdi;"
 			"mov $0x23, %%ax;"
 			"mov %%ax, %%ds;"
 			"mov %%ax, %%es;"
@@ -92,7 +91,7 @@ void arch_thread_usermode_jump(uintptr_t entry, void *arg)
 			"movq $0x0, %%rax;" /* for fork() */
 			"iretq"
 			:: "r"(entry),
-			   "r"((uintptr_t)current_thread->user_tls_base + USER_TLS_SIZE),
-			   "r"(arg) : "rax", "rdi", "memory");
+			   "r"(initial_stack)
+			   : "rax", "memory");
 }
 

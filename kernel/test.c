@@ -34,8 +34,11 @@ static void __echo_entry(struct worker *worker)
 	}
 }
 
-static void _thread_hello(void)
+#include <sys.h>
+void _thread_hello(void)
 {
+	int r = sys_execve("/test", NULL, NULL);
+	printk("exec returned %d\n", r);
 	for(;;);
 }
 
@@ -43,8 +46,8 @@ static void _thread_hello(void)
 static void _thread_entry(void *arg)
 {
 	(void)arg;
-	sys_fork((uintptr_t)&_thread_hello);
-	_thread_hello();
+	printk("Test!\n");
+	sys_fork((uintptr_t)&_thread_hello, 0);
 	for(;;);
 }
 
@@ -52,13 +55,7 @@ struct worker echo;
 void test_late(void)
 {
 	worker_start(&echo, __echo_entry, NULL);
-	struct process *proc = kobj_allocate(&kobj_process);
-	struct thread *thread = kobj_allocate(&kobj_thread);
-	process_attach_thread(proc, thread);
-	arch_thread_create(thread, (uintptr_t)&_thread_entry, NULL);
-	thread->user_tls_base = (void *)process_allocate_user_tls(proc);
-	thread->state = THREADSTATE_RUNNING;
-	processor_add_thread(current_thread->processor, thread);
+	sys_fork((uintptr_t)&_thread_entry, 0);
 }
 
 void test_secondaries(void)

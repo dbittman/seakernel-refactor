@@ -40,13 +40,15 @@ struct thread {
 
 	struct process *process;
 	struct linkedentry proc_entry;
+
+	uintptr_t fork_sp, fork_entry;
 };
 
 #define current_thread arch_thread_get_current()
 #define current_context (current_thread ? current_thread->ctx : &kernel_context)
 
 void arch_thread_context_switch(struct thread *, struct thread *thr);
-void arch_thread_usermode_jump(uintptr_t entry, void *arg);
+void arch_thread_usermode_jump(uintptr_t entry, uintptr_t initial_stack);
 void thread_create(struct thread *, struct vm_context *ctx, uintptr_t entry);
 void arch_thread_create(struct thread *next, uintptr_t entry, void *data);
 void arch_thread_init(struct thread *us);

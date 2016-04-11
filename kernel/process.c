@@ -4,7 +4,7 @@
 #include <mmu.h>
 #include <system.h>
 #include <map.h>
-
+#include <printk.h>
 struct process *kernel_process;
 
 static struct kobj_idmap processids;
@@ -18,6 +18,14 @@ uintptr_t process_allocate_user_tls(struct process *proc)
 	for(uintptr_t virt = base;virt < base + USER_TLS_SIZE;virt += arch_mm_page_size(0)) {
 		mapping_establish(proc, virt, PROT_WRITE, MMAP_MAP_ANON, NULL, 0);
 	}
+	return base;
+}
+
+uintptr_t process_allocate_mmap_region(struct process *proc, size_t len)
+{
+	uintptr_t base = atomic_fetch_add(&proc->next_mmap_reg, len);
+	if(base > USER_MMAP_REGION_END)
+		; /* TODO: kill */
 	return base;
 }
 
@@ -40,6 +48,7 @@ static void _process_init(void *obj)
 	struct process *proc = obj;
 	proc->ctx = kobj_allocate(&kobj_vm_context);
 	proc->next_user_tls = USER_TLS_REGION_START;
+	proc->next_mmap_reg = USER_MMAP_REGION_START;
 	proc->pid = next_pid++;
 	kobj_idmap_insert(&processids, obj, &proc->pid);
 	for(int i=0;i<MAX_FD;i++)

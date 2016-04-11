@@ -49,7 +49,7 @@ int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode,
 	struct inode *start = _start ? kobj_getref(_start) : dirent_get_inode(current_thread->process->cwd);
 	if(*path == '/') {
 		path++;
-		kobj_putref(start);
+		inode_put(start);
 		if(!(start = fs_inode_lookup(current_thread->process->root, current_thread->process->root->driver->rootid))) {
 			return -1;
 		}
@@ -103,6 +103,6 @@ int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode,
 #include <system.h>
 __initializer static void _fs_path_trace(void)
 {
-	trace_enable(&path_trace);
+	//trace_enable(&path_trace);
 }
 

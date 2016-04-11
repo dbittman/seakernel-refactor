@@ -42,6 +42,8 @@ void process_release_fd(int fd)
 struct file *process_get_file(int fd)
 {
 	/* TODO: we need to inc the ref count, and lock */
+	if(fd >= MAX_FD)
+		return NULL;
 	return current_thread->process->files[fd].file;
 }
 
