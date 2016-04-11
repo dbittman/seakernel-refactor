@@ -1,5 +1,5 @@
 # -ffreestanding needed for kernel
-CFLAGS=-ffreestanding -Wall -Wextra -Iinclude -std=gnu11 -Wshadow -Wstrict-overflow -fno-strict-aliasing -fno-omit-frame-pointer -g
+CFLAGS=-ffreestanding -Wall -Wextra -Iinclude -std=gnu11 -Wshadow -Wstrict-overflow -fno-strict-aliasing -fno-omit-frame-pointer -g -include "include/_default.h"
 ASFLAGS=
 BUILDDIR=build
 CONFIGFILE=config.cfg

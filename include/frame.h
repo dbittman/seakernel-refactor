@@ -1,9 +1,10 @@
 #pragma once
-
+#include <lib/hash.h>
 struct frame {
 	size_t framenr;
 	int pagenr;
 	_Atomic int count;
+	struct hashelem elem;
 };
 
 uintptr_t frame_get_physical(struct frame *);

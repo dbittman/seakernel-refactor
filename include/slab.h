@@ -29,6 +29,15 @@ struct kobj {
 	struct spinlock lock;
 };
 
+#define KOBJ_DEFAULT(_name) {\
+	.initialized = false, \
+	.name = "_name", \
+	.size = sizeof(struct _name), \
+	.create = NULL, \
+	.init = NULL, \
+	.destroy = NULL, \
+	.put = NULL,}
+
 #define KOBJ_LRU_INIT 1
 #define KOBJ_LRU_ERR  2
 

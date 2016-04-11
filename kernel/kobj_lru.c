@@ -26,7 +26,7 @@ void kobj_lru_mark_ready(struct kobj_lru *lru, void *obj, void *id)
 	 * object, and up to here it is not. */
 	header->id = id;
 	hash_delete(&lru->hash, id, lru->idlen);
-	hash_insert(&lru->hash, header->id, lru->idlen, &header->idelem, obj);
+	hash_insert(&lru->hash, id, lru->idlen, &header->idelem, obj);
 	spinlock_release(&lru->lock);
 	header->flags |= KOBJ_LRU_INIT;
 	blocklist_unblock_all(&lru->wait);
@@ -96,7 +96,7 @@ void *kobj_lru_get(struct kobj_lru *lru, void *id)
 			blockpoint_cleanup(&bp);
 		}
 		if(header->flags & KOBJ_LRU_ERR) {
-			kobj_putref(obj);
+			kobj_lru_put(lru, obj);
 			spinlock_release(&lru->lock);
 			return NULL;
 		}
@@ -118,7 +118,7 @@ void *kobj_lru_get(struct kobj_lru *lru, void *id)
 		header->_koh_refs = 3;
 		spinlock_release(&lru->lock);
 		if(!lru->init(obj, id, lru->data)) {
-			kobj_putref(obj);
+			kobj_lru_put(lru, obj);
 			return NULL;
 		}
 	}
@@ -133,12 +133,10 @@ void kobj_lru_put(struct kobj_lru *lru, void *obj)
 
 	struct kobj_header *header = obj;
 	if(header->_koh_refs == 2) {
-		printk("LRUPUT move to lru\n");
 		linkedlist_remove(&lru->active, &header->lruentry);
 		linkedlist_insert(&lru->lru, &header->lruentry, obj);
 	}
 
 	spinlock_release(&lru->lock);
 }
-
 

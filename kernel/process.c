@@ -43,7 +43,7 @@ static void _process_init(void *obj)
 	proc->pid = next_pid++;
 	kobj_idmap_insert(&processids, obj, &proc->pid);
 	for(int i=0;i<MAX_FD;i++)
-		proc->files[i] = NULL;
+		proc->files[i].file = NULL;
 }
 
 static void _process_create(void *obj)

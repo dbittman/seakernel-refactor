@@ -48,13 +48,19 @@ struct kobj kobj_filesystem = {
 	.destroy = _filesystem_destroy,
 };
 
-bool fs_load_inode(uint64_t fsid, uint64_t inoid, struct inode *node)
+static struct inode_calls fs_inode_ops = {
+	.read = inode_read_data,
+	.write = inode_write_data,
+};
+
+int fs_load_inode(uint64_t fsid, uint64_t inoid, struct inode *node)
 {
 	struct filesystem *fs = kobj_idmap_lookup(&active_filesystems, &fsid);
 	if(!fs) {
-		return false;
+		return -1;
 	}
 	node->fs = fs;
+	node->ops = &fs_inode_ops;
 	return fs->driver->fs_ops->load_inode(fs, inoid, node);
 }
 

@@ -4,20 +4,9 @@
 #include <frame.h>
 #include <string.h>
 #include <fs/filesystem.h>
-static void _inode_page_init(void *obj)
-{
-	struct inodepage *page = obj;
-	page->frame = frame_allocate();
-}
+#include <printk.h>
 
-static void _inode_page_create(void *obj)
-{
-	struct inodepage *page = obj;
-	_inode_page_init(obj);
-	mutex_create(&page->lock);
-}
-
-static void _inode_page_put(void *obj)
+static void _inode_page_destroy(void *obj)
 {
 	struct inodepage *page = obj;
 	frame_release(page->frame);
@@ -27,10 +16,10 @@ static struct kobj kobj_inode_page = {
 	.name = "inode_page",
 	.size = sizeof(struct inodepage),
 	.initialized = false,
-	.init = _inode_page_init,
-	.create = _inode_page_create,
-	.put = _inode_page_put,
-	.destroy = NULL,
+	.init = NULL,
+	.create = NULL,
+	.put = NULL,
+	.destroy = _inode_page_destroy,
 };
 
 static bool _inode_page_initialize(void *obj, void *_id, void *data)
@@ -40,10 +29,14 @@ static bool _inode_page_initialize(void *obj, void *_id, void *data)
 	page->page = id;
 	page->node = data;
 
-	page->node->fs->driver->inode_ops->read_page(page->node, id, page->frame);
-	
-	kobj_lru_mark_ready(&page->node->pages, obj, _id);
-	return true;
+	page->frame = frame_allocate();
+	if(page->node->fs->driver->inode_ops->read_page(page->node, id, page->frame) < 0) {
+		kobj_lru_mark_error(&page->node->pages, obj, &page->page);
+		return false;
+	} else {
+		kobj_lru_mark_ready(&page->node->pages, obj, &page->page);
+		return true;
+	}
 }
 
 static void _inode_create(void *obj)
@@ -74,11 +67,11 @@ static bool _inode_initialize(void *obj, void *id, void *data)
 	(void)data;
 	struct inode *node = obj;
 	memcpy(&node->id, id, sizeof(node->id));
-	if(!fs_load_inode(node->id.fsid, node->id.inoid, node)) {
-		kobj_lru_mark_error(&inode_lru, obj, id);
+	if(fs_load_inode(node->id.fsid, node->id.inoid, node) < 0) {
+		kobj_lru_mark_error(&inode_lru, obj, &node->id);
 		return false;
 	} else {
-		kobj_lru_mark_ready(&inode_lru, obj, id);
+		kobj_lru_mark_ready(&inode_lru, obj, &node->id);
 		return true;
 	}
 }

@@ -37,6 +37,21 @@ int strcmp(const char* str1, const char* str2) {
 	return 0;
 }
 
+const char *strchrc(const char *str, char v)
+{
+	while(*str && *str != v) {
+		str++;
+	}
+	if(*str == v)
+		return str;
+	return NULL;
+}
+
+char *strncpy(char *dest, const char *src, size_t n)
+{
+	return memcpy(dest, src, n);
+}
+
 void *memset(void *s, int c, size_t n)
 {
 	unsigned char *b = s;

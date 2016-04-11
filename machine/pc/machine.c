@@ -5,18 +5,13 @@
 #include <printk.h>
 #include <string.h>
 #include <system.h>
+#include <machine/machine.h>
 static struct multiboot *multiboot;
 
 void pc_save_multiboot(void *header)
 {
 	multiboot = header;
 }
-
-struct boot_module {
-	uintptr_t start;
-	size_t length;
-	char name[128];
-};
 
 struct boot_modules_info {
 	long count;
@@ -25,12 +20,13 @@ struct boot_modules_info {
 
 static uintptr_t bootmods_start = 0;
 static uintptr_t bootmods_infos = 0;
-__orderedinitializer(ORDERED_LAST) static void parse_objects(void)
+
+struct boot_module *machine_get_boot_module(int i)
 {
 	struct boot_modules_info *bmi = (void *)bootmods_infos;
-	for(int i=0;i<bmi->count;i++) {
-	//	static_object_parse(bmi->modules[i].start + PHYS_MAP_START);
-	}
+	if(i >= bmi->count)
+		return NULL;
+	return &bmi->modules[i];
 }
 
 void machine_init(void)
@@ -68,7 +64,7 @@ void machine_init(void)
 	bmi->count = multiboot->mods_count;
 
 	for(int i=0;i<bmi->count;i++) {
-		bmi->modules[i].start = (saved_mod_infos[i].start - minpage) + bootmods_start;
+		bmi->modules[i].start = (saved_mod_infos[i].start - minpage) + bootmods_start + PHYS_MAP_START;
 		bmi->modules[i].length = saved_mod_infos[i].end - saved_mod_infos[i].start;
 		memcpy(bmi->modules[i].name, saved_names[i], 128);
 	}
