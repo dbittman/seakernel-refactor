@@ -2,6 +2,7 @@
 #include <slab.h>
 #include <lib/hash.h>
 #include <mutex.h>
+struct blockpoint;
 struct inode_id {
 	uint64_t fsid;
 	uint64_t inoid;
@@ -21,6 +22,14 @@ struct file;
 struct inode_calls {
 	ssize_t (*read)(struct file *, struct inode *, size_t, size_t, char *);
 	ssize_t (*write)(struct file *, struct inode *, size_t, size_t, const char *);
+
+	void (*create)(struct inode *node);
+	void (*destroy)(struct inode *node);
+
+	int (*select)(struct file *file, struct inode *node, int flags, struct blockpoint *bp);
+	int (*ioctl)(struct file *file, struct inode *node, long cmd, long arg);
+	void (*open)(struct file *file, struct inode *node);
+	void (*close)(struct file *file, struct inode *node);
 };
 
 #define INODE_FLAG_DIRTY 1
@@ -40,6 +49,9 @@ struct inode {
 
 	struct kobj_lru pages;
 	struct inode_calls *ops;
+
+	int major, minor;
+	void *devdata;
 };
 
 void inode_put(struct inode *inode);
@@ -54,4 +66,9 @@ static inline void inode_mark_dirty(struct inode *node)
 {
 	node->flags |= INODE_FLAG_DIRTY;
 }
+
+void inode_set_ops(struct inode *node);
+extern struct inode_calls fs_iops;
+extern struct inode_calls pipe_iops;
+extern struct inode_calls socket_iops;
 

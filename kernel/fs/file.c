@@ -58,7 +58,11 @@ struct file *process_get_file(int fd)
 
 void file_close(struct file *file)
 {
-	(void)file; //TODO
+	struct inode *node = file_get_inode(file);
+	if(node->ops && node->ops->close)
+		node->ops->close(file, node);
+	inode_put(node);
+	kobj_putref(file);
 }
 
 void process_copy_files(struct process *from, struct process *to)
@@ -68,6 +72,11 @@ void process_copy_files(struct process *from, struct process *to)
 		if(from->files[i].file) {
 			to->files[i].file = kobj_getref(from->files[i].file);
 			to->files[i].flags = from->files[i].flags;
+
+			struct inode *node = file_get_inode(to->files[i].file);
+			if(node->ops && node->ops->open)
+				node->ops->open(to->files[i].file, node);
+			inode_put(node);
 		}
 	}
 	spinlock_release(&from->files_lock);
@@ -106,6 +115,22 @@ ssize_t file_write(struct file *f, size_t off, size_t len, const char *buf)
 		return -1;
 
 	ssize_t ret = ino->ops->write(f, ino, off, len, buf);
+	inode_put(ino);
+	return ret;
+}
+
+int file_truncate(struct file *f, size_t len)
+{
+	f->pos = len;
+	return 0;
+}
+
+size_t file_get_len(struct file *f)
+{
+	struct inode *ino = file_get_inode(f);
+	if(!ino)
+		return 0;
+	size_t ret = ino->length;
 	inode_put(ino);
 	return ret;
 }

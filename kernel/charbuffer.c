@@ -20,7 +20,7 @@ void charbuffer_destroy(struct charbuffer *cb)
 	mm_virtual_deallocate((uintptr_t)cb->buffer);
 }
 
-size_t charbuffer_write(struct charbuffer *cb, char *buf, size_t len, int flags)
+size_t charbuffer_write(struct charbuffer *cb, const char *buf, size_t len, int flags)
 {
 	spinlock_acquire(&cb->write);
 	size_t amount_written = 0;
@@ -60,7 +60,7 @@ size_t charbuffer_write(struct charbuffer *cb, char *buf, size_t len, int flags)
 			
 			atomic_fetch_add(&cb->head, amount);
 			spinlock_release(&cb->write);
-
+			/* TODO: handle signals here */
 			blocklist_unblock_one(&cb->wait_read);
 
 			int rem = cb->capacity - (atomic_load(&cb->head) - atomic_load(&cb->tail));

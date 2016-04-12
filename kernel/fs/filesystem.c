@@ -48,7 +48,7 @@ struct kobj kobj_filesystem = {
 	.destroy = _filesystem_destroy,
 };
 
-static struct inode_calls fs_inode_ops = {
+struct inode_calls fs_iops = {
 	.read = inode_read_data,
 	.write = inode_write_data,
 };
@@ -60,7 +60,6 @@ int fs_load_inode(uint64_t fsid, uint64_t inoid, struct inode *node)
 		return -1;
 	}
 	node->fs = fs;
-	node->ops = &fs_inode_ops;
 	return fs->driver->fs_ops->load_inode(fs, inoid, node);
 }
 

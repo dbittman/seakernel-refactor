@@ -61,6 +61,7 @@ int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode,
 	const char *name = path;
 	struct dirent *dir = NULL;
 	struct inode *node = start;
+	int returnval = 0;
 	do { 
 		if(!(sep = strchrc(path, '/'))) {
 			sep = path + strlen(path);
@@ -73,6 +74,8 @@ int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode,
 			if(!dir) {
 				if(!*sep && (flags & PATH_CREATE)) {
 					dir = __create_last(node, name, sep - name, mode, &err);
+					if(dir != 0)
+						returnval |= PATH_DID_CREATE;
 				}
 				if(!dir) {
 					inode_put(node);
@@ -97,7 +100,7 @@ int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode,
 	else
 		inode_put(node);
 
-	return 0;
+	return returnval;
 }
 
 #include <system.h>

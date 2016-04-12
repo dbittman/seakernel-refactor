@@ -7,6 +7,7 @@ struct file {
 	struct kobj_header _header;
 	struct dirent *dirent;
 	_Atomic size_t pos;
+	_Atomic int flags;
 };
 
 extern struct kobj kobj_file;
@@ -16,8 +17,12 @@ void process_release_fd(int fd);
 int process_allocate_fd(struct file *file);
 ssize_t file_read(struct file *f, size_t off, size_t len, char *buf);
 ssize_t file_write(struct file *f, size_t off, size_t len, const char *buf);
+int file_truncate(struct file *f, size_t len);
+size_t file_get_len(struct file *f);
+void file_close(struct file *file);
 
 static inline struct inode *file_get_inode(struct file *f)
 {
 	return dirent_get_inode(f->dirent);
 }
+

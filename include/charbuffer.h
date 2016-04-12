@@ -14,7 +14,11 @@ struct charbuffer {
 	struct spinlock write, read;
 };
 
+static inline size_t charbuffer_pending(struct charbuffer *cb) { return cb->head - cb->tail; }
+static inline size_t charbuffer_avail(struct charbuffer *cb)
+{ return cb->capacity - (cb->head - cb->tail); }
+
 void charbuffer_create(struct charbuffer *cb, size_t cap);
-size_t charbuffer_write(struct charbuffer *cb, char *buf, size_t len, int flags);
+size_t charbuffer_write(struct charbuffer *cb, const char *buf, size_t len, int flags);
 size_t charbuffer_read(struct charbuffer *cb, char *buf, size_t len, int flags);
 

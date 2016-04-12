@@ -5,6 +5,8 @@
 #include <string.h>
 #include <fs/filesystem.h>
 #include <printk.h>
+#include <fs/stat.h>
+#include <device.h>
 
 static void _inode_page_destroy(void *obj)
 {
@@ -47,7 +49,9 @@ static void _inode_create(void *obj)
 
 static void _inode_destroy(void *obj)
 {
-	(void)obj;
+	struct inode *node = obj;
+	if(node->ops && node->ops->destroy)
+		node->ops->destroy(node);
 }
 
 static struct kobj kobj_inode = {
@@ -62,6 +66,18 @@ static struct kobj kobj_inode = {
 
 static struct kobj_lru inode_lru;
 
+void inode_set_ops(struct inode *node)
+{
+	if(S_ISCHR(node->mode) || S_ISBLK(node->mode))
+		node->ops = dev_get_iops(node);
+	else if(S_ISFIFO(node->mode))
+		node->ops = &pipe_iops;
+	else if(S_ISSOCK(node->mode))
+		node->ops = &socket_iops;
+	else
+		node->ops = &fs_iops;
+}
+
 static bool _inode_initialize(void *obj, void *id, void *data)
 {
 	(void)data;
@@ -71,6 +87,9 @@ static bool _inode_initialize(void *obj, void *id, void *data)
 		kobj_lru_mark_error(&inode_lru, obj, &node->id);
 		return false;
 	} else {
+		inode_set_ops(node);
+		if(node->ops && node->ops->create)
+			node->ops->create(node);
 		kobj_lru_mark_ready(&inode_lru, obj, &node->id);
 		return true;
 	}
