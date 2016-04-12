@@ -7,7 +7,7 @@
 #define MMAP_MAP_PRIVATE  0x2
 #define MMAP_MAP_FIXED   0x10
 #define MMAP_MAP_ANON    0x20
-#define MMAP_MAP_MAPPED 0x100
+#define MMAP_MAP_MAPPED 0x80000000
 
 #define PROT_READ  1
 #define PROT_WRITE 2

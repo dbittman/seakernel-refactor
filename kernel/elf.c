@@ -9,7 +9,7 @@ int elf_parse_executable(struct elf_header *header, int fd, uintptr_t *max, uint
 {
 	int r;
 	char buffer[header->phnum * header->phsize];
-	if((r = sys_pread(fd, header->phoff, buffer, sizeof(buffer))) < 0)
+	if((r = sys_pread(fd, buffer, sizeof(buffer), header->phoff)) < 0)
 		return r;
 	*max = 0;
 	for(int i=0;i<header->phnum;i++) {

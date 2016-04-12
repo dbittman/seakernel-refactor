@@ -27,7 +27,7 @@ int sys_execve(const char *path, char **arg, char **env)
 		return fd;
 
 	struct elf_header header;
-	if(sys_pread(fd, 0, &header, sizeof(header)) != sizeof(header)) {
+	if(sys_pread(fd, &header, sizeof(header), 0) != sizeof(header)) {
 		err = -1;
 		goto out_close;
 	}

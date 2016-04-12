@@ -7,6 +7,7 @@
 #include <errno.h>
 int sys_open(const char *path, int flags, int mode)
 {
+	flags++;
 	struct dirent *dir;
 	struct inode *node;
 	fs_path_resolve(path, 0, (flags & O_CREAT) ? PATH_CREATE : 0, mode, &dir, &node);
@@ -57,7 +58,7 @@ ssize_t sys_write(int fd, void *buf, size_t count)
 	return amount;
 }
 
-ssize_t sys_pread(int fd, size_t off, void *buf, size_t count)
+ssize_t sys_pread(int fd, void *buf, size_t count, size_t off)
 {
 	struct file *file = process_get_file(fd);
 	if(!file)
@@ -67,7 +68,7 @@ ssize_t sys_pread(int fd, size_t off, void *buf, size_t count)
 	return amount;
 }
 
-ssize_t sys_pwrite(int fd, size_t off, void *buf, size_t count)
+ssize_t sys_pwrite(int fd, void *buf, size_t count, size_t off)
 {
 	struct file *file = process_get_file(fd);
 	if(!file)

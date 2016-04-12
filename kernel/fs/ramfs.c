@@ -248,7 +248,7 @@ void initial_rootfs_init(void)
 	while((bm = machine_get_boot_module(i++))) {
 		printk(" * Loading %s, %ld KB.\n", bm->name, bm->length / 1024);
 		int f = sys_open(bm->name, O_RDWR | O_CREAT, S_IFREG | 0777);
-		ssize_t count = sys_pwrite(f, 0, (void *)bm->start, bm->length);
+		ssize_t count = sys_pwrite(f, (void *)bm->start, bm->length, 0);
 		assert(count == (ssize_t)bm->length);
 		sys_close(f);
 	}
