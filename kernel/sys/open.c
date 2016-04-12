@@ -8,10 +8,12 @@
 #include <fcntl.h>
 #include <thread.h>
 #include <process.h>
+#include <device.h>
 
 int sys_open(const char *path, int flags, int mode)
 {
 	flags++;
+	mode = (mode & ~0xFFF) | ((mode & 0xFFF) & (~(current_thread->process->cmask & 0xFFF)));
 	struct dirent *dir;
 	struct inode *node;
 	int res = fs_path_resolve(path, 0, (flags & O_CREAT) ? PATH_CREATE : 0, mode, &dir, &node);
@@ -50,6 +52,24 @@ int sys_open(const char *path, int flags, int mode)
 	inode_put(node);
 	kobj_putref(file);
 	return fd;
+}
+
+int sys_mknod(const char *path, int mode, dev_t dev)
+{
+	int fd = sys_open(path, O_CREAT | O_WRONLY | O_EXCL, mode);
+	if(fd < 0)
+		return fd;
+
+	struct file *file = process_get_file(fd);
+	struct inode *node = file_get_inode(file);
+	node->major = major(dev);
+	node->minor = minor(dev);
+	inode_mark_dirty(node);
+	inode_set_ops(node);
+	inode_put(node);
+	kobj_putref(file);
+	sys_close(fd);
+	return 0;
 }
 
 int sys_close(int fd)

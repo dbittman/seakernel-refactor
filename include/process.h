@@ -31,6 +31,7 @@ struct process {
 
 	struct filesystem *root;
 	struct dirent *cwd;
+	int cmask;
 };
 
 extern struct kobj kobj_process;

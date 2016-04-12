@@ -22,6 +22,7 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_mmap]   = SC sys_mmap,
 	[SYS_fork]   = SC sys_fork,
 	[SYS_exit]   = SC sys_exit,
+	[SYS_mknod]  = SC sys_mknod,
 
 	[SYS_arch_prctl] = SC sys_arch_prctl,
 };

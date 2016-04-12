@@ -4,6 +4,8 @@
 #include <thread.h>
 #include <process.h>
 #include <printk.h>
+#include <errno.h>
+#include <sys.h>
 
 static void write_data(uintptr_t *end, void *data, size_t len)
 {
@@ -28,12 +30,12 @@ int sys_execve(const char *path, char **arg, char **env)
 
 	struct elf_header header;
 	if(sys_pread(fd, &header, sizeof(header), 0) != sizeof(header)) {
-		err = -1;
+		err = -ENOEXEC;
 		goto out_close;
 	}
 
 	if(memcmp(header.ident, "\177ELF", 3)) {
-		err = -1;
+		err = -ENOEXEC;
 		goto out_close;
 	}
 
@@ -41,8 +43,11 @@ int sys_execve(const char *path, char **arg, char **env)
 
 	uintptr_t max, phdrs=0;
 	if(elf_parse_executable(&header, fd, &max, &phdrs) < 0) {
+		sys_exit(-ENOEXEC);
 		/* ...die */
 	}
+
+	/* TODO: mark executable as "busy" */
 
 	process_close_files(current_thread->process, false);
 

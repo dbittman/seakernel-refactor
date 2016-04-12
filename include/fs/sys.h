@@ -31,6 +31,7 @@ struct iovec {
 };
 
 int sys_open(const char *, int, int);
+int sys_mknod(const char *path, int mode, dev_t dev);
 ssize_t sys_read(int fd, void *buf, size_t count);
 ssize_t sys_pwrite(int fd, void *buf, size_t count, size_t);
 ssize_t sys_pread(int fd, void *buf, size_t count, size_t);

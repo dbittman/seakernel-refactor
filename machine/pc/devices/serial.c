@@ -2,7 +2,7 @@
 
 extern void uart_putc(char);
 extern unsigned char uart_getc(void);
-static void serial_putc (char c)
+void serial_putc (char c)
 {
 	uart_putc(c);
 	if (c == '\n')

@@ -4,6 +4,7 @@
 #include <fs/inode.h>
 #include <fs/dirent.h>
 #include <fcntl.h>
+#include <errno.h>
 
 static void _file_put(void *obj)
 {
@@ -103,7 +104,9 @@ ssize_t file_read(struct file *f, size_t off, size_t len, char *buf)
 	if(!ino)
 		return -1;
 
-	ssize_t ret = ino->ops->read(f, ino, off, len, buf);
+	ssize_t ret = -EIO;
+	if(ino->ops && ino->ops->write)
+		ret = ino->ops->read(f, ino, off, len, buf);
 	inode_put(ino);
 	return ret;
 }
@@ -114,7 +117,9 @@ ssize_t file_write(struct file *f, size_t off, size_t len, const char *buf)
 	if(!ino)
 		return -1;
 
-	ssize_t ret = ino->ops->write(f, ino, off, len, buf);
+	ssize_t ret = -EIO;
+	if(ino->ops && ino->ops->write)
+		ret = ino->ops->write(f, ino, off, len, buf);
 	inode_put(ino);
 	return ret;
 }

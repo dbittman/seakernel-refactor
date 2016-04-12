@@ -12,5 +12,21 @@ struct device {
 	struct hash attached;
 };
 
+#define DEVICE_INITIALIZER_ORDER 100
+
 struct inode_calls *dev_get_iops(struct inode *);
+int dev_register(struct device *dev, struct inode_calls *calls, int type);
+int dev_char_builtin_major(void);
+int dev_com_builtin_major(void);
+
+#define major(x) \
+	        ((unsigned)( (((x)>>31>>1) & 0xfffff000) | (((x)>>8) & 0x00000fff) ))
+#define minor(x) \
+	        ((unsigned)( (((x)>>12) & 0xffffff00) | ((x) & 0x000000ff) ))
+
+#define makedev(x,y) ( \
+		        (((x)&0xfffff000ULL) << 32) | \
+		        (((x)&0x00000fffULL) << 8) | \
+		        (((y)&0xffffff00ULL) << 12) | \
+		        (((y)&0x000000ffULL)) )
 

@@ -8,7 +8,7 @@ struct hash chars;
 
 static _Atomic int _next_maj = 0;
 
-__initializer static void _init_devs(void)
+__orderedinitializer(DEVICE_INITIALIZER_ORDER) static void _init_devs(void)
 {
 	hash_create(&blocks, 0, 32);
 	hash_create(&chars, 0, 32);
@@ -26,6 +26,8 @@ static struct device *__get_device(struct inode *node)
 struct inode_calls *dev_get_iops(struct inode *node)
 {
 	struct device *dev = __get_device(node);
+	if(dev == NULL)
+		return NULL;
 	return dev->calls;
 }
 

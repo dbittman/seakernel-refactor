@@ -11,6 +11,7 @@
 #include <printk.h>
 #include <fs/dirent.h>
 #include <mutex.h>
+#include <errno.h>
 
 struct ramfs_inode {
 	struct kobj _header;
@@ -144,7 +145,7 @@ static int _lookup(struct inode *node, const char *name, size_t namelen, struct 
 	struct ramfs_dirent *rd = hash_lookup(&ri->dirents, name, namelen);
 	if(!rd) {
 		mutex_release(&ri->lock);
-		return -1;
+		return -ENOENT;
 	}
 	strncpy(dir->name, name, namelen);
 	dir->namelen = namelen;
@@ -172,7 +173,7 @@ static int _link(struct inode *node, const char *name, size_t namelen, struct in
 	if(hash_insert(&ri->dirents, dir->name, dir->namelen, &dir->elem, dir) == -1) {
 		mutex_release(&ri->lock);
 		kobj_putref(dir);
-		return -1;
+		return -EEXIST;
 	}
 
 	mutex_release(&ri->lock);
@@ -230,6 +231,7 @@ static void _init_ramfs(void)
 #include <fs/sys.h>
 #include <fs/stat.h>
 #include <fs/dirent.h>
+#include <device.h>
 void initial_rootfs_init(void)
 {
 	current_thread->process->root = kobj_allocate(&kobj_filesystem);
@@ -253,5 +255,11 @@ void initial_rootfs_init(void)
 		sys_close(f);
 	}
 
+	int ret = sys_mknod("/null", S_IFCHR | 0666, makedev(dev_char_builtin_major(), 0));
+	assert(ret == 0);
+	ret = sys_mknod("/zero", S_IFCHR | 0666, makedev(dev_char_builtin_major(), 1));
+	assert(ret == 0);
+	ret = sys_mknod("/com0", S_IFCHR | 0666, makedev(dev_com_builtin_major(), 0));
+	assert(ret == 0);
 }
 

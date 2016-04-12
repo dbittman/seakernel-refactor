@@ -9,6 +9,7 @@
 #include <stdbool.h>
 
 typedef long ssize_t;
+typedef uint64_t dev_t;
 #endif
 
 #endif

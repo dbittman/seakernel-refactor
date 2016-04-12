@@ -13,20 +13,50 @@
 #include <debug.h>
 #include <trace.h>
 #include <system.h>
-
+#include <fs/sys.h>
+#include <sys.h>
 extern void _init(void);
 void test_late(void);
 void tlb_shootdown();
 void perf_init(void);
 void initial_rootfs_init(void);
 
+static char *argv[] = {
+	"/init",
+	NULL,
+};
+
+static char *env[] = {
+	"HOME=/",
+	"PATH=/",
+	"TERM=seaos",
+	NULL,
+};
+
+static void _init_entry(void *arg)
+{
+	(void)arg;
+
+	int f = sys_open("/null", O_RDONLY, 0);
+	assert(f == 0);
+	f = sys_open("/null", O_WRONLY, 0);
+	assert(f == 1);
+	f = sys_open("/null", O_WRONLY, 0);
+	assert(f == 2);
+
+	int ret = sys_execve("/init", argv, env);
+	printk("failed to start init: %d\n", ret);
+	sys_exit(0);
+}
+
 static void init_worker(struct worker *worker)
 {
 #if CONFIG_RUN_TESTS
 	test_late();
 #endif
-	//current_thread->user_tls_base = (void *)mm_virtual_allocate(USER_TLS_SIZE, true);
-	//arch_thread_usermode_jump((uintptr_t)&userspace_test, NULL);
+	
+	sys_fork((uintptr_t)&_init_entry, 0);
+	
 	worker_exit(worker, 0);
 }
 
