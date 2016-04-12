@@ -31,8 +31,12 @@ void processor_add_thread(struct processor *proc, struct thread *thread)
 {
 	if(thread == &proc->idle_thread)
 		return;
-	priqueue_insert(&proc->runqueue, &thread->runqueue_node, thread, thread_current_priority(thread));
+	/* NOTE: set the thread's processor first. If we were to schedule
+	 * before doing so, but after we've added the thread to the queue,
+	 * we could have trouble (thread->processor would be null in schedule()).
+	 */
 	thread->processor = proc;
+	priqueue_insert(&proc->runqueue, &thread->runqueue_node, thread, thread_current_priority(thread));
 }
 
 void processor_create(int id, int flags)
