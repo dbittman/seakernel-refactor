@@ -4,7 +4,8 @@
 #include <map.h>
 #include <mmu.h>
 #include <printk.h>
-int elf_parse_executable(struct elf_header *header, int fd, uintptr_t *max)
+#include <string.h>
+int elf_parse_executable(struct elf_header *header, int fd, uintptr_t *max, uintptr_t *phdr)
 {
 	int r;
 	char buffer[header->phnum * header->phsize];
@@ -16,6 +17,9 @@ int elf_parse_executable(struct elf_header *header, int fd, uintptr_t *max)
 
 		if(ph->p_addr + ph->p_memsz > *max)
 			*max = ph->p_addr + ph->p_memsz;
+
+		if(ph->p_offset <= header->phoff && ph->p_offset + ph->p_filesz > header->phoff)
+			*phdr = ph->p_addr + (header->phoff - ph->p_offset);
 
 		if(ph->p_type == PH_LOAD) {
 		
@@ -38,7 +42,6 @@ int elf_parse_executable(struct elf_header *header, int fd, uintptr_t *max)
 			else
 				flags |= MMAP_MAP_SHARED;
 
-		printk("Mapping PH %lx, %x %x\n", ph->p_addr, flags, prot);
 			/* TODO: we should have macros for this */
 			sys_mmap(ph->p_addr & ~(arch_mm_page_size(0) - 1), ph->p_filesz + inpage_offset,
 					prot, flags, fd, ph->p_offset & ~(arch_mm_page_size(0) - 1));
@@ -46,6 +49,7 @@ int elf_parse_executable(struct elf_header *header, int fd, uintptr_t *max)
 				sys_mmap(((newend - 1) & ~(arch_mm_page_size(0) - 1)) + arch_mm_page_size(0),
 						additional - page_free, prot, flags | MMAP_MAP_ANON, -1, 0);
 			}
+			memset((void *)newend, 0, additional);
 		}
 
 	}

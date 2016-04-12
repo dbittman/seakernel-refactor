@@ -1,5 +1,8 @@
 #include <thread.h>
 #include <printk.h>
+#include <errno.h>
+#include <process.h>
+#include <x86_64-msr.h>
 extern void x86_64_do_context_switch(void *oldsp, void *newsp);
 
 /* okay, so. We need to save and restore FPU+SSE registers during
@@ -93,5 +96,19 @@ void arch_thread_usermode_jump(uintptr_t entry, uintptr_t initial_stack)
 			:: "r"(entry),
 			   "r"(initial_stack)
 			   : "rax", "memory");
+}
+
+long sys_arch_prctl(int code, unsigned long addr)
+{
+	switch(code) {
+		case 0x1002:
+			if(addr >= USER_REGION_END || addr < USER_REGION_START)
+				return -EFAULT;
+			x86_64_wrmsr(X86_MSR_FS_BASE, addr & 0xFFFFFFFF, (addr << 32) & 0xFFFFFFFF);
+			break;
+		default:
+			return -EINVAL;
+	}
+	return 0;
 }
 

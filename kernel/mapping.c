@@ -139,6 +139,10 @@ int mmu_mappings_handle_fault(uintptr_t addr, int flags)
 	uintptr_t vpage = addr / arch_mm_page_size(0);
 	spinlock_acquire(&proc->map_lock);
 	struct mapping *map = hash_lookup(&proc->mappings, &vpage, sizeof(vpage));
+	
+	if(!map) {
+		goto out;
+	}
 	int setflags = MAP_USER | MAP_PRIVATE;
 
 	if(map->prot & PROT_WRITE)
@@ -146,10 +150,6 @@ int mmu_mappings_handle_fault(uintptr_t addr, int flags)
 	if(map->prot & PROT_EXEC)
 		setflags |= MAP_EXECUTE;
 
-
-	if(!map) {
-		goto out;
-	}
 
 	if((flags & FAULT_WRITE) && !(map->prot & PROT_WRITE)) {
 		goto out;
@@ -169,7 +169,7 @@ int mmu_mappings_handle_fault(uintptr_t addr, int flags)
 		}
 		map->flags |= MMAP_MAP_MAPPED;
 
-		if((map->flags & MMAP_MAP_PRIVATE) || !(map->flags & MMAP_MAP_ANON))
+		if((map->flags & MMAP_MAP_PRIVATE) && !(map->flags & MMAP_MAP_ANON))
 			setflags &= ~MAP_WRITE;
 
 		arch_mm_virtual_map(proc->ctx, addr & page_mask(0),

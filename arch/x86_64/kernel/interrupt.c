@@ -67,10 +67,11 @@ void x86_64_exception_entry(struct exception_frame *frame)
 
 void x86_64_syscall_entry(struct exception_frame *frame)
 {
-	if(frame->rax == SYS_FORK) {
+	if(frame->rax == SYS_fork) {
 		frame->rdi = frame->rip;
 		frame->rsi = frame->userrsp;
 	}
-	frame->rax = syscall_entry(frame->rdi, frame->rsi, frame->rdx, frame->rcx, frame->r8, frame->r9);
+	printk("syscall (%lx) %lu: %lx %lx %lx %lx %lx %lx\n", frame->rip, frame->rdi, frame->rsi, frame->rdx, frame->rcx, frame->r8, frame->r9, frame->r10);
+	frame->rax = syscall_entry(frame->rdi, frame->rsi, frame->rdx, frame->rcx, frame->r8, frame->r9, frame->r10);
 }
 

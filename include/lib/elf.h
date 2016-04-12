@@ -5,6 +5,24 @@
 #define ELF_PF_W 2
 #define ELF_PF_X 1
 
+#define AT_NULL 0
+#define AT_IGNORE 1
+#define AT_EXECFD 2
+#define AT_PHDR 3
+#define AT_PHENT 4
+#define AT_PHNUM 5
+#define AT_PAGESZ 6
+#define AT_BASE 7
+#define AT_FLAGS 8
+#define AT_ENTRY 9
+
+#define AT_UID 11
+#define AT_EUID 12
+#define AT_GID 13
+#define AT_EGID 14
+#define AT_PLATFORM 15
+
+
 struct elf_header {
 	uint8_t ident[16];
 	uint16_t type;
@@ -47,4 +65,4 @@ struct elf_program_header
 	uint64_t p_align;
 } __attribute__((packed));
 
-int elf_parse_executable(struct elf_header *header, int fd, uintptr_t *max);
+int elf_parse_executable(struct elf_header *header, int fd, uintptr_t *max, uintptr_t *);

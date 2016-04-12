@@ -4,6 +4,7 @@
 #include <fs/path.h>
 #include <fs/sys.h>
 #include <printk.h>
+#include <errno.h>
 int sys_open(const char *path, int flags, int mode)
 {
 	struct dirent *dir;
@@ -33,6 +34,8 @@ int sys_close(int fd)
 ssize_t sys_read(int fd, void *buf, size_t count)
 {
 	struct file *file = process_get_file(fd);
+	if(!file)
+		return -EBADF;
 	ssize_t amount = file_read(file, file->pos, count, buf);
 	if(amount > 0) {
 		file->pos += amount;
@@ -44,6 +47,8 @@ ssize_t sys_read(int fd, void *buf, size_t count)
 ssize_t sys_write(int fd, void *buf, size_t count)
 {
 	struct file *file = process_get_file(fd);
+	if(!file)
+		return -EBADF;
 	ssize_t amount = file_write(file, file->pos, count, buf);
 	if(amount > 0) {
 		file->pos += amount;
@@ -55,6 +60,8 @@ ssize_t sys_write(int fd, void *buf, size_t count)
 ssize_t sys_pread(int fd, size_t off, void *buf, size_t count)
 {
 	struct file *file = process_get_file(fd);
+	if(!file)
+		return -EBADF;
 	ssize_t amount = file_read(file, off, count, buf);
 	kobj_putref(file);
 	return amount;
@@ -63,6 +70,8 @@ ssize_t sys_pread(int fd, size_t off, void *buf, size_t count)
 ssize_t sys_pwrite(int fd, size_t off, void *buf, size_t count)
 {
 	struct file *file = process_get_file(fd);
+	if(!file)
+		return -EBADF;
 	ssize_t amount = file_write(file, off, count, buf);
 	kobj_putref(file);
 	return amount;

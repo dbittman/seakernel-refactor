@@ -50,6 +50,7 @@ ssize_t inode_write_data(struct file *f, struct inode *ino, size_t off, size_t l
 		if(!page) {
 			return amount;
 		}
+		printk("write: %ld %ld, %ld\n", pagenum, pageoff, thiswrite);
 		memcpy((void *)(page->frame + PHYS_MAP_START + pageoff), buf, thiswrite);
 		if(thiswrite + off + amount > ino->length) {
 			ino->length = thiswrite + off + amount;

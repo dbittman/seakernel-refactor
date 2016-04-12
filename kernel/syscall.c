@@ -8,37 +8,38 @@
 #define MAX_SYSCALL 256
 
 
-typedef long (*syscall_t)(unsigned long, unsigned long, unsigned long, unsigned long, unsigned long);
+typedef long (*syscall_t)(long, long, long, long, long, long);
 
 #define SC (syscall_t)&
 
 static syscall_t syscall_table[MAX_SYSCALL] = {
-	[SYS_OPEN]   = SC sys_open,
-	[SYS_CLOSE]  = SC sys_close,
-	[SYS_WRITE]  = SC sys_write,
-	[SYS_READ]   = SC sys_read,
-	[SYS_PWRITE] = SC sys_pwrite,
-	[SYS_PREAD]  = SC sys_pread,
-	[SYS_MMAP]   = SC sys_mmap,
-	[SYS_FORK]   = SC sys_fork,
-	[SYS_EXIT]   = SC sys_exit,
+	[SYS_open]   = SC sys_open,
+	[SYS_close]  = SC sys_close,
+	[SYS_write]  = SC sys_write,
+	[SYS_read]   = SC sys_read,
+	[SYS_pwrite64] = SC sys_pwrite,
+	[SYS_pread64]  = SC sys_pread,
+	[SYS_mmap]   = SC sys_mmap,
+	[SYS_fork]   = SC sys_fork,
+	[SYS_exit]   = SC sys_exit,
+
+	[SYS_arch_prctl] = SC sys_arch_prctl,
 };
 
-
-unsigned long syscall_entry(unsigned long num,
-		unsigned long arg1,
-		unsigned long arg2,
-		unsigned long arg3,
-		unsigned long arg4,
-		unsigned long arg5)
+long syscall_entry(long num,
+		long arg1,
+		long arg2,
+		long arg3,
+		long arg4,
+		long arg5,
+		long arg6)
 {
 	arch_interrupt_set(1);
-	printk("syscall %lu: %lx %lx %lx %lx %lx\n", num, arg1, arg2, arg3, arg4, arg5);
 
 	long ret;
 	syscall_t call = syscall_table[num];
 	if(call) {
-		ret = call(arg1, arg2, arg3, arg4, arg5);
+		ret = call(arg1, arg2, arg3, arg4, arg5, arg6);
 	} else {
 		printk("UNIMP\n");
 		ret = -1; //TODO -ENOSYS;
