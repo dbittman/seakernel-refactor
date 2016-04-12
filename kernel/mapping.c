@@ -155,6 +155,9 @@ int mmu_mappings_handle_fault(uintptr_t addr, int flags)
 		goto out;
 	}
 
+	/* TODO: there are times when we may know that we're doing a
+	 * write but the page isn't present. We could skip ahead to
+	 * the FAULT_ERROR_PERM case */
 	if(flags & FAULT_ERROR_PRES) {
 		uintptr_t frame = 0;
 		assert(!(map->flags & MMAP_MAP_MAPPED));
