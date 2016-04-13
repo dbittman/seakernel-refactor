@@ -248,8 +248,12 @@ void initial_rootfs_init(void)
 	int i=0;
 	struct boot_module *bm;
 	while((bm = machine_get_boot_module(i++))) {
-		printk(" * Loading %s, %ld KB.\n", bm->name, bm->length / 1024);
-		int f = sys_open(bm->name, O_RDWR | O_CREAT, S_IFREG | 0777);
+		const char *name = bm->name;
+		if(!(name = strrchrc(name, '/')))
+			name = bm->name;
+
+		printk(" * Loading %s, %ld KB.\n", name, bm->length / 1024);
+		int f = sys_open(name, O_RDWR | O_CREAT, S_IFREG | 0777);
 		ssize_t count = sys_pwrite(f, (void *)bm->start, bm->length, 0);
 		assert(count == (ssize_t)bm->length);
 		sys_close(f);

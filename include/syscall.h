@@ -337,6 +337,8 @@ long syscall_entry(long num,
 #define SYS_membarrier				324
 #define SYS_mlock2				325
 
+/* TODO: remove these: */
+#define SYS_dump_perf 512
 
 #endif
 

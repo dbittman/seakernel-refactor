@@ -23,7 +23,7 @@ static struct device *__get_device(struct inode *node)
 	assert(0);
 }
 
-struct inode_calls *dev_get_iops(struct inode *node)
+struct file_calls *dev_get_fops(struct inode *node)
 {
 	struct device *dev = __get_device(node);
 	if(dev == NULL)
@@ -31,7 +31,7 @@ struct inode_calls *dev_get_iops(struct inode *node)
 	return dev->calls;
 }
 
-int dev_register(struct device *dev, struct inode_calls *calls, int type)
+int dev_register(struct device *dev, struct file_calls *calls, int type)
 {
 	dev->devnr = ++_next_maj;
 	dev->calls = calls;

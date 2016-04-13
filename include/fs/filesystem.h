@@ -56,6 +56,6 @@ static inline struct inode *fs_inode_lookup(struct filesystem *fs, uint64_t inoi
 #include <mmu.h>
 static inline int fs_max_page(size_t len)
 {
-	return len > 0 ? (len - 1) / arch_mm_page_size(0) : -1;
+	return len > 0 ? (int)((len - 1) / arch_mm_page_size(0)) : -1;
 }
 

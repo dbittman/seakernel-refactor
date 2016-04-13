@@ -3,6 +3,7 @@
 #include <stdbool.h>
 struct arch_thread {
 	_Alignas(16) uint8_t fpu_data[512];
+	uintptr_t fs;
 	bool usedfpu;
 };
 

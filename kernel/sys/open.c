@@ -27,9 +27,7 @@ int sys_open(const char *path, int flags, int mode)
 		return -EEXIST;
 	}
 
-
-	struct file *file = kobj_allocate(&kobj_file);
-	file->dirent = dir;
+	struct file *file = file_create(dir, NULL);
 	file->pos = 0;
 	file->flags = flags;
 
@@ -41,13 +39,14 @@ int sys_open(const char *path, int flags, int mode)
 		return -EMFILE;
 	}
 
-	current_thread->process->files[fd].flags |= FD_CLOEXEC;
+	if(flags & O_CLOEXEC)
+		current_thread->process->files[fd].flags |= FD_CLOEXEC;
 
 	if((flags & O_TRUNC) && (flags & F_WRITE))
 		file_truncate(file, 0);
 
-	if(node->ops && node->ops->open)
-		node->ops->open(file, node);
+	if(file->ops && file->ops->open)
+		file->ops->open(file);
 
 	inode_put(node);
 	kobj_putref(file);
@@ -65,7 +64,6 @@ int sys_mknod(const char *path, int mode, dev_t dev)
 	node->major = major(dev);
 	node->minor = minor(dev);
 	inode_mark_dirty(node);
-	inode_set_ops(node);
 	inode_put(node);
 	kobj_putref(file);
 	sys_close(fd);
@@ -75,6 +73,8 @@ int sys_mknod(const char *path, int mode, dev_t dev)
 int sys_close(int fd)
 {
 	struct file *file = process_get_file(fd);
+	if(!file)
+		return -EBADF;
 	process_release_fd(fd);
 	file_close(file);
 	return 0;
@@ -135,7 +135,9 @@ ssize_t sys_pwritev(int fd, struct iovec *iov, int iovc, size_t off)
 		return -EBADF;
 	size_t amount = 0;
 	for(int i=0;i<iovc;i++) {
-		ssize_t thisamount = file_write(file, off, iov[iovc].len, iov->base);
+		if(!iov[i].len)
+			continue;
+		ssize_t thisamount = file_write(file, off, iov[i].len, iov->base);
 		if(thisamount < 0) {
 			kobj_putref(file);
 			if(amount == 0)
@@ -156,7 +158,9 @@ ssize_t sys_preadv(int fd, struct iovec *iov, int iovc, size_t off)
 		return -EBADF;
 	size_t amount = 0;
 	for(int i=0;i<iovc;i++) {
-		ssize_t thisamount = file_read(file, off, iov[iovc].len, iov->base);
+		if(!iov[i].len)
+			continue;
+		ssize_t thisamount = file_read(file, off, iov[i].len, iov->base);
 		if(thisamount < 0) {
 			kobj_putref(file);
 			if(amount == 0)

@@ -41,4 +41,5 @@ ssize_t sys_writev(int fd, struct iovec *iov, int iovc);
 ssize_t sys_preadv(int fd, struct iovec *iov, int iovc, size_t off);
 ssize_t sys_pwritev(int fd, struct iovec *iov, int iovc, size_t off);
 int sys_close(int fd);
+int sys_pipe(int *fds);
 

@@ -26,6 +26,10 @@ CFLAGS+=-Werror
 endif
 
 ifeq ($(CONFIG_PERF_FUNCTIONS),y)
+ifeq ($(CONFIG_UBSAN),y)
+$(error Cannot do both UBSAN and PERF at the same time)
+endif
+
 CFLAGS+=-finstrument-functions -finstrument-functions-exclude-file-list=kernel/debug,serial,printk,lib/string,panic,arch
 endif
 
@@ -40,7 +44,7 @@ endif
 
 CFLAGS+=-O$(CONFIG_BUILD_OPTIMIZATION)
 
-all: $(BUILDDIR)/kernel.elf
+all: $(BUILDDIR)/kernel.elf sysroot/init
 
 # get all normal kernel sources
 include kernel/include.mk
@@ -128,8 +132,11 @@ autotest:
 
 -include $(OBJECTS:.o=.d)
 
-test: $(BUILDDIR)/kernel.elf
-	qemu-system-$(ARCH) -m 1024  -machine $(MACHINE) $(QEMU_FLAGS) -kernel $(BUILDDIR)/kernel.elf -serial stdio -initrd test
+sysroot/init: sysroot/usr/src/init.c
+	$(TOOLCHAIN_PREFIX)-linux-musl-gcc -static -Og -g  -o sysroot/init $< -Wall 
+
+test: $(BUILDDIR)/kernel.elf sysroot/init
+	qemu-system-$(ARCH) -m 1024  -machine $(MACHINE) $(QEMU_FLAGS) -kernel $(BUILDDIR)/kernel.elf -serial stdio -initrd sysroot/init
 
 clean:
 	-rm -r $(BUILDDIR)

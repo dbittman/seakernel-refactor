@@ -87,7 +87,7 @@ static int __compar(const void *_a, const void *_b)
 	return b->count * b->mean - a->count * a->mean;
 }
 #else /* sort by number of calls */
-static int __compar(const void *_a, const void *_b)
+ int __compar(const void *_a, const void *_b)
 {
 	const struct fcall *a = _a, *b = _b;
 	return b->count - a->count;
@@ -96,6 +96,7 @@ static int __compar(const void *_a, const void *_b)
 
 void perf_print_report(void)
 {
+	enable = false;
 	printk("                 FUNCTION NAME     #CALLS    MEAN TIME   TOTAL TIME\n");
 	struct fcall *sorted_calls = (void *)mm_virtual_allocate(length, true);
 	memcpy(sorted_calls, calls, length);
@@ -115,7 +116,15 @@ void perf_print_report(void)
 		}
 	}
 	mm_virtual_deallocate((uintptr_t)sorted_calls);
+	enable = true;
 }
 
 #endif
+void sys_dump_perf(void)
+{
+#if CONFIG_PERF_FUNCTIONS
+	perf_print_report();
+#endif
+}
+
 

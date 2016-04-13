@@ -3,6 +3,8 @@
 #include <system.h>
 #include <lib/hash.h>
 #include <string.h>
+#include <errno.h>
+#include <file.h>
 static struct kobj_idmap active_filesystems;
 
 static struct hash drivers;
@@ -48,16 +50,19 @@ struct kobj kobj_filesystem = {
 	.destroy = _filesystem_destroy,
 };
 
-struct inode_calls fs_iops = {
+struct file_calls fs_fops = {
 	.read = inode_read_data,
 	.write = inode_write_data,
+	.create = 0, .destroy = 0, .ioctl = 0, .select = 0, .open = 0, .close = 0,
 };
 
 int fs_load_inode(uint64_t fsid, uint64_t inoid, struct inode *node)
 {
+	if(fsid == 0)
+		return 0;
 	struct filesystem *fs = kobj_idmap_lookup(&active_filesystems, &fsid);
 	if(!fs) {
-		return -1;
+		return -EIO;
 	}
 	node->fs = fs;
 	return fs->driver->fs_ops->load_inode(fs, inoid, node);

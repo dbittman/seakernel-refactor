@@ -5,22 +5,70 @@
 #include <fs/dirent.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <fs/stat.h>
+#include <device.h>
 
 static void _file_put(void *obj)
 {
 	struct file *file = obj;
-	kobj_putref(file->dirent);
+	if(file->dirent)
+		kobj_putref(file->dirent);
+	if(file->ops && file->ops->destroy)
+		file->ops->destroy(file);
+}
+
+static void _file_init(void *obj)
+{
+	struct file *file = obj;
+	file->dirent = NULL;
+}
+
+static void _file_create(void *obj)
+{
+	_file_init(obj);
 }
 
 struct kobj kobj_file = {
 	.name = "file",
 	.size = sizeof(struct file),
 	.initialized = false,
-	.init = NULL,
-	.create = NULL,
+	.init = _file_init,
+	.create = _file_create,
 	.put = _file_put,
 	.destroy = NULL,
 };
+
+struct file *file_create(struct dirent *dir, struct file_calls *calls)
+{
+	struct file *file = kobj_allocate(&kobj_file);
+	if(dir) {
+		struct inode *node = dirent_get_inode(dir);
+		if(node) {
+			file->ops = file_get_ops(node);
+			inode_put(node);
+		}
+		file->dirent = dir;
+	}
+	if(calls)
+		file->ops = calls;
+	file->flags = 0;
+	file->pos = 0;
+	if(file->ops && file->ops->create)
+		file->ops->create(file);
+	return file;
+}
+
+struct file_calls *file_get_ops(struct inode *node)
+{
+	if(S_ISCHR(node->mode) || S_ISBLK(node->mode))
+		return dev_get_fops(node);
+	else if(S_ISFIFO(node->mode))
+		return &pipe_fops;
+	else if(S_ISSOCK(node->mode))
+		return &socket_fops;
+	else
+		return &fs_fops;
+}
 
 int process_allocate_fd(struct file *file)
 {
@@ -49,7 +97,7 @@ void process_release_fd(int fd)
 
 struct file *process_get_file(int fd)
 {
-	if(fd >= MAX_FD)
+	if(fd >= MAX_FD || fd < 0)
 		return NULL;
 	spinlock_acquire(&current_thread->process->files_lock);
 	struct file *file = current_thread->process->files[fd].file;
@@ -59,10 +107,8 @@ struct file *process_get_file(int fd)
 
 void file_close(struct file *file)
 {
-	struct inode *node = file_get_inode(file);
-	if(node->ops && node->ops->close)
-		node->ops->close(file, node);
-	inode_put(node);
+	if(file->ops && file->ops->close)
+		file->ops->close(file);
 	kobj_putref(file);
 }
 
@@ -74,10 +120,9 @@ void process_copy_files(struct process *from, struct process *to)
 			to->files[i].file = kobj_getref(from->files[i].file);
 			to->files[i].flags = from->files[i].flags;
 
-			struct inode *node = file_get_inode(to->files[i].file);
-			if(node->ops && node->ops->open)
-				node->ops->open(to->files[i].file, node);
-			inode_put(node);
+			struct file *f = to->files[i].file;
+			if(f->ops && f->ops->open)
+				f->ops->open(f);
 		}
 	}
 	spinlock_release(&from->files_lock);
@@ -100,27 +145,17 @@ void process_close_files(struct process *proc, bool all)
 
 ssize_t file_read(struct file *f, size_t off, size_t len, char *buf)
 {
-	struct inode *ino = file_get_inode(f);
-	if(!ino)
-		return -1;
-
 	ssize_t ret = -EIO;
-	if(ino->ops && ino->ops->write)
-		ret = ino->ops->read(f, ino, off, len, buf);
-	inode_put(ino);
+	if(f->ops && f->ops->write)
+		ret = f->ops->read(f, off, len, buf);
 	return ret;
 }
 
 ssize_t file_write(struct file *f, size_t off, size_t len, const char *buf)
 {
-	struct inode *ino = file_get_inode(f);
-	if(!ino)
-		return -1;
-
 	ssize_t ret = -EIO;
-	if(ino->ops && ino->ops->write)
-		ret = ino->ops->write(f, ino, off, len, buf);
-	inode_put(ino);
+	if(f->ops && f->ops->write)
+		ret = f->ops->write(f, off, len, buf);
 	return ret;
 }
 

@@ -8,6 +8,7 @@
 #include <fs/path.h>
 #include <trace.h>
 #include <printk.h>
+#include <errno.h>
 TRACE_DEFINE(path_trace, "path");
 
 static struct dirent *inode_lookup_dirent(struct inode *node, const char *name, size_t namelen, int *err)
@@ -35,7 +36,6 @@ struct dirent *__create_last(struct inode *node, const char *name, size_t namele
 	struct inode *target = fs_inode_lookup(node->fs, inoid);
 	target->mode = mode;
 	inode_mark_dirty(target);
-	inode_set_ops(target);
 
 	if((*err = fs_link(node, name, namelen, target)) < 0)
 		return NULL;
@@ -52,7 +52,7 @@ int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode,
 		path++;
 		inode_put(start);
 		if(!(start = fs_inode_lookup(current_thread->process->root, current_thread->process->root->driver->rootid))) {
-			return -1;
+			return -ENOENT;
 		}
 	}
 

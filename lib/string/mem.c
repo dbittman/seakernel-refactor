@@ -47,6 +47,19 @@ const char *strchrc(const char *str, char v)
 	return NULL;
 }
 
+const char *strrchrc(const char *str, char v)
+{
+	const char *s = str + strlen(str) - 1;
+	while(s != str) {
+		if(*s == v)
+			return s;
+		s--;
+	}
+	if(*s == v)
+		return s;
+	return NULL;
+}
+
 char *strncpy(char *dest, const char *src, size_t n)
 {
 	return memcpy(dest, src, n);

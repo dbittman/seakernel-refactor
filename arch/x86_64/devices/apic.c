@@ -59,12 +59,12 @@ static bool init = false;
 #define LAPIC_TCCR                              0x390
 #define LAPIC_TDCR                              0x3E0
 
-void lapic_write(int reg, uint32_t data)
+static inline void lapic_write(int reg, uint32_t data)
 {
     *((volatile uint32_t *)(lapic_addr + reg)) = data;
 }
 
-uint32_t lapic_read(int reg)
+static inline uint32_t lapic_read(int reg)
 {
 	return *(volatile uint32_t *)(lapic_addr + reg);
 }

@@ -71,7 +71,7 @@ void x86_64_syscall_entry(struct exception_frame *frame)
 		frame->rdi = frame->rip;
 		frame->rsi = frame->userrsp;
 	}
-	printk("syscall (%lx) %lu: %lx %lx %lx %lx %lx %lx\n", frame->rip, frame->rdi, frame->rsi, frame->rdx, frame->rcx, frame->r8, frame->r9, frame->r10);
-	frame->rax = syscall_entry(frame->rdi, frame->rsi, frame->rdx, frame->rcx, frame->r8, frame->r9, frame->r10);
+	printk("syscall (%lx) %lu: %lx %lx %lx %lx %lx %lx\n", frame->rip, frame->rax, frame->rdi, frame->rsi, frame->rdx, frame->r10, frame->r8, frame->r9);
+	frame->rax = syscall_entry(frame->rax, frame->rdi, frame->rsi, frame->rdx, frame->r10, frame->r8, frame->r9);
 }
 

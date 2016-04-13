@@ -47,7 +47,7 @@ int sys_fork(uintptr_t caller, uintptr_t ustack)
 	return proc->pid;
 }
 
-void _Noreturn sys_exit(int code)
+_Noreturn void sys_exit(int code)
 {
 	kobj_putref(current_thread->process);
 	current_thread->process = NULL;

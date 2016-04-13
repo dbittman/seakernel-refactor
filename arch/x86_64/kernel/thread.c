@@ -54,6 +54,7 @@ void arch_thread_context_switch(struct thread *old, struct thread *next)
 
 	}
 	x86_64_tss_ctxswitch(next->processor, (uintptr_t)next->kernel_tls_base + KERNEL_STACK_SIZE);
+	x86_64_wrmsr(X86_MSR_FS_BASE, next->arch.fs & 0xFFFFFFFF, (next->arch.fs << 32) & 0xFFFFFFFF);
 	x86_64_do_context_switch(&old->stackpointer, &next->stackpointer);
 }
 
@@ -104,6 +105,7 @@ long sys_arch_prctl(int code, unsigned long addr)
 		case 0x1002:
 			if(addr >= USER_REGION_END || addr < USER_REGION_START)
 				return -EFAULT;
+			current_thread->arch.fs = addr;
 			x86_64_wrmsr(X86_MSR_FS_BASE, addr & 0xFFFFFFFF, (addr << 32) & 0xFFFFFFFF);
 			break;
 		default:

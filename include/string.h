@@ -9,4 +9,5 @@ int strncmp(const char* s1, const char* s2, size_t n);
 void* memcpy(void* destination, const void* source, size_t num);
 void* memmove(void* destination, const void* source, size_t num);
 char *strncpy(char *dest, const char *src, size_t n);
+const char *strrchrc(const char *str, char v);
 const char *strchrc(const char *str, char v);

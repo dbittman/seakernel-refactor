@@ -4,27 +4,37 @@
 #include <syscall.h>
 #include <sys.h>
 #include <fs/sys.h>
+#include <errno.h>
 
-#define MAX_SYSCALL 256
-
+#define MAX_SYSCALL 1024
 
 typedef long (*syscall_t)(long, long, long, long, long, long);
 
 #define SC (syscall_t)&
 
+void sys_dump_perf(void);
+
 static syscall_t syscall_table[MAX_SYSCALL] = {
-	[SYS_open]   = SC sys_open,
-	[SYS_close]  = SC sys_close,
-	[SYS_write]  = SC sys_write,
-	[SYS_read]   = SC sys_read,
+	[SYS_open]     = SC sys_open,
+	[SYS_close]    = SC sys_close,
+	[SYS_write]    = SC sys_write,
+	[SYS_read]     = SC sys_read,
 	[SYS_pwrite64] = SC sys_pwrite,
 	[SYS_pread64]  = SC sys_pread,
-	[SYS_mmap]   = SC sys_mmap,
-	[SYS_fork]   = SC sys_fork,
-	[SYS_exit]   = SC sys_exit,
-	[SYS_mknod]  = SC sys_mknod,
+	[SYS_mmap]     = SC sys_mmap,
+	[SYS_fork]     = SC sys_fork,
+	[SYS_exit]     = SC sys_exit,
+	[SYS_mknod]    = SC sys_mknod,
+	[SYS_pipe]     = SC sys_pipe,
+	[SYS_writev]   = SC sys_writev,
+	[SYS_pwritev]  = SC sys_pwritev,
+	[SYS_readv]    = SC sys_readv,
+	[SYS_preadv]   = SC sys_preadv,
 
 	[SYS_arch_prctl] = SC sys_arch_prctl,
+
+
+	[SYS_dump_perf]  = SC sys_dump_perf,
 };
 
 long syscall_entry(long num,
@@ -43,7 +53,7 @@ long syscall_entry(long num,
 		ret = call(arg1, arg2, arg3, arg4, arg5, arg6);
 	} else {
 		printk("UNIMP\n");
-		ret = -1; //TODO -ENOSYS;
+		ret = -ENOSYS; //TODO -ENOSYS;
 	}
 
 	arch_interrupt_set(0);

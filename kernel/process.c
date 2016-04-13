@@ -24,8 +24,9 @@ uintptr_t process_allocate_user_tls(struct process *proc)
 uintptr_t process_allocate_mmap_region(struct process *proc, size_t len)
 {
 	uintptr_t base = atomic_fetch_add(&proc->next_mmap_reg, len);
-	if(base > USER_MMAP_REGION_END)
-		; /* TODO: kill */
+	if(base > USER_MMAP_REGION_END) {
+		/* TODO: kill */
+	}
 	return base;
 }
 

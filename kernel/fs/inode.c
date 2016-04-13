@@ -32,6 +32,7 @@ static bool _inode_page_initialize(void *obj, void *_id, void *data)
 	page->node = data;
 
 	page->frame = frame_allocate();
+	assert(page->node->fs != NULL);
 	if(page->node->fs->driver->inode_ops->read_page(page->node, id, page->frame) < 0) {
 		kobj_lru_mark_error(&page->node->pages, obj, &page->page);
 		return false;
@@ -50,8 +51,7 @@ static void _inode_create(void *obj)
 static void _inode_destroy(void *obj)
 {
 	struct inode *node = obj;
-	if(node->ops && node->ops->destroy)
-		node->ops->destroy(node);
+	(void)node;
 }
 
 static struct kobj kobj_inode = {
@@ -66,18 +66,6 @@ static struct kobj kobj_inode = {
 
 static struct kobj_lru inode_lru;
 
-void inode_set_ops(struct inode *node)
-{
-	if(S_ISCHR(node->mode) || S_ISBLK(node->mode))
-		node->ops = dev_get_iops(node);
-	else if(S_ISFIFO(node->mode))
-		node->ops = &pipe_iops;
-	else if(S_ISSOCK(node->mode))
-		node->ops = &socket_iops;
-	else
-		node->ops = &fs_iops;
-}
-
 static bool _inode_initialize(void *obj, void *id, void *data)
 {
 	(void)data;
@@ -87,9 +75,6 @@ static bool _inode_initialize(void *obj, void *id, void *data)
 		kobj_lru_mark_error(&inode_lru, obj, &node->id);
 		return false;
 	} else {
-		inode_set_ops(node);
-		if(node->ops && node->ops->create)
-			node->ops->create(node);
 		kobj_lru_mark_ready(&inode_lru, obj, &node->id);
 		return true;
 	}
@@ -112,11 +97,14 @@ void inode_put(struct inode *inode)
 
 struct inodepage *inode_get_page(struct inode *node, int nodepage)
 {
+	if(!node->fs)
+		return NULL;
 	return kobj_lru_get(&node->pages, &nodepage);
 }
 
 void inode_release_page(struct inode *node, struct inodepage *page)
 {
-	kobj_lru_put(&node->pages, page);
+	if(node->fs)
+		kobj_lru_put(&node->pages, page);
 }
 

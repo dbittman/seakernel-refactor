@@ -3,19 +3,19 @@
 #include <lib/hash.h>
 
 struct inode;
-struct inode_calls;
+struct file_calls;
 
 struct device {
 	struct hashelem elem;
-	struct inode_calls *calls;
+	struct file_calls *calls;
 	int devnr;
 	struct hash attached;
 };
 
 #define DEVICE_INITIALIZER_ORDER 100
 
-struct inode_calls *dev_get_iops(struct inode *);
-int dev_register(struct device *dev, struct inode_calls *calls, int type);
+struct file_calls *dev_get_fops(struct inode *);
+int dev_register(struct device *dev, struct file_calls *calls, int type);
 int dev_char_builtin_major(void);
 int dev_com_builtin_major(void);
 

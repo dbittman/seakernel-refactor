@@ -8,11 +8,10 @@ static struct device dev;
 char serial_getc(void);
 void serial_putc(char);
 
-static ssize_t _serial_read(struct file *f, struct inode *node,
+static ssize_t _serial_read(struct file *f,
 		size_t off, size_t len, char *buf)
 {
 	(void)off;
-	(void)node;
 	(void)f;
 	/* TODO: roll out nonblock to everything */
 	for(size_t i = 0;i<len;i++)
@@ -20,11 +19,10 @@ static ssize_t _serial_read(struct file *f, struct inode *node,
 	return len;
 }
 
-static ssize_t _serial_write(struct file *f, struct inode *node,
+static ssize_t _serial_write(struct file *f,
 		size_t off, size_t len, const char *buf)
 {
 	(void)off;
-	(void)node;
 	(void)f;
 	/* TODO: roll out nonblock to everything */
 	for(size_t i = 0;i<len;i++)
@@ -32,9 +30,11 @@ static ssize_t _serial_write(struct file *f, struct inode *node,
 	return len;
 }
 
-static struct inode_calls serial_calls = {
+static struct file_calls serial_calls = {
 	.read = _serial_read,
 	.write = _serial_write,
+
+	.create = 0, .destroy = 0, .ioctl = 0, .select = 0, .open = 0, .close = 0,
 };
 
 __orderedinitializer(__orderedafter(DEVICE_INITIALIZER_ORDER))
