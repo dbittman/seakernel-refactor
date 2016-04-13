@@ -4,6 +4,16 @@
 #include <fs/dirent.h>
 struct dirent;
 struct file_calls;
+
+enum file_device_type {
+	FDT_UNKNOWN=0,
+	FDT_CHAR,
+	FDT_BLOCK,
+	FDT_SOCK,
+	FDT_REG,
+	FDT_FIFO,
+};
+
 struct file {
 	struct kobj_header _header;
 	struct dirent *dirent;
@@ -11,6 +21,7 @@ struct file {
 	_Atomic int flags;
 	struct file_calls *ops;
 	void *devdata;
+	enum file_device_type devtype;
 };
 
 extern struct kobj kobj_file;
@@ -23,7 +34,7 @@ ssize_t file_write(struct file *f, size_t off, size_t len, const char *buf);
 int file_truncate(struct file *f, size_t len);
 size_t file_get_len(struct file *f);
 void file_close(struct file *file);
-struct file *file_create(struct dirent *dir, struct file_calls *calls);
+struct file *file_create(struct dirent *dir, enum file_device_type);
 
 static inline struct inode *file_get_inode(struct file *f)
 {

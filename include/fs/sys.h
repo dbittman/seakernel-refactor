@@ -1,6 +1,6 @@
 #pragma once
 #include <stddef.h>
-
+#include <fs/socket.h>
 struct inode;
 int fs_link(struct inode *, const char *, size_t, struct inode *);
 
@@ -42,4 +42,11 @@ ssize_t sys_preadv(int fd, struct iovec *iov, int iovc, size_t off);
 ssize_t sys_pwritev(int fd, struct iovec *iov, int iovc, size_t off);
 int sys_close(int fd);
 int sys_pipe(int *fds);
+
+int sys_socket(int domain, int type, int protocol);
+int sys_socketpair(int domain, int type, int protocol, int *sv);
+int sys_accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+int sys_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+int sys_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+int sys_listen(int sockfd, int backlog);
 

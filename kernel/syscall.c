@@ -31,6 +31,13 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_readv]    = SC sys_readv,
 	[SYS_preadv]   = SC sys_preadv,
 
+	[SYS_socket]   = SC sys_socket,
+	[SYS_socketpair]   = SC sys_socketpair,
+	[SYS_connect]  = SC sys_connect,
+	[SYS_accept]   = SC sys_accept,
+	[SYS_listen]   = SC sys_listen,
+	[SYS_bind]     = SC sys_bind,
+
 	[SYS_arch_prctl] = SC sys_arch_prctl,
 
 

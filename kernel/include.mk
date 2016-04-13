@@ -3,4 +3,5 @@ C_SOURCES+=kernel/main.c kernel/printk.c kernel/thread.c kernel/mmu.c kernel/pro
 include kernel/debug/include.mk
 include kernel/fs/include.mk
 include kernel/sys/include.mk
+include kernel/net/include.mk
 

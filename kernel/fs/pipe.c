@@ -91,8 +91,8 @@ struct file_calls pipe_fops = {
 
 int sys_pipe(int *fds)
 {
-	struct file *rf = file_create(NULL, &pipe_fops);
-	struct file *wf = file_create(NULL, NULL);
+	struct file *rf = file_create(NULL, FDT_FIFO);
+	struct file *wf = file_create(NULL, 0);
 	wf->ops = rf->ops;
 	wf->devdata = rf->devdata;
 

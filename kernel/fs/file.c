@@ -38,19 +38,36 @@ struct kobj kobj_file = {
 	.destroy = NULL,
 };
 
-struct file *file_create(struct dirent *dir, struct file_calls *calls)
+struct file *file_create(struct dirent *dir, enum file_device_type type)
 {
 	struct file *file = kobj_allocate(&kobj_file);
 	if(dir) {
 		struct inode *node = dirent_get_inode(dir);
 		if(node) {
-			file->ops = file_get_ops(node);
+			if(type == FDT_UNKNOWN)
+				file->ops = file_get_ops(node);
 			inode_put(node);
 		}
 		file->dirent = dir;
 	}
-	if(calls)
-		file->ops = calls;
+	file->devtype = type;
+	if(type != FDT_UNKNOWN) {
+		switch(type) {
+			case FDT_REG:
+				file->ops = &fs_fops;
+				break;
+			case FDT_FIFO:
+				file->ops = &pipe_fops;
+				break;
+			case FDT_SOCK:
+				file->ops = &socket_fops;
+				break;
+			case FDT_CHAR: case FDT_BLOCK:
+				panic(0, "cannot set file_device_type to char or block without node");
+			case FDT_UNKNOWN:
+				__builtin_unreachable();
+		}
+	}
 	file->flags = 0;
 	file->pos = 0;
 	if(file->ops && file->ops->create)

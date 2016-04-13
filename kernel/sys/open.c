@@ -27,7 +27,7 @@ int sys_open(const char *path, int flags, int mode)
 		return -EEXIST;
 	}
 
-	struct file *file = file_create(dir, NULL);
+	struct file *file = file_create(dir, FDT_UNKNOWN);
 	file->pos = 0;
 	file->flags = flags;
 
