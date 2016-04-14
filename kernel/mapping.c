@@ -186,7 +186,6 @@ int mmu_mappings_handle_fault(uintptr_t addr, int flags)
 	if(flags & FAULT_ERROR_PRES) {
 		uintptr_t frame = 0;
 		assert(!(map->flags & MMAP_MAP_MAPPED));
-		printk(":: %p %x\n", map->page, map->flags);
 		if(map->flags & MMAP_MAP_ANON) {
 			if(!map->frame)
 				map->frame = frame_allocate();

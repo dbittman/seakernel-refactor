@@ -25,7 +25,6 @@ sysret_t sys_execve(const char *path, char **arg, char **env)
 	(void)env;
 	int err = 0;
 	int fd = sys_open(path, O_RDONLY, 0);
-	printk("::::: EXEC %s\n", path);
 	if(fd < 0)
 		return fd;
 

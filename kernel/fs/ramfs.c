@@ -138,6 +138,7 @@ static int _alloc_inode(struct filesystem *fs, uint64_t *id)
 static int _lookup(struct inode *node, const char *name, size_t namelen, struct dirent *dir)
 {
 	struct ramfs_data *rfs = node->fs->fsdata;
+	assert(rfs != NULL);
 	struct ramfs_inode *ri = hash_lookup(&rfs->inodes, &node->id.inoid, sizeof(uint64_t));
 	assert(ri != NULL);
 
@@ -259,11 +260,14 @@ void initial_rootfs_init(void)
 		sys_close(f);
 	}
 
-	int ret = sys_mknod("/null", S_IFCHR | 0666, makedev(dev_char_builtin_major(), 0));
+	int tmp = sys_open("/dev", O_CREAT | O_RDONLY, S_IFDIR | 0777);
+	sys_close(tmp);
+
+	int ret = sys_mknod("/dev/null", S_IFCHR | 0666, makedev(dev_char_builtin_major(), 0));
 	assert(ret == 0);
-	ret = sys_mknod("/zero", S_IFCHR | 0666, makedev(dev_char_builtin_major(), 1));
+	ret = sys_mknod("/dev/zero", S_IFCHR | 0666, makedev(dev_char_builtin_major(), 1));
 	assert(ret == 0);
-	ret = sys_mknod("/com0", S_IFCHR | 0666, makedev(dev_com_builtin_major(), 0));
+	ret = sys_mknod("/dev/com0", S_IFCHR | 0666, makedev(dev_com_builtin_major(), 0));
 	assert(ret == 0);
 }
 

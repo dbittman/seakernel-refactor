@@ -64,7 +64,7 @@ int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode,
 	struct inode *node = start;
 	int returnval = 0;
 	do { 
-		if(!(sep = strchrc(path, '/'))) {
+		if(!(sep = strchrc(name, '/'))) {
 			sep = path + strlen(path);
 		}
 		TRACE(&path_trace, "next segment: %s %d %c\n", name, sep - name, *sep == 0 ? ' ' : '/');

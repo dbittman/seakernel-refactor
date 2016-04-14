@@ -48,7 +48,7 @@ void mm_fault_entry(uintptr_t address, int flags)
 		if(mmu_mappings_handle_fault(address, flags))
 			return;
 	}
-	panic(0, "PF");
+	panic(0, "PF [t%ld, p%d] - %lx %d", current_thread->tid, current_thread->process->pid, address, flags);
 }
 
 void mm_early_init(void)

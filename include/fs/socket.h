@@ -4,6 +4,7 @@
 #include <charbuffer.h>
 #include <blocklist.h>
 #include <slab.h>
+#include <fs/inode.h>
 
 typedef unsigned socklen_t;
 typedef unsigned short sa_family_t;
@@ -46,7 +47,9 @@ struct unix_connection {
 
 struct socket_unix_data {
 	bool named;
+	int fd;
 	struct sockaddr_un name;
+	struct inode_id loc;
 	struct hashelem elem;
 	struct unix_connection * _Atomic con;
 	struct unix_connection _condata; // the server socket stores the connection

@@ -8,6 +8,8 @@
 #include <errno.h>
 #include <slab.h>
 #include <thread.h>
+#include <file.h>
+#include <fs/path.h>
 
 static struct hash bound_sockets;
 
@@ -120,7 +122,12 @@ static int _unix_connect(struct socket *sock, const struct sockaddr *_addr, sock
 {
 	(void)len;
 	const struct sockaddr_un *addr = (struct sockaddr_un *)_addr;
-	struct socket *master = hash_lookup(&bound_sockets, addr->sun_path, strlen(addr->sun_path));
+	struct inode *node;
+	int err = fs_path_resolve(addr->sun_path, NULL, 0, 0, NULL, &node);
+	if(err < 0)
+		return err;
+	struct socket *master = hash_lookup(&bound_sockets, &node->id, sizeof(node->id));
+	inode_put(node);
 	if(!master)
 		return -ENOENT;
 
@@ -148,13 +155,19 @@ static int _unix_bind(struct socket *sock, const struct sockaddr *_addr, socklen
 {
 	const struct sockaddr_un *addr = (struct sockaddr_un *)_addr;
 
-	/* TODO: use inode ID as hash key */
 	int fd = sys_open(addr->sun_path, O_CREAT | O_RDWR | O_EXCL, S_IFSOCK | 0755);
-	//if(fd < 0)
-	//	return fd == -EBUSY ? -EADDRINUSE : fd;
-	sys_close(fd);
+	if(fd < 0)
+		return fd == -EBUSY ? -EADDRINUSE : fd;
+	sock->unix.fd = fd;
 	memcpy(&sock->unix.name, addr, len);
-	if(hash_insert(&bound_sockets, sock->unix.name.sun_path, strlen(sock->unix.name.sun_path), &sock->unix.elem, kobj_getref(sock)) == -1)
+
+	struct file *anchor = process_get_file(fd);
+	struct inode *node = file_get_inode(anchor);
+	memcpy(&sock->unix.loc, &node->id, sizeof(node->id));
+	inode_put(node);
+	kobj_putref(anchor);
+
+	if(hash_insert(&bound_sockets, &sock->unix.loc, sizeof(sock->unix.loc), &sock->unix.elem, kobj_getref(sock)) == -1)
 		return -EADDRINUSE;
 	sock->unix.named = true;
 
@@ -219,8 +232,10 @@ static void _unix_shutdown(struct socket *sock)
 {
 	if(sock->unix.con)
 		terminate_connection(sock->unix.con);
-	if(sock->flags & SF_BOUND)
-		hash_delete(&bound_sockets, sock->unix.name.sun_path, strlen(sock->unix.name.sun_path));
+	if(sock->flags & SF_BOUND) {
+		hash_delete(&bound_sockets, &sock->unix.loc, sizeof(sock->unix.loc));
+		sys_close(sock->unix.fd);
+	}
 	sock->flags &= ~SF_BOUND;
 	cleanup_connection(sock, 0);
 }
@@ -241,6 +256,7 @@ static int _unix_sockpair(struct socket *s1, struct socket *s2)
 static void _unix_init_sock(struct socket *sock)
 {
 	sock->unix.named = false;
+	sock->unix.fd = -1;
 }
 
 struct sock_calls af_unix_calls = {

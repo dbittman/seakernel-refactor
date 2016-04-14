@@ -66,8 +66,6 @@ void arch_thread_fork_entry(void *_frame)
 {
 	if((uintptr_t)_frame >= (uintptr_t)&kernel_text_start && (uintptr_t)_frame < (uintptr_t)&kernel_text_end)
 		((void (*)(void))_frame)();
-	struct exception_frame *frame = _frame;
-	printk("fork entry: %lx\n", frame->rip);
 	x86_64_fork_return(_frame);
 }
 

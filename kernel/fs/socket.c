@@ -94,7 +94,7 @@ sysret_t sys_socketpair(int domain, int type, int protocol, int *sv)
 	struct socket *s2 = f2->devdata;
 	s1->domain = s2->domain = domain;
 	s1->type = s2->type = type;
-	s1->protocol = s1->protocol = protocol;
+	s2->protocol = s1->protocol = protocol;
 
 	s1->ops = s2->ops = domains[domain];
 	if(s1->ops->init) s1->ops->init(s1);
@@ -246,11 +246,12 @@ static void _socket_fops_create(struct file *file)
 
 static void _socket_fops_destroy(struct file *file)
 {
-	assert(file->devtype == FDT_SOCK);
-	struct socket *sock = file->devdata;
-	if(sock->ops->shutdown)
-		sock->ops->shutdown(sock);
-	kobj_putref(file->devdata);
+	if(file->devtype == FDT_SOCK) {
+		struct socket *sock = file->devdata;
+		if(sock->ops->shutdown)
+			sock->ops->shutdown(sock);
+		kobj_putref(file->devdata);
+	}
 }
 
 static ssize_t _socket_read(struct file *file, size_t off, size_t len, char *buf)
