@@ -148,7 +148,8 @@ void *kobj_allocate(struct kobj *ko)
 void *kobj_getref(void *obj)
 {
 	struct kobj_header *header = obj;
-	atomic_fetch_add(&header->_koh_refs, 1);
+	int x = atomic_fetch_add(&header->_koh_refs, 1);
+	assert(x > 0);
 	return obj;
 }
 
@@ -157,6 +158,7 @@ size_t kobj_putref(void *obj)
 	assert(obj != NULL);
 	struct kobj_header *header = obj;
 	size_t count = atomic_fetch_sub(&header->_koh_refs, 1);
+	assert(count > 0);
 	if(count == 1) {
 		TRACE(&kobj_trace, "put object: %s - %p\n", header->_koh_kobj->name, obj);
 		if(header->_koh_kobj->put)

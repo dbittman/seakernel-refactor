@@ -16,6 +16,7 @@ static void init_proc(void)
 	cr0 |= (1 << 2);
 	cr0 |= (1 << 5);
 	cr0 |= (1 << 1);
+	cr0 |= (1 << 16);
 	cr0 &= ~(1 << 30); // make sure caching is on
 	asm volatile("mov %0, %%cr0" :: "r"(cr0));
 	

@@ -10,6 +10,7 @@
 
 typedef long ssize_t;
 typedef uint64_t dev_t;
+typedef long sysret_t;
 #endif
 
 #endif

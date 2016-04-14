@@ -133,10 +133,13 @@ autotest:
 -include $(OBJECTS:.o=.d)
 
 sysroot/init: sysroot/usr/src/init.c
-	$(TOOLCHAIN_PREFIX)-linux-musl-gcc -static -Og -g  -o sysroot/init $< -Wall 
+	$(TOOLCHAIN_PREFIX)-linux-musl-gcc -static -Og -g  -o $@ $< -Wall 
 
-test: $(BUILDDIR)/kernel.elf sysroot/init
-	qemu-system-$(ARCH) -m 1024  -machine $(MACHINE) $(QEMU_FLAGS) -kernel $(BUILDDIR)/kernel.elf -serial stdio -initrd sysroot/init
+sysroot/syslogd: sysroot/usr/src/syslogd.c
+	$(TOOLCHAIN_PREFIX)-linux-musl-gcc -static -Og -g  -o $@ $< -Wall 
+
+test: $(BUILDDIR)/kernel.elf sysroot/init sysroot/syslogd
+	qemu-system-$(ARCH) -m 1024  -machine $(MACHINE) $(QEMU_FLAGS) -kernel $(BUILDDIR)/kernel.elf -serial stdio -initrd sysroot/init,sysroot/syslogd
 
 clean:
 	-rm -r $(BUILDDIR)

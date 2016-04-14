@@ -3,6 +3,7 @@
 #include <lib/hash.h>
 #include <charbuffer.h>
 #include <blocklist.h>
+#include <slab.h>
 
 typedef unsigned socklen_t;
 typedef unsigned short sa_family_t;
@@ -22,6 +23,8 @@ struct sockaddr_un {
 
 struct socket;
 struct sock_calls {
+	void (*init)(struct socket *);
+	void (*shutdown)(struct socket *);
 	int (*connect)(struct socket *, const struct sockaddr *, socklen_t);
 	int (*bind)(struct socket *, const struct sockaddr *, socklen_t);
 	int (*accept)(struct socket *, struct sockaddr *addr, socklen_t *addrlen);
@@ -29,17 +32,23 @@ struct sock_calls {
 	int (*sockpair)(struct socket *, struct socket *);
 	ssize_t (*recv)(struct socket *, char *, size_t, int);
 	ssize_t (*send)(struct socket *, const char *, size_t, int);
+	ssize_t (*sendto)(struct socket *sock, const char *msg, size_t length,
+		int flags, const struct sockaddr *dest, socklen_t dest_len);
+	ssize_t (*recvfrom)(struct socket *, char *, size_t, int, struct sockaddr *, socklen_t *);
 };
 
 struct unix_connection {
+	struct kobj_header _header;
 	struct socket *server, *client;
 	struct charbuffer in, out;
+	_Atomic bool terminating;
 };
 
 struct socket_unix_data {
+	bool named;
 	struct sockaddr_un name;
 	struct hashelem elem;
-	struct unix_connection *con;
+	struct unix_connection * _Atomic con;
 	struct unix_connection _condata; // the server socket stores the connection
 };
 
@@ -47,9 +56,12 @@ struct socket_unix_data {
 #define SF_LISTEN 2
 #define SF_ACCEPT 4
 #define SF_CONNEC 8
+#define SF_SHUTDOWN 0x10
 
 struct socket {
-	int domain, type, protocol, flags;
+	struct kobj_header _header;
+	int domain, type, protocol;
+	_Atomic int flags;
 	struct sock_calls *ops;
 	int backlog;
 	struct linkedlist pend_con;

@@ -119,7 +119,7 @@ struct file *process_get_file(int fd)
 	spinlock_acquire(&current_thread->process->files_lock);
 	struct file *file = current_thread->process->files[fd].file;
 	spinlock_release(&current_thread->process->files_lock);
-	return kobj_getref(file);
+	return file ? kobj_getref(file) : NULL;
 }
 
 void file_close(struct file *file)

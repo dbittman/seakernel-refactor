@@ -8,6 +8,7 @@ void charbuffer_create(struct charbuffer *cb, size_t cap)
 	assert(cap == 0x1000); /* NOTE: for now, lets fix this */
 	cb->capacity = cap;
 	cb->head = cb->tail = 0;
+	cb->term = false;
 	blocklist_create(&cb->wait_write);
 	blocklist_create(&cb->wait_read);
 	spinlock_create(&cb->read);
@@ -23,6 +24,10 @@ void charbuffer_destroy(struct charbuffer *cb)
 size_t charbuffer_write(struct charbuffer *cb, const char *buf, size_t len, int flags)
 {
 	spinlock_acquire(&cb->write);
+	if(cb->term) {
+		spinlock_release(&cb->write);
+		return 0;
+	}
 	size_t amount_written = 0;
 	size_t remaining = len;
 	while(amount_written != len 
@@ -70,6 +75,10 @@ size_t charbuffer_write(struct charbuffer *cb, const char *buf, size_t len, int 
 				blockpoint_unblock(&bp);
 			blockpoint_cleanup(&bp);
 			spinlock_acquire(&cb->write);
+			if(cb->term) {
+				spinlock_release(&cb->write);
+				return 0;
+			}
 			buf += amount;
 		} else {
 			atomic_fetch_add(&cb->head, amount);
@@ -83,6 +92,10 @@ size_t charbuffer_write(struct charbuffer *cb, const char *buf, size_t len, int 
 size_t charbuffer_read(struct charbuffer *cb, char *buf, size_t len, int flags)
 {
 	spinlock_acquire(&cb->read);
+	if(cb->term && charbuffer_pending(cb) == 0) {
+		spinlock_release(&cb->read);
+		return 0;
+	}
 	size_t amount_read = 0;
 	size_t remaining = len;
 	while(amount_read != len 
@@ -125,12 +138,16 @@ size_t charbuffer_read(struct charbuffer *cb, char *buf, size_t len, int flags)
 			blocklist_unblock_one(&cb->wait_write);
 
 			int rem = (atomic_load(&cb->head) - atomic_load(&cb->tail));
-			if(rem == 0)
+			if(rem == 0 && !cb->term)
 				schedule();
 			else
 				blockpoint_unblock(&bp);
 			blockpoint_cleanup(&bp);
 			spinlock_acquire(&cb->read);
+			if(cb->term && charbuffer_pending(cb) == 0) {
+				spinlock_release(&cb->read);
+				return 0;
+			}
 			buf += amount;
 		} else {
 			atomic_fetch_add(&cb->tail, amount);
@@ -139,5 +156,32 @@ size_t charbuffer_read(struct charbuffer *cb, char *buf, size_t len, int flags)
 	}
 	spinlock_release(&cb->read);
 	return amount_read;
+}
+
+void charbuffer_terminate(struct charbuffer *cb)
+{
+	spinlock_acquire(&cb->read);
+	spinlock_acquire(&cb->write);
+
+	cb->term = true;
+	blocklist_unblock_all(&cb->wait_write);
+	blocklist_unblock_all(&cb->wait_read);
+
+	spinlock_release(&cb->write);
+	spinlock_release(&cb->read);
+}
+
+void charbuffer_reset(struct charbuffer *cb)
+{
+	spinlock_acquire(&cb->read);
+	spinlock_acquire(&cb->write);
+
+	cb->term = false;
+	cb->head = cb->tail = 0;
+	blocklist_unblock_all(&cb->wait_write);
+	blocklist_unblock_all(&cb->wait_read);
+
+	spinlock_release(&cb->write);
+	spinlock_release(&cb->read);
 }
 

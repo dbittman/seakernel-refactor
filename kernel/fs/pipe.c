@@ -89,7 +89,7 @@ struct file_calls pipe_fops = {
 	.ioctl = 0, .select = 0,
 };
 
-int sys_pipe(int *fds)
+sysret_t sys_pipe(int *fds)
 {
 	struct file *rf = file_create(NULL, FDT_FIFO);
 	struct file *wf = file_create(NULL, 0);

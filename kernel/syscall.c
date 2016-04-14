@@ -30,6 +30,7 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_pwritev]  = SC sys_pwritev,
 	[SYS_readv]    = SC sys_readv,
 	[SYS_preadv]   = SC sys_preadv,
+	[SYS_execve]   = SC sys_execve,
 
 	[SYS_socket]   = SC sys_socket,
 	[SYS_socketpair]   = SC sys_socketpair,
@@ -37,6 +38,11 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_accept]   = SC sys_accept,
 	[SYS_listen]   = SC sys_listen,
 	[SYS_bind]     = SC sys_bind,
+	[SYS_sendto]   = SC sys_sendto,
+	[SYS_recvfrom]   = SC sys_recvfrom,
+
+
+	[SYS_gettid]   = SC sys_gettid,
 
 	[SYS_arch_prctl] = SC sys_arch_prctl,
 
@@ -59,8 +65,8 @@ long syscall_entry(long num,
 	if(call) {
 		ret = call(arg1, arg2, arg3, arg4, arg5, arg6);
 	} else {
-		printk("UNIMP\n");
-		ret = -ENOSYS; //TODO -ENOSYS;
+		//printk("UNIMP\n");
+		ret = -ENOSYS;
 	}
 
 	arch_interrupt_set(0);

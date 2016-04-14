@@ -4,15 +4,8 @@
 #include <process.h>
 #include <slab.h>
 #include <processor.h>
-
-static void _fork_entry(void *a)
-{
-	(void)a;
-	if(current_thread->fork_entry >= USER_REGION_END)
-		((void (*)(void))current_thread->fork_entry)();
-	else
-		arch_thread_usermode_jump(current_thread->fork_entry, current_thread->fork_sp);
-}
+#include <string.h>
+#include <printk.h>
 
 static void copy_process(struct process *parent, struct process *child)
 {
@@ -27,21 +20,30 @@ static void copy_process(struct process *parent, struct process *child)
 	}
 }
 
-int sys_fork(uintptr_t caller, uintptr_t ustack)
+static void copy_thread(struct thread *parent, struct thread *child)
+{
+	child->time = parent->time;
+	memcpy(&child->arch, &parent->arch, sizeof(child->arch));
+}
+
+sysret_t sys_fork(void *frame, size_t framelen)
 {
 	struct thread *thread = kobj_allocate(&kobj_thread);
 	struct process *proc = kobj_allocate(&kobj_process);
 	copy_process(current_thread->process, proc);
+	copy_thread(current_thread, thread);
 	process_copy_mappings(current_thread->process, proc);
 	process_copy_files(current_thread->process, proc);
 	process_attach_thread(proc, thread);
-	thread->fork_sp = ustack;
-	thread->fork_entry = caller;
-	arch_thread_create(thread, (uintptr_t)&_fork_entry, NULL);
-	if(current_thread->process == kernel_process)
+	if(current_thread->process == kernel_process) {
 		thread->user_tls_base = (void *)process_allocate_user_tls(proc);
-	else
+		arch_thread_create(thread, (uintptr_t)&arch_thread_fork_entry, frame);
+	} else {
+		memcpy((void *)((uintptr_t)thread->kernel_tls_base + KERNEL_STACK_SIZE/2), frame, framelen);
 		thread->user_tls_base = current_thread->user_tls_base;
+		arch_thread_create(thread, (uintptr_t)&arch_thread_fork_entry, (void *)((uintptr_t)thread->kernel_tls_base + KERNEL_STACK_SIZE/2));
+	}
+
 	thread->state = THREADSTATE_RUNNING;
 	processor_add_thread(current_thread->processor, thread);
 	return proc->pid;
@@ -55,5 +57,10 @@ _Noreturn void sys_exit(int code)
 	(void)code;
 
 	thread_exit(current_thread);
+}
+
+long sys_gettid(void)
+{
+	return current_thread->tid;
 }
 

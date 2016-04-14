@@ -5,6 +5,12 @@
 #include <system.h>
 #include <ksymbol.h>
 #if FEATURE_SUPPORTED_UNWIND
+#ifdef __clang__
+__attribute__((no_sanitize("alignment")))
+#else
+__attribute__((no_sanitize_undefined))
+#endif
+
 static void __print_frame(struct frame *frame)
 {
 	const struct ksymbol *sym = ksymbol_find_by_value((void *)frame->pc, true);
@@ -14,6 +20,12 @@ static void __print_frame(struct frame *frame)
 	}
 }
 #endif
+#ifdef __clang__
+__attribute__((no_sanitize("alignment")))
+#else
+__attribute__((no_sanitize_undefined))
+#endif
+
 void debug_print_backtrace(void)
 {
 #if FEATURE_SUPPORTED_UNWIND

@@ -109,3 +109,27 @@ x86_64_isr_ignore:
 handler isr_common, x86_64_exception_entry
 handler syscall_handler, x86_64_syscall_entry
 
+.global x86_64_fork_return
+x86_64_fork_return:
+	movq %rdi, %rsp
+	# restore the frame
+	popq %r15
+	popq %r14
+	popq %r13
+	popq %r12
+	popq %rbp
+	popq %rbx
+	popq %r11
+	popq %r10
+	popq %r9
+	popq %r8
+	popq %rax
+	popq %rcx
+	popq %rdx
+	popq %rsi
+	popq %rdi
+	
+	add $16, %rsp # cleanup error code and int number
+	mov $0, %rax # return value for child is zero
+	iretq # and return from interrupt
+

@@ -28,7 +28,7 @@ struct thread {
 	void *kernel_tls_base, *stackpointer;
 	void *user_tls_base;
 	unsigned long tid;
-	/* A */ long long time /* time ago, I can still remember when that music... */;
+	/* A */ long long time /* ago, I can still remember when that music... */;
 	int flags;
 	_Atomic enum thread_state state;
 
@@ -40,13 +40,12 @@ struct thread {
 
 	struct process *process;
 	struct linkedentry proc_entry;
-
-	uintptr_t fork_sp, fork_entry;
 };
 
 #define current_thread arch_thread_get_current()
 #define current_context (current_thread ? current_thread->ctx : &kernel_context)
 
+void arch_thread_fork_entry(void *);
 void arch_thread_context_switch(struct thread *, struct thread *thr);
 void arch_thread_usermode_jump(uintptr_t entry, uintptr_t initial_stack);
 void thread_create(struct thread *, struct vm_context *ctx, uintptr_t entry);

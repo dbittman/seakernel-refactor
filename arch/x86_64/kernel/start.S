@@ -116,6 +116,7 @@ start64:
 	movw %ax, %ds
 	movw %ax, %ss
 	movw %ax, %gs
+	movw $0x10, %ax
 	movw %ax, %es
 	movw %ax, %fs
 

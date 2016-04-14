@@ -10,7 +10,7 @@
 #include <process.h>
 #include <device.h>
 
-int sys_open(const char *path, int flags, int mode)
+sysret_t sys_open(const char *path, int flags, int mode)
 {
 	flags++;
 	mode = (mode & ~0xFFF) | ((mode & 0xFFF) & (~(current_thread->process->cmask & 0xFFF)));
@@ -53,7 +53,7 @@ int sys_open(const char *path, int flags, int mode)
 	return fd;
 }
 
-int sys_mknod(const char *path, int mode, dev_t dev)
+sysret_t sys_mknod(const char *path, int mode, dev_t dev)
 {
 	int fd = sys_open(path, O_CREAT | O_WRONLY | O_EXCL, mode);
 	if(fd < 0)
@@ -70,7 +70,7 @@ int sys_mknod(const char *path, int mode, dev_t dev)
 	return 0;
 }
 
-int sys_close(int fd)
+sysret_t sys_close(int fd)
 {
 	struct file *file = process_get_file(fd);
 	if(!file)
@@ -137,7 +137,7 @@ ssize_t sys_pwritev(int fd, struct iovec *iov, int iovc, size_t off)
 	for(int i=0;i<iovc;i++) {
 		if(!iov[i].len)
 			continue;
-		ssize_t thisamount = file_write(file, off, iov[i].len, iov->base);
+		ssize_t thisamount = file_write(file, off, iov[i].len, iov[i].base);
 		if(thisamount < 0) {
 			kobj_putref(file);
 			if(amount == 0)
@@ -160,7 +160,7 @@ ssize_t sys_preadv(int fd, struct iovec *iov, int iovc, size_t off)
 	for(int i=0;i<iovc;i++) {
 		if(!iov[i].len)
 			continue;
-		ssize_t thisamount = file_read(file, off, iov[i].len, iov->base);
+		ssize_t thisamount = file_read(file, off, iov[i].len, iov[i].base);
 		if(thisamount < 0) {
 			kobj_putref(file);
 			if(amount == 0)

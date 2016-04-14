@@ -11,6 +11,8 @@ static void _mapping_init(void *obj)
 {
 	struct mapping *map = obj;
 	map->node = NULL;
+	map->frame = 0;
+	map->flags = 0;
 }
 
 static void _mapping_create(void *obj)
@@ -39,6 +41,9 @@ struct mapping *mapping_establish(struct process *proc, uintptr_t virtual, int p
 		return NULL;
 	}
 
+	assert((flags & MMAP_MAP_SHARED) || (flags & MMAP_MAP_PRIVATE));
+	assert(!((flags & MMAP_MAP_SHARED) && (flags & MMAP_MAP_PRIVATE)));
+
 	map = kobj_allocate(&kobj_mapping);
 	map->node = node ? kobj_getref(node) : NULL;
 	map->flags = flags;
@@ -50,10 +55,11 @@ struct mapping *mapping_establish(struct process *proc, uintptr_t virtual, int p
 	return map;
 }
 
-bool mapping_remove(struct process *proc, uintptr_t virtual)
+static bool _do_mapping_remove(struct process *proc, uintptr_t virtual, bool locked)
 {
 	uintptr_t vpage = virtual / arch_mm_page_size(0);
-	spinlock_acquire(&proc->map_lock);
+	if(!locked)
+		spinlock_acquire(&proc->map_lock);
 
 	struct mapping *map = hash_lookup(&proc->mappings, &vpage, sizeof(vpage));
 	if(!map) {
@@ -73,8 +79,14 @@ bool mapping_remove(struct process *proc, uintptr_t virtual)
 	}
 	map->node = NULL;
 	kobj_putref(map);
-	spinlock_release(&proc->map_lock);
+	if(!locked)
+		spinlock_release(&proc->map_lock);
 	return true;
+}
+
+bool mapping_remove(struct process *proc, uintptr_t virtual)
+{
+	return _do_mapping_remove(proc, virtual, false);
 }
 
 void map_mmap(uintptr_t virtual, struct inode *node, int prot, int flags, size_t len, size_t off)
@@ -103,14 +115,22 @@ void process_copy_mappings(struct process *from, struct process *to)
 		struct mapping *nm = mapping_establish(to, map->vpage * arch_mm_page_size(0), map->prot, map->flags,
 				map->node, map->nodepage);
 
-		if(map->flags & MMAP_MAP_ANON) {
+		if(!(map->flags & MMAP_MAP_ANON)) {
 			if(map->page) {
 				nm->page = kobj_getref(map->page);
 			}
 		} else {
 			if(map->frame) {
-				nm->frame = map->frame;
 				frame_acquire(map->frame);
+				nm->frame = map->frame;
+			}
+		}
+		if(!(map->flags & MMAP_MAP_SHARED)) {
+			int flags;
+			if(arch_mm_virtual_getmap(from->ctx, map->vpage * arch_mm_page_size(0), NULL, &flags)) {
+				flags &= ~MAP_WRITE;
+				int r = arch_mm_virtual_chattr(from->ctx, map->vpage * arch_mm_page_size(0), flags);
+				assert(r);
 			}
 		}
 		nm->flags &= ~MMAP_MAP_MAPPED;
@@ -118,7 +138,7 @@ void process_copy_mappings(struct process *from, struct process *to)
 	spinlock_release(&from->map_lock);
 }
 
-void process_remove_mappings(struct process *proc)
+void process_remove_mappings(struct process *proc, bool user_tls_too)
 {
 	spinlock_acquire(&proc->map_lock);
 
@@ -126,7 +146,12 @@ void process_remove_mappings(struct process *proc)
 	for(hash_iter_init(&iter, &proc->mappings); !hash_iter_done(&iter); hash_iter_next(&iter)) {
 		struct mapping *map = hash_iter_get(&iter);
 
-		mapping_remove(proc, map->vpage * arch_mm_page_size(0));
+		if(map->vpage * arch_mm_page_size(0) < USER_TLS_REGION_START
+				|| map->vpage * arch_mm_page_size(0) >= USER_TLS_REGION_END
+				|| user_tls_too) {
+			arch_mm_virtual_unmap(proc->ctx, map->vpage * arch_mm_page_size(0));
+			_do_mapping_remove(proc, map->vpage * arch_mm_page_size(0), true);
+		}
 	}
 	spinlock_release(&proc->map_lock);
 }
@@ -161,6 +186,7 @@ int mmu_mappings_handle_fault(uintptr_t addr, int flags)
 	if(flags & FAULT_ERROR_PRES) {
 		uintptr_t frame = 0;
 		assert(!(map->flags & MMAP_MAP_MAPPED));
+		printk(":: %p %x\n", map->page, map->flags);
 		if(map->flags & MMAP_MAP_ANON) {
 			if(!map->frame)
 				map->frame = frame_allocate();
@@ -172,7 +198,7 @@ int mmu_mappings_handle_fault(uintptr_t addr, int flags)
 		}
 		map->flags |= MMAP_MAP_MAPPED;
 
-		if((map->flags & MMAP_MAP_PRIVATE) && !(map->flags & MMAP_MAP_ANON))
+		if((map->flags & MMAP_MAP_PRIVATE) || !(map->flags & MMAP_MAP_ANON))
 			setflags &= ~MAP_WRITE;
 
 		arch_mm_virtual_map(proc->ctx, addr & page_mask(0),
@@ -191,8 +217,10 @@ int mmu_mappings_handle_fault(uintptr_t addr, int flags)
 				if(frame->count > 1) {
 					uintptr_t newframe = frame_allocate();
 					memcpy((void *)(newframe + PHYS_MAP_START), (void *)(map->frame + PHYS_MAP_START), arch_mm_page_size(0));
-					arch_mm_virtual_unmap(proc->ctx, addr & page_mask(0));
-					arch_mm_virtual_map(proc->ctx, addr & page_mask(0), newframe, arch_mm_page_size(0), setflags);
+					int r = arch_mm_virtual_unmap(proc->ctx, addr & page_mask(0));
+					assert(r > 0);
+					r = arch_mm_virtual_map(proc->ctx, addr & page_mask(0), newframe, arch_mm_page_size(0), setflags);
+					assert(r);
 					frame_release(map->frame);
 					map->frame = newframe;
 				} else {

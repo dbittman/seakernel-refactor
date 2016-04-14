@@ -39,7 +39,7 @@ void process_attach_thread(struct process *proc, struct thread *thread);
 uintptr_t process_allocate_user_tls(struct process *proc);
 uintptr_t process_allocate_mmap_region(struct process *proc, size_t len);
 void process_copy_mappings(struct process *from, struct process *to);
-void process_remove_mappings(struct process *proc);
+void process_remove_mappings(struct process *proc, bool);
 void process_copy_files(struct process *from, struct process *to);
 void process_close_files(struct process *proc, bool all);
 

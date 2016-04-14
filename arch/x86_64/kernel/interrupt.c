@@ -5,6 +5,7 @@
 #include <panic.h>
 #include <thread.h>
 #include <syscall.h>
+#include <process.h>
 void x86_64_signal_eoi(void);
 struct __attribute__((packed)) exception_frame
 {
@@ -42,9 +43,13 @@ static void __fault(struct exception_frame *frame)
 		if(frame->err_code & (1 << 4)) {
 			flags |= FAULT_EXEC;
 		}
-		printk("PF %lx\n", frame->rip);
+		//printk("pagefault (tid=%ld,pid=%d): %lx, %x, from %lx\n", current_thread->tid, current_thread->process->pid, cr2, flags, frame->rip);
 		mm_fault_entry(cr2, flags);
 	} else {
+		if(frame->int_no == 1) {
+			printk("trap %ld: %lx, %lx\n", current_thread->tid, frame->rip, frame->userrsp);
+			return;
+		}
 		if(frame->cs == 0x8) {
 			panic(0, "kernel exception %ld: %lx err=%lx",
 					frame->int_no, frame->rip, frame->err_code);
@@ -53,6 +58,17 @@ static void __fault(struct exception_frame *frame)
 					frame->int_no, frame->rip, frame->err_code);
 		}
 	}
+}
+
+extern void x86_64_fork_return(void *);
+extern int kernel_text_start, kernel_text_end;
+void arch_thread_fork_entry(void *_frame)
+{
+	if((uintptr_t)_frame >= (uintptr_t)&kernel_text_start && (uintptr_t)_frame < (uintptr_t)&kernel_text_end)
+		((void (*)(void))_frame)();
+	struct exception_frame *frame = _frame;
+	printk("fork entry: %lx\n", frame->rip);
+	x86_64_fork_return(_frame);
 }
 
 void x86_64_exception_entry(struct exception_frame *frame)
@@ -65,13 +81,24 @@ void x86_64_exception_entry(struct exception_frame *frame)
 	}
 }
 
+#define DEBUG_SYS 0
 void x86_64_syscall_entry(struct exception_frame *frame)
 {
 	if(frame->rax == SYS_fork) {
-		frame->rdi = frame->rip;
-		frame->rsi = frame->userrsp;
+		frame->rdi = (uintptr_t)frame;
+		frame->rsi = sizeof(*frame);
 	}
-	printk("syscall (%lx) %lu: %lx %lx %lx %lx %lx %lx\n", frame->rip, frame->rax, frame->rdi, frame->rsi, frame->rdx, frame->r10, frame->r8, frame->r9);
+#if DEBUG_SYS
+	printk("syscall %ld %3lu: %lx %lx %lx %lx %lx %lx\n", current_thread->tid, frame->rax, frame->rdi, frame->rsi, frame->rdx, frame->r10, frame->r8, frame->r9);
+	long num = frame->rax;
+#endif
 	frame->rax = syscall_entry(frame->rax, frame->rdi, frame->rsi, frame->rdx, frame->r10, frame->r8, frame->r9);
+#if DEBUG_SYS
+	long ret = frame->rax;
+	if(ret < 0)
+		printk("syscall %ld %3lu: RET %ld\n", current_thread->tid, num, ret);
+	else
+		printk("syscall %ld %3lu: RET %lx\n", current_thread->tid, num, ret);
+#endif
 }
 

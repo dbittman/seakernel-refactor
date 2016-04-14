@@ -71,7 +71,7 @@ static void _process_put(void *obj)
 	struct process *proc = obj;
 	kobj_putref(proc->ctx);
 	process_close_files(proc, true);
-	process_remove_mappings(proc);
+	process_remove_mappings(proc, true);
 	kobj_idmap_delete(&processids, obj, &proc->pid);
 }
 

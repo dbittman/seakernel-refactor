@@ -30,8 +30,8 @@ struct iovec {
 	size_t len;
 };
 
-int sys_open(const char *, int, int);
-int sys_mknod(const char *path, int mode, dev_t dev);
+sysret_t sys_open(const char *, int, int);
+sysret_t sys_mknod(const char *path, int mode, dev_t dev);
 ssize_t sys_read(int fd, void *buf, size_t count);
 ssize_t sys_pwrite(int fd, void *buf, size_t count, size_t);
 ssize_t sys_pread(int fd, void *buf, size_t count, size_t);
@@ -40,13 +40,14 @@ ssize_t sys_readv(int fd, struct iovec *iov, int iovc);
 ssize_t sys_writev(int fd, struct iovec *iov, int iovc);
 ssize_t sys_preadv(int fd, struct iovec *iov, int iovc, size_t off);
 ssize_t sys_pwritev(int fd, struct iovec *iov, int iovc, size_t off);
-int sys_close(int fd);
-int sys_pipe(int *fds);
+sysret_t sys_close(int fd);
+sysret_t sys_pipe(int *fds);
 
-int sys_socket(int domain, int type, int protocol);
-int sys_socketpair(int domain, int type, int protocol, int *sv);
-int sys_accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
-int sys_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
-int sys_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
-int sys_listen(int sockfd, int backlog);
-
+sysret_t sys_socket(int domain, int type, int protocol);
+sysret_t sys_socketpair(int domain, int type, int protocol, int *sv);
+sysret_t sys_accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+sysret_t sys_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+sysret_t sys_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+sysret_t sys_listen(int sockfd, int backlog);
+sysret_t sys_recvfrom(int sockfd, char *buf, size_t len, int flags, struct sockaddr *src, socklen_t *srclen);
+sysret_t sys_sendto(int sockfd, const char *buf, size_t len, int flags, const struct sockaddr *dest, socklen_t addrlen);

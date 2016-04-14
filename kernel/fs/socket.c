@@ -6,11 +6,19 @@
 
 extern struct sock_calls af_unix_calls;
 
+static void _socket_init(void *obj)
+{
+	struct socket *sock = obj;
+	sock->flags = 0;
+	sock->ops = NULL;
+}
+
 static void _socket_create(void *obj)
 {
 	struct socket *s = obj;
 	linkedlist_create(&s->pend_con, 0);
 	blocklist_create(&s->pend_con_wait);
+	_socket_init(obj);
 }
 
 static struct kobj kobj_socket = {
@@ -18,7 +26,7 @@ static struct kobj kobj_socket = {
 	.size = sizeof(struct socket),
 	.name = "socket",
 	.create = _socket_create, .destroy = NULL,
-	.init = NULL, .put = NULL,
+	.init = _socket_init, .put = NULL,
 };
 
 static struct sock_calls *domains[MAX_AF] = {
@@ -43,7 +51,7 @@ struct socket *socket_get_from_fd(int fd, int *err)
 	return sock;
 }
 
-int sys_socket(int domain, int type, int protocol)
+sysret_t sys_socket(int domain, int type, int protocol)
 {
 	if(domain >= MAX_AF)
 		return -EINVAL;
@@ -58,11 +66,12 @@ int sys_socket(int domain, int type, int protocol)
 	sock->type = type;
 	sock->protocol = protocol;
 	sock->ops = domains[domain];
+	if(sock->ops->init) sock->ops->init(sock);
 	kobj_putref(file);
 	return fd;
 }
 
-int sys_socketpair(int domain, int type, int protocol, int *sv)
+sysret_t sys_socketpair(int domain, int type, int protocol, int *sv)
 {
 	struct file *f1 = file_create(NULL, FDT_SOCK);
 	struct file *f2 = file_create(NULL, FDT_SOCK);
@@ -88,6 +97,8 @@ int sys_socketpair(int domain, int type, int protocol, int *sv)
 	s1->protocol = s1->protocol = protocol;
 
 	s1->ops = s2->ops = domains[domain];
+	if(s1->ops->init) s1->ops->init(s1);
+	if(s2->ops->init) s2->ops->init(s2);
 	s1->ops->sockpair(s1, s2);
 	kobj_putref(f1);
 	kobj_putref(f2);
@@ -98,7 +109,7 @@ int sys_socketpair(int domain, int type, int protocol, int *sv)
 	return 0;
 }
 
-int sys_accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
+sysret_t sys_accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 {
 	int err = -ENOTSUP;
 	struct socket *socket = socket_get_from_fd(sockfd, &err);
@@ -111,12 +122,10 @@ int sys_accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 	return err;
 }
 
-#include <printk.h>
-int sys_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
+sysret_t sys_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 {
 	int err = -ENOTSUP;
 	struct socket *socket = socket_get_from_fd(sockfd, &err);
-	printk(":: CNNECT %p %d\n", socket, err);
 	if(!socket) return err;
 
 	if(socket->ops->connect)
@@ -126,7 +135,7 @@ int sys_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 	return err;
 }
 
-int sys_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
+sysret_t sys_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 {
 	int err = -ENOTSUP;
 	struct socket *socket = socket_get_from_fd(sockfd, &err);
@@ -140,7 +149,7 @@ int sys_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 	return err;
 }
 
-int sys_listen(int sockfd, int backlog)
+sysret_t sys_listen(int sockfd, int backlog)
 {
 	int err = -ENOTSUP;
 	struct socket *socket = socket_get_from_fd(sockfd, &err);
@@ -158,8 +167,10 @@ int sys_listen(int sockfd, int backlog)
 
 ssize_t _do_recv(struct socket *sock, char *buf, size_t len, int flags)
 {
+	if(sock->flags & SF_SHUTDOWN)
+		return 0;
 	if(!(sock->flags & SF_CONNEC)) //TODO: or connectionless
-		return -EINVAL;
+		return -ENOTCONN;
 	if(sock->ops->recv)
 		return sock->ops->recv(sock, buf, len, flags);
 	return -ENOTSUP;
@@ -167,29 +178,65 @@ ssize_t _do_recv(struct socket *sock, char *buf, size_t len, int flags)
 
 ssize_t _do_send(struct socket *sock, const char *buf, size_t len, int flags)
 {
+	if(sock->flags & SF_SHUTDOWN)
+		return -EPIPE; //TODO: sigpipe
 	if(!(sock->flags & SF_CONNEC)) //TODO: or connectionless
-		return -EINVAL;
+		return -ENOTCONN;
 	if(sock->ops->send)
 		return sock->ops->send(sock, buf, len, flags);
 	return -ENOTSUP;
 }
 
-ssize_t sys_recv(int sockfd, char *buf, size_t len, int flags)
+sysret_t sys_recv(int sockfd, char *buf, size_t len, int flags)
 {
 	int err = -ENOTSUP;
 	struct socket *socket = socket_get_from_fd(sockfd, &err);
 	if(!socket) return err;
 
-	return _do_recv(socket, buf, len, flags);
+	ssize_t ret = _do_recv(socket, buf, len, flags);
+	kobj_putref(socket);
+	return ret;
 }
 
-ssize_t sys_send(int sockfd, const char *buf, size_t len, int flags)
+sysret_t sys_send(int sockfd, const char *buf, size_t len, int flags)
 {
 	int err = -ENOTSUP;
 	struct socket *socket = socket_get_from_fd(sockfd, &err);
 	if(!socket) return err;
 	
-	return _do_send(socket, buf, len, flags);
+	size_t ret = _do_send(socket, buf, len, flags);
+	kobj_putref(socket);
+	return ret;
+}
+
+sysret_t sys_recvfrom(int sockfd, char *buf, size_t len, int flags, struct sockaddr *src, socklen_t *srclen)
+{
+	int err = -ENOTSUP;
+	struct socket *socket = socket_get_from_fd(sockfd, &err);
+	if(!socket) return err;
+
+	ssize_t ret = -ENOTSUP;
+	if(socket->flags & SF_CONNEC)
+		ret = _do_recv(socket, buf, len, flags);
+	else if(socket->ops->recvfrom)
+		ret = socket->ops->recvfrom(socket, buf, len, flags, src, srclen);
+	kobj_putref(socket);
+	return ret;
+}
+
+sysret_t sys_sendto(int sockfd, const char *buf, size_t len, int flags, const struct sockaddr *dest, socklen_t addrlen)
+{
+	int err = -ENOTSUP;
+	struct socket *socket = socket_get_from_fd(sockfd, &err);
+	if(!socket) return err;
+	
+	ssize_t ret = -ENOTSUP;
+	if(socket->flags & SF_CONNEC)
+		ret = _do_send(socket, buf, len, flags);
+	else if(socket->ops->sendto)
+		ret = socket->ops->sendto(socket, buf, len, flags, dest, addrlen);
+	kobj_putref(socket);
+	return ret;
 }
 
 static void _socket_fops_create(struct file *file)
@@ -199,25 +246,31 @@ static void _socket_fops_create(struct file *file)
 
 static void _socket_fops_destroy(struct file *file)
 {
+	assert(file->devtype == FDT_SOCK);
+	struct socket *sock = file->devdata;
+	if(sock->ops->shutdown)
+		sock->ops->shutdown(sock);
 	kobj_putref(file->devdata);
 }
 
 static ssize_t _socket_read(struct file *file, size_t off, size_t len, char *buf)
 {
 	(void)off;
-	if(file->devtype != FDT_SOCK)
-		return -ENOTSOCK;
+	assert(file->devtype == FDT_SOCK);
 	struct socket *sock = kobj_getref(file->devdata);
-	return _do_recv(sock, buf, len, 0);
+	size_t ret = _do_recv(sock, buf, len, 0);
+	kobj_putref(sock);
+	return ret;
 }
 
 static ssize_t _socket_write(struct file *file, size_t off, size_t len, const char *buf)
 {
 	(void)off;
-	if(file->devtype != FDT_SOCK)
-		return -ENOTSOCK;
+	assert(file->devtype == FDT_SOCK);
 	struct socket *sock = kobj_getref(file->devdata);
-	return _do_send(sock, buf, len, 0);
+	ssize_t ret = _do_send(sock, buf, len, 0);
+	kobj_putref(sock);
+	return ret;
 }
 
 struct file_calls socket_fops = {

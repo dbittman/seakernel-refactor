@@ -37,11 +37,11 @@ static void _init_entry(void *arg)
 {
 	(void)arg;
 
-	int f = sys_open("/null", O_RDONLY, 0);
+	int f = sys_open("/com0", O_RDWR, 0);
 	assert(f == 0);
-	f = sys_open("/null", O_WRONLY, 0);
+	f = sys_open("/com0", O_RDWR, 0);
 	assert(f == 1);
-	f = sys_open("/null", O_WRONLY, 0);
+	f = sys_open("/com0", O_RDWR, 0);
 	assert(f == 2);
 
 	int ret = sys_execve("/init", argv, env);
@@ -55,7 +55,7 @@ static void init_worker(struct worker *worker)
 	test_late();
 #endif
 	
-	sys_fork((uintptr_t)&_init_entry, 0);
+	sys_fork(&_init_entry, 0);
 	
 	worker_exit(worker, 0);
 }

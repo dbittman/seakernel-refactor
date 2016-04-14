@@ -19,12 +19,13 @@ static void write_aux(uintptr_t *end, long key, long value)
 	write_data(end, &key, sizeof(long));
 }
 
-int sys_execve(const char *path, char **arg, char **env)
+sysret_t sys_execve(const char *path, char **arg, char **env)
 {
 	(void)arg;
 	(void)env;
 	int err = 0;
 	int fd = sys_open(path, O_RDONLY, 0);
+	printk("::::: EXEC %s\n", path);
 	if(fd < 0)
 		return fd;
 
@@ -41,6 +42,7 @@ int sys_execve(const char *path, char **arg, char **env)
 
 	/* other tests... */
 
+	process_remove_mappings(current_thread->process, false);
 	uintptr_t max, phdrs=0;
 	if(elf_parse_executable(&header, fd, &max, &phdrs) < 0) {
 		sys_exit(-ENOEXEC);
