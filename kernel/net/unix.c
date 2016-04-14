@@ -157,7 +157,7 @@ static int _unix_bind(struct socket *sock, const struct sockaddr *_addr, socklen
 
 	int fd = sys_open(addr->sun_path, O_CREAT | O_RDWR | O_EXCL, S_IFSOCK | 0755);
 	if(fd < 0)
-		return fd == -EBUSY ? -EADDRINUSE : fd;
+		return fd == -EEXIST ? -EADDRINUSE : fd;
 	sock->unix.fd = fd;
 	memcpy(&sock->unix.name, addr, len);
 
