@@ -85,13 +85,11 @@ _Noreturn void thread_exit(struct thread *thread)
 }
 
 struct kobj kobj_thread = {
-	.name = "thread",
-	.size = sizeof(struct thread),
+	KOBJ_DEFAULT_ELEM(thread),
 	.create = _thread_create,
 	.init = _thread_init,
 	.put = _thread_put,
 	.destroy = _thread_destroy,
-	.initialized = false
 };
 
 __initializer static void thread_idmap_init(void)

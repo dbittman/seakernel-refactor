@@ -51,6 +51,8 @@ static void _process_init(void *obj)
 	proc->next_user_tls = USER_TLS_REGION_START;
 	proc->next_mmap_reg = USER_MMAP_REGION_START;
 	proc->pid = next_pid++;
+	proc->root = NULL;
+	proc->cwd = NULL;
 	kobj_idmap_insert(&processids, obj, &proc->pid);
 	for(int i=0;i<MAX_FD;i++)
 		proc->files[i].file = NULL;
@@ -73,12 +75,12 @@ static void _process_put(void *obj)
 	process_close_files(proc, true);
 	process_remove_mappings(proc, true);
 	kobj_idmap_delete(&processids, obj, &proc->pid);
+	kobj_putref(proc->cwd);
+	kobj_putref(proc->root);
 }
 
 struct kobj kobj_process = {
-	.initialized = false,
-	.size = sizeof(struct process),
-	.name = "process",
+	KOBJ_DEFAULT_ELEM(process),
 	.init = _process_init,
 	.create = _process_create,
 	.put = _process_put,

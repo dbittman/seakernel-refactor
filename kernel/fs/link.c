@@ -4,7 +4,12 @@
 
 int fs_link(struct inode *node, const char *name, size_t namelen, struct inode *target)
 {
+	mutex_acquire(&node->lock);
+	mutex_acquire(&target->lock); //TODO: do we need these locks?
 	target->links++;
-	return node->fs->driver->inode_ops->link(node, name, namelen, target);
+	int ret = node->fs->driver->inode_ops->link(node, name, namelen, target);
+	mutex_release(&target->lock);
+	mutex_release(&node->lock);
+	return ret;
 }
 

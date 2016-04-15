@@ -27,9 +27,12 @@ static void _filesystem_init(void *obj)
 
 static void _filesystem_create(void *obj)
 {
+	struct filesystem *fs = obj;
+	mutex_create(&fs->lock);
 	_filesystem_init(obj);
 }
 
+/* TODO: mounting, unmounting */
 static void _filesystem_put(void *obj)
 {
 	(void)obj;
@@ -65,7 +68,17 @@ int fs_load_inode(uint64_t fsid, uint64_t inoid, struct inode *node)
 		return -EIO;
 	}
 	node->fs = fs;
-	return fs->driver->fs_ops->load_inode(fs, inoid, node);
+	mutex_acquire(&fs->lock); //TODO: do we need this?
+	int ret = fs->driver->fs_ops->load_inode(fs, inoid, node);
+	mutex_release(&fs->lock);
+	return ret;
+}
+
+void fs_update_inode(struct inode *node)
+{
+	mutex_acquire(&node->fs->lock);
+	node->fs->driver->fs_ops->update_inode(node->fs, node);
+	mutex_release(&node->fs->lock);
 }
 
 int filesystem_register(struct fsdriver *driver)

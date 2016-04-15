@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <slab.h>
 #include <fs/inode.h>
+#include <mutex.h>
 
 struct inode;
 struct dirent;
@@ -22,6 +23,7 @@ struct filesystem;
 struct fs_ops {
 	int (*load_inode)(struct filesystem *fs, uint64_t inoid, struct inode *node);
 	int (*alloc_inode)(struct filesystem *fs, uint64_t *inoid);
+	int (*update_inode)(struct filesystem *fs, struct inode *node);
 };
 
 struct fsdriver {
@@ -37,11 +39,13 @@ struct filesystem {
 	uint64_t id;
 	struct fsdriver *driver;
 	void *fsdata;
+	struct mutex lock;
 };
 
 #define FILESYSTEM_INIT_ORDER 100
 
 int fs_load_inode(uint64_t fsid, uint64_t inoid, struct inode *node);
+void fs_update_inode(struct inode *node);
 
 extern struct fsdriver ramfs;
 

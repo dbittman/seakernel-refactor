@@ -22,6 +22,7 @@ struct inodepage {
 struct inode {
 	struct kobj_header _header;
 	_Atomic int flags;
+	struct mutex lock;
 
 	struct inode_id id;
 

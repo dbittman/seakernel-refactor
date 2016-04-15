@@ -8,21 +8,7 @@
 #include <fs/stat.h>
 #include <device.h>
 
-static void _inode_page_destroy(void *obj)
-{
-	struct inodepage *page = obj;
-	frame_release(page->frame);
-}
-
-static struct kobj kobj_inode_page = {
-	.name = "inode_page",
-	.size = sizeof(struct inodepage),
-	.initialized = false,
-	.init = NULL,
-	.create = NULL,
-	.put = NULL,
-	.destroy = _inode_page_destroy,
-};
+static struct kobj kobj_inode_page = KOBJ_DEFAULT(inodepage);
 
 static bool _inode_page_initialize(void *obj, void *_id, void *data)
 {
@@ -42,23 +28,31 @@ static bool _inode_page_initialize(void *obj, void *_id, void *data)
 	}
 }
 
+static void _inode_page_release(void *obj, void *data)
+{
+	(void)data;
+	struct inodepage *page = obj;
+	/* TODO: should we write back pages in a more lazy way? (eg, during page_init?) */
+	if(page->flags & INODEPAGE_DIRTY)
+		page->node->fs->driver->inode_ops->write_page(page->node, page->page, page->frame);
+	frame_release(page->frame);
+}
+
 static void _inode_create(void *obj)
 {
 	struct inode *node = obj;
-	kobj_lru_create(&node->pages, sizeof(int), 0, &kobj_inode_page, _inode_page_initialize, obj);
+	kobj_lru_create(&node->pages, sizeof(int), 0, &kobj_inode_page, _inode_page_initialize, _inode_page_release, obj);
+	mutex_create(&node->lock);
 }
 
 static void _inode_destroy(void *obj)
 {
 	struct inode *node = obj;
-	if(node->fs)
-		kobj_putref(node->fs);
+	kobj_lru_destroy(&node->pages);
 }
 
 static struct kobj kobj_inode = {
-	.name = "inode",
-	.size = sizeof(struct inode),
-	.initialized = false,
+	KOBJ_DEFAULT_ELEM(inode),
 	.init = NULL,
 	.create = _inode_create,
 	.put = NULL,
@@ -81,9 +75,22 @@ static bool _inode_initialize(void *obj, void *id, void *data)
 	}
 }
 
+static void _inode_release(void *obj, void *data)
+{
+	(void)data;
+	struct inode *node = obj;
+	kobj_lru_release_all(&node->pages);
+	if(node->flags & INODE_FLAG_DIRTY)
+		fs_update_inode(node);
+	if(node->fs) {
+		kobj_putref(node->fs);
+		node->fs = NULL;
+	}
+}
+
 __initializer static void _inode_init_lru(void)
 {
-	kobj_lru_create(&inode_lru, sizeof(struct inode_id), 0, &kobj_inode, _inode_initialize, NULL);
+	kobj_lru_create(&inode_lru, sizeof(struct inode_id), 0, &kobj_inode, _inode_initialize, _inode_release, NULL);
 }
 
 struct inode *inode_lookup(struct inode_id *id)

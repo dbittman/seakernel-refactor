@@ -29,9 +29,7 @@ static void _file_create(void *obj)
 }
 
 struct kobj kobj_file = {
-	.name = "file",
-	.size = sizeof(struct file),
-	.initialized = false,
+	KOBJ_DEFAULT_ELEM(file),
 	.init = _file_init,
 	.create = _file_create,
 	.put = _file_put,

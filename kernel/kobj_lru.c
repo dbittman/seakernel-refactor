@@ -4,18 +4,50 @@
 #include <assert.h>
 #include <printk.h>
 void kobj_lru_create(struct kobj_lru *lru, size_t idlen, size_t max, struct kobj *kobj,
-		bool (*init)(void *obj, void *id, void *), void *data)
+		bool (*init)(void *obj, void *id, void *), void (*release)(void *obj, void *), void *data)
 {
 	lru->kobj = kobj;
 	lru->init = init;
 	lru->max = max;
 	lru->idlen = idlen;
 	lru->data = data;
+	lru->release = release;
 	hash_create(&lru->hash, HASH_LOCKLESS, 2048 / sizeof(struct linkedlist));
 	linkedlist_create(&lru->lru, LINKEDLIST_LOCKLESS);
 	linkedlist_create(&lru->active, LINKEDLIST_LOCKLESS);
 	blocklist_create(&lru->wait);
 	spinlock_create(&lru->lock);
+}
+
+void kobj_lru_destroy(struct kobj_lru *lru)
+{
+	assert(lru->hash.count == 0);
+	hash_destroy(&lru->hash);
+}
+
+void kobj_lru_release_all(struct kobj_lru *lru)
+{
+	spinlock_acquire(&lru->lock);
+	
+	struct hashiter iter;
+	for(hash_iter_init(&iter, &lru->hash);
+			!hash_iter_done(&iter); hash_iter_next(&iter)) {
+		void *obj = hash_iter_get(&iter);
+		struct kobj_header *header = obj;
+		assert(header->_koh_refs == 2);
+
+		int r = hash_delete(&lru->hash, header->id, lru->idlen);
+		assert(r == 0);
+
+		linkedlist_remove(&lru->lru, &header->lruentry);
+
+		lru->release(obj, lru->data);
+
+		kobj_putref(obj);
+		kobj_putref(obj);
+	}
+
+	spinlock_release(&lru->lock);
 }
 
 void kobj_lru_mark_ready(struct kobj_lru *lru, void *obj, void *id)

@@ -15,11 +15,14 @@ static struct dirent *inode_lookup_dirent(struct inode *node, const char *name, 
 {
 	TRACE(&path_trace, "lookup dirent: %ld, %s %d", node->id.inoid, name, namelen);
 	struct dirent *dir = kobj_allocate(&kobj_dirent);
+	mutex_acquire(&node->lock);
 	if((*err = node->fs->driver->inode_ops->lookup(node, name, namelen, dir)) == 0) {
+		mutex_release(&node->lock);
 		strncpy(dir->name, name, namelen);
 		dir->namelen = namelen;
 		return dir;
 	}
+	mutex_release(&node->lock);
 	kobj_putref(dir);
 	return NULL;
 }
@@ -29,9 +32,12 @@ struct dirent *__create_last(struct inode *node, const char *name, size_t namele
 	// test node is dir
 	TRACE(&path_trace, "creating new entry %s %d\n", name, namelen);
 	uint64_t inoid;
+	mutex_acquire(&node->fs->lock);
 	if((*err = node->fs->driver->fs_ops->alloc_inode(node->fs, &inoid)) < 0) {
+		mutex_release(&node->fs->lock);
 		return NULL;
 	}
+	mutex_release(&node->fs->lock);
 	
 	struct inode *target = fs_inode_lookup(node->fs, inoid);
 	target->mode = mode;

@@ -29,6 +29,13 @@ struct kobj {
 	struct spinlock lock;
 };
 
+#define KOBJ_DEFAULT_ELEM(_name) \
+	.initialized = false, \
+	.name = "_name", \
+	.size = sizeof(struct _name)
+
+
+
 #define KOBJ_DEFAULT(_name) {\
 	.initialized = false, \
 	.name = "_name", \
@@ -72,6 +79,7 @@ struct kobj_lru {
 	struct blocklist wait;
 	void *data;
 	bool (*init)(void *, void *, void *);
+	void (*release)(void *, void *);
 };
 
 static inline void kobj_idmap_create(struct kobj_idmap *idm, size_t idlen)
@@ -108,11 +116,13 @@ static inline void *kobj_idmap_lookup(struct kobj_idmap *idm, void *id)
 }
 
 void kobj_lru_create(struct kobj_lru *lru, size_t idlen, size_t max, struct kobj *kobj,
-		bool (*init)(void *obj, void *id, void *data), void *data);
+		bool (*init)(void *obj, void *id, void *data), void (*release)(void *, void *), void *data);
 void kobj_lru_mark_ready(struct kobj_lru *lru, void *obj, void *id);
 void kobj_lru_mark_error(struct kobj_lru *lru, void *obj, void *id);
 void kobj_lru_reclaim(struct kobj_lru *lru);
 void *kobj_lru_get(struct kobj_lru *lru, void *id);
 void kobj_lru_put(struct kobj_lru *lru, void *obj);
+void kobj_lru_release_all(struct kobj_lru *lru);
+void kobj_lru_destroy(struct kobj_lru *lru);
 #endif
 

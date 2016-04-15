@@ -50,14 +50,23 @@ static void _ramfs_inode_create(void *obj)
 static void _ramfs_inode_destroy(void *obj)
 {
 	struct ramfs_inode *i = obj;
+	struct hashiter iter;
+	for(hash_iter_init(&iter, &i->data); !hash_iter_done(&iter); hash_iter_next(&iter)) {
+		struct frame *frame  = hash_iter_get(&iter);
+		hash_delete(&i->data, &frame->pagenr, sizeof(frame->pagenr));
+		frame_release(frame_get_physical(frame));
+	}
 	hash_destroy(&i->data);
+	for(hash_iter_init(&iter, &i->dirents); !hash_iter_done(&iter); hash_iter_next(&iter)) {
+		struct ramfs_dirent *d = hash_iter_get(&iter);
+		hash_delete(&i->dirents, d->name, d->namelen);
+		kobj_putref(d);
+	}
 	hash_destroy(&i->dirents);
 }
 
 struct kobj kobj_ramfs_inode = {
-	.initialized = false,
-	.size = sizeof(struct ramfs_inode),
-	.name = "ramfs_inode",
+	KOBJ_DEFAULT_ELEM(ramfs_inode),
 	.put = NULL, .destroy = _ramfs_inode_destroy,
 	.create = _ramfs_inode_create, .init = _ramfs_inode_init,
 };
@@ -211,12 +220,23 @@ static void _ramfs_create(void *obj)
 	hash_insert(&ramfs_data->inodes, &root->id, sizeof(root->id), &root->elem, root);
 }
 
+static void _ramfs_destroy(void *obj)
+{
+	struct ramfs_data *ramfs_data = obj;
+	struct hashiter iter;
+	for(hash_iter_init(&iter, &ramfs_data->inodes);
+			!hash_iter_done(&iter); hash_iter_next(&iter)) {
+		struct ramfs_inode *node = hash_iter_get(&iter);
+		hash_delete(&ramfs_data->inodes, &node->id, sizeof(node->id));
+		kobj_putref(node);
+	}
+	hash_destroy(&ramfs_data->inodes);
+}
+
 struct kobj kobj_ramfs = {
-	.initialized = false,
-	.name = "ramfs",
-	.size = sizeof(struct ramfs_data),
+	KOBJ_DEFAULT_ELEM(ramfs_data),
 	.create = _ramfs_create,
-	.destroy = NULL,
+	.destroy = _ramfs_destroy,
 	.init = NULL,
 	.put = NULL,
 };

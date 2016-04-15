@@ -22,9 +22,7 @@ static void _socket_create(void *obj)
 }
 
 static struct kobj kobj_socket = {
-	.initialized = false,
-	.size = sizeof(struct socket),
-	.name = "socket",
+	KOBJ_DEFAULT_ELEM(socket),
 	.create = _socket_create, .destroy = NULL,
 	.init = _socket_init, .put = NULL,
 };

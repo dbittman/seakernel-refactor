@@ -13,16 +13,36 @@ struct pipe {
 	_Atomic int readers, writers;
 };
 
-static struct kobj kobj_pipe = KOBJ_DEFAULT(pipe);
+static void _pipe_init(void *obj)
+{
+	struct pipe *pipe = obj;
+	charbuffer_reset(&pipe->buf);
+}
 
-static void _pipe_create(struct file *file)
+static void _pipe_create(void *obj)
+{
+	struct pipe *pipe = obj;
+	charbuffer_create(&pipe->buf, 0x1000);
+}
+
+static void _pipe_destroy(void *obj)
+{
+	struct pipe *pipe = obj;
+	charbuffer_destroy(&pipe->buf);
+}
+
+static struct kobj kobj_pipe = {
+	KOBJ_DEFAULT_ELEM(pipe), .put = NULL, .destroy = _pipe_destroy,
+	.create = _pipe_create, .init = _pipe_init,
+};
+
+static void _pipe_file_create(struct file *file)
 {
 	struct pipe *pipe = file->devdata = kobj_allocate(&kobj_pipe);
-	charbuffer_create(&pipe->buf, 0x1000);
 	pipe->readers = pipe->writers = 1;
 }
 
-static void _pipe_destroy(struct file *file)
+static void _pipe_file_destroy(struct file *file)
 {
 	kobj_putref(file->devdata);
 }
@@ -81,8 +101,8 @@ static void _pipe_close(struct file *file)
 struct file_calls pipe_fops = {
 	.write = _pipe_write,
 	.read = _pipe_read,
-	.create = _pipe_create,
-	.destroy = _pipe_destroy,
+	.create = _pipe_file_create,
+	.destroy = _pipe_file_destroy,
 	.open = _pipe_open,
 	.close = _pipe_close,
 

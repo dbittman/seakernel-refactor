@@ -43,7 +43,7 @@ static void _unix_con_destroy(void *obj)
 }
 
 static struct kobj kobj_unix_connection = {
-	.initialized = false, .size = sizeof(struct unix_connection), .name = "unix_connection",
+	KOBJ_DEFAULT_ELEM(unix_connection),
 	.create = _unix_con_create,
 	.destroy = _unix_con_destroy,
 	.init = _unix_con_init, .put = NULL,
@@ -126,12 +126,11 @@ static int _unix_connect(struct socket *sock, const struct sockaddr *_addr, sock
 	int err = fs_path_resolve(addr->sun_path, NULL, 0, 0, NULL, &node);
 	if(err < 0)
 		return err;
+	/* TODO: use kobj_idmap */
 	struct socket *master = hash_lookup(&bound_sockets, &node->id, sizeof(node->id));
 	inode_put(node);
 	if(!master)
 		return -ENOENT;
-
-	
 
 	struct blockpoint bp;
 	blockpoint_create(&bp, 0, 0);
@@ -181,6 +180,8 @@ static int _unix_accept(struct socket *sock, struct sockaddr *addr, socklen_t *a
 	struct blockpoint bp;
 	struct socket *client = NULL;
 	while(client == NULL) {
+		if(!(sock->flags & SF_BOUND))
+			return -EINVAL;
 		blockpoint_create(&bp, 0, 0);
 		blockpoint_startblock(&sock->pend_con_wait, &bp);
 

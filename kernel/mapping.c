@@ -21,9 +21,7 @@ static void _mapping_create(void *obj)
 }
 
 struct kobj kobj_mapping = {
-	.initialized = false,
-	.name = "mapping",
-	.size = sizeof(struct mapping),
+	KOBJ_DEFAULT_ELEM(mapping),
 	.create = _mapping_create,
 	.init = _mapping_init,
 	.put = NULL,
