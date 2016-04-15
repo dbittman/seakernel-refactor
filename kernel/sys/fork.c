@@ -46,7 +46,9 @@ sysret_t sys_fork(void *frame, size_t framelen)
 
 	thread->state = THREADSTATE_RUNNING;
 	processor_add_thread(current_thread->processor, thread);
-	return proc->pid;
+	sysret_t ret = proc->pid;
+	kobj_putref(proc);
+	return ret;
 }
 
 _Noreturn void sys_exit(int code)

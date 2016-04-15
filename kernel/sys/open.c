@@ -34,7 +34,6 @@ sysret_t sys_open(const char *path, int flags, int mode)
 	int fd = process_allocate_fd(file);
 	if(fd < 0) {
 		inode_put(node);
-		kobj_putref(dir);
 		kobj_putref(file);
 		return -EMFILE;
 	}

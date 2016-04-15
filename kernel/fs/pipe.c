@@ -100,15 +100,15 @@ sysret_t sys_pipe(int *fds)
 	rf->flags = F_READ;
 
 	int wfd = process_allocate_fd(wf);
+	kobj_putref(wf);
 	if(wfd < 0) {
 		kobj_putref(rf);
-		kobj_putref(wf);
 		return -EMFILE;
 	}
 	int rfd = process_allocate_fd(rf);
+	kobj_putref(rf);
 	if(rfd < 0) {
-		kobj_putref(rf);
-		kobj_putref(wf);
+		process_release_fd(wfd);
 		return -EMFILE;
 	}
 

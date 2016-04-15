@@ -28,6 +28,12 @@ echo Extracting sources...
 tar xf $(basename $GCCSRC)
 tar xf $(basename $BINSRC)
 
+(
+	set -e
+	cd $(basename -s .tar.bz2 $GCCSRC)
+	patch -p1 ../tools/gcc-$(GCCVER)-seaos.patch
+)
+
 export PREFIX="$(realpath "$1")"
 export PATH="$PREFIX/bin:$PATH"
 

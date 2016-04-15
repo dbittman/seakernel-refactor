@@ -37,10 +37,14 @@ struct dirent *__create_last(struct inode *node, const char *name, size_t namele
 	target->mode = mode;
 	inode_mark_dirty(target);
 
-	if((*err = fs_link(node, name, namelen, target)) < 0)
+	if((*err = fs_link(node, name, namelen, target)) < 0) {
+		inode_put(target);
 		return NULL;
+	}
 	
-	return inode_lookup_dirent(node, name, namelen, err);
+	struct dirent *dir = inode_lookup_dirent(node, name, namelen, err);
+	inode_put(target);
+	return dir;
 }
 
 int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode, struct dirent **dir_out, struct inode **ino_out)
@@ -70,6 +74,8 @@ int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode,
 		TRACE(&path_trace, "next segment: %s %d %c\n", name, sep - name, *sep == 0 ? ' ' : '/');
 		if(sep != name) {
 			int err;
+			if(dir)
+				kobj_putref(dir);
 			dir = inode_lookup_dirent(node, name, sep - name, &err);
 			TRACE(&path_trace, "lookup returned %p", dir);
 			if(!dir) {

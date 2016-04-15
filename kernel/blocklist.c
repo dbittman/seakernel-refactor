@@ -15,7 +15,8 @@ void blocklist_create(struct blocklist *bl)
 
 void thread_unblock(struct thread *thread)
 {
-	TRACE(&blocking_trace, "unblock thread %ld (%d)", thread->tid, thread->processor->id);
+	TRACE(&blocking_trace, "unblock thread %ld (%d)",
+			thread->tid, thread->processor->id);
 	if(atomic_exchange(&thread->state, THREADSTATE_RUNNING) == THREADSTATE_BLOCKED)
 		processor_add_thread(thread->processor, thread);
 }

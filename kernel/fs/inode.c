@@ -51,7 +51,8 @@ static void _inode_create(void *obj)
 static void _inode_destroy(void *obj)
 {
 	struct inode *node = obj;
-	(void)node;
+	if(node->fs)
+		kobj_putref(node->fs);
 }
 
 static struct kobj kobj_inode = {

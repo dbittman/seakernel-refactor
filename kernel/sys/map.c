@@ -8,7 +8,9 @@
 
 intptr_t sys_mmap(uintptr_t addr, size_t len, int prot, int flags, int fd, size_t off)
 {
-	if(len == 0 || (!(flags & MMAP_MAP_PRIVATE) && !(flags & MMAP_MAP_SHARED)))
+	if(len == 0
+			|| (!(flags & MMAP_MAP_PRIVATE) && !(flags & MMAP_MAP_SHARED))
+			|| ((flags & MMAP_MAP_PRIVATE) && (flags & MMAP_MAP_SHARED)))
 		return -EINVAL;
 	len = ((len - 1) & ~(arch_mm_page_size(0) - 1)) + arch_mm_page_size(0);
 	if(len + addr > (USER_MMAP_REGION_END - USER_MMAP_REGION_START))
