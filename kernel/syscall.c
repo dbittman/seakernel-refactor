@@ -41,6 +41,17 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_sendto]   = SC sys_sendto,
 	[SYS_recvfrom]   = SC sys_recvfrom,
 
+	[SYS_getpid]   = SC sys_getpid,
+	[SYS_getppid]   = SC sys_getppid,
+	[SYS_getgid]   = SC sys_getgid,
+	[SYS_getegid]   = SC sys_getegid,
+	[SYS_getuid]   = SC sys_getuid,
+	[SYS_geteuid]   = SC sys_geteuid,
+	[SYS_setuid]   = SC sys_setuid,
+	[SYS_setresuid]   = SC sys_setresuid,
+	[SYS_setgid]   = SC sys_setgid,
+	[SYS_setresgid]   = SC sys_setresgid,
+
 
 	[SYS_gettid]   = SC sys_gettid,
 

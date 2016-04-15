@@ -18,6 +18,7 @@ struct ramfs_inode {
 	struct hash data;
 	struct hash dirents;
 	int mode, atime, mtime, ctime;
+	int uid, gid;
 	struct hashelem elem;
 	uint64_t id;
 	struct mutex lock;
@@ -130,6 +131,8 @@ static int _load_inode(struct filesystem *fs, uint64_t ino, struct inode *node)
 	node->mtime = ri->mtime;
 	node->ctime = ri->ctime;
 	node->length = ri->length;
+	node->uid = ri->uid;
+	node->gid = ri->gid;
 	mutex_release(&ri->lock);
 	
 	return 0;

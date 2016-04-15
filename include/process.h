@@ -19,6 +19,8 @@ struct process {
 	struct kobj _header;
 	struct vm_context *ctx;
 	struct linkedlist threads;
+	struct process * _Atomic parent;
+	struct spinlock lock;
 
 	struct hash mappings;
 	struct spinlock map_lock;
@@ -32,6 +34,7 @@ struct process {
 	struct filesystem *root;
 	struct dirent *cwd;
 	int cmask;
+	_Atomic int uid, gid, euid, egid, sgid, suid;
 };
 
 extern struct kobj kobj_process;

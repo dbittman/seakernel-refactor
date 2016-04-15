@@ -41,6 +41,8 @@ struct dirent *__create_last(struct inode *node, const char *name, size_t namele
 	
 	struct inode *target = fs_inode_lookup(node->fs, inoid);
 	target->mode = mode;
+	target->uid = current_thread->process->euid;
+	target->gid = current_thread->process->egid;
 	inode_mark_dirty(target);
 
 	if((*err = fs_link(node, name, namelen, target)) < 0) {

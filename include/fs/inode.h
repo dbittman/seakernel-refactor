@@ -33,6 +33,7 @@ struct inode {
 	_Atomic size_t length;
 
 	_Atomic uint64_t atime, mtime, ctime;
+	_Atomic int uid, gid;
 
 	struct kobj_lru pages;
 

@@ -6,6 +6,8 @@
 #include <printk.h>
 #include <errno.h>
 #include <sys.h>
+#include <file.h>
+#include <fs/stat.h>
 
 static void write_data(uintptr_t *end, void *data, size_t len)
 {
@@ -38,6 +40,22 @@ sysret_t sys_execve(const char *path, char **arg, char **env)
 		err = -ENOEXEC;
 		goto out_close;
 	}
+
+	/* set-id */
+	struct file *file = process_get_file(fd);
+	struct inode *node = file_get_inode(file);
+	kobj_putref(file);
+
+	if(node->mode & S_ISUID) {
+		current_thread->process->suid = current_thread->process->euid;
+		current_thread->process->euid = node->uid;
+	}
+	if(node->mode & S_ISGID) {
+		current_thread->process->sgid = current_thread->process->egid;
+		current_thread->process->egid = node->gid;
+	}
+
+	kobj_putref(node);
 
 	/* other tests... */
 
