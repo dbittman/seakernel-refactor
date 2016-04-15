@@ -14,6 +14,8 @@ enum timer_mode {
 
 #define MICROSECONDS_PER_TICK 100
 
+#define ONE_SECOND 100*1000*1000
+
 struct timer {
 	uint64_t initial_ticks;
 	_Atomic int64_t ticks;

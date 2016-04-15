@@ -12,12 +12,14 @@
 #include <fs/path.h>
 
 static struct hash bound_sockets;
+struct spinlock _id_lock;
 
 static _Atomic long next_id = 0;
 
 __initializer static void _unix_init(void)
 {
 	hash_create(&bound_sockets, 0, 128);
+	spinlock_create(&_id_lock);
 }
 
 static void _unix_con_init(void *obj)
@@ -126,14 +128,16 @@ static int _unix_connect(struct socket *sock, const struct sockaddr *_addr, sock
 	int err = fs_path_resolve(addr->sun_path, NULL, 0, 0, NULL, &node);
 	if(err < 0)
 		return err;
-	/* TODO: use kobj_idmap */
+	spinlock_acquire(&_id_lock);
 	struct socket *master = hash_lookup(&bound_sockets, &node->id, sizeof(node->id));
+	if(master) kobj_getref(master);
+	spinlock_release(&_id_lock);
 	inode_put(node);
 	if(!master)
 		return -ENOENT;
 
 	struct blockpoint bp;
-	blockpoint_create(&bp, 0, 0);
+	blockpoint_create(&bp, BLOCK_TIMEOUT, ONE_SECOND);
 	blockpoint_startblock(&sock->pend_con_wait, &bp);
 
 	linkedlist_insert(&master->pend_con, &sock->pend_con_entry, kobj_getref(sock));
@@ -141,11 +145,15 @@ static int _unix_connect(struct socket *sock, const struct sockaddr *_addr, sock
 	
 	schedule();
 	blockpoint_cleanup(&bp);
-	/* TODO: test for failure */
+	if(!(sock->flags & SF_CONNEC)) {
+		kobj_putref(master);
+		return -ECONNREFUSED;
+	}
 	sock->unix.named = true;
 	sock->unix.name.sun_path[0] = 0;
 	long id = ++next_id;
 	memcpy(&sock->unix.name.sun_path[sizeof(next_id)], &id, sizeof(id));
+	kobj_putref(master);
 		
 	return 0;
 }
@@ -166,8 +174,12 @@ static int _unix_bind(struct socket *sock, const struct sockaddr *_addr, socklen
 	inode_put(node);
 	kobj_putref(anchor);
 
-	if(hash_insert(&bound_sockets, &sock->unix.loc, sizeof(sock->unix.loc), &sock->unix.elem, kobj_getref(sock)) == -1)
+	spinlock_acquire(&_id_lock);
+	if(hash_insert(&bound_sockets, &sock->unix.loc, sizeof(sock->unix.loc), &sock->unix.elem, kobj_getref(sock)) == -1) {
+		spinlock_release(&_id_lock);
 		return -EADDRINUSE;
+	}
+	spinlock_release(&_id_lock);
 	sock->unix.named = true;
 
 	return 0;
@@ -234,10 +246,13 @@ static void _unix_shutdown(struct socket *sock)
 	if(sock->unix.con)
 		terminate_connection(sock->unix.con);
 	if(sock->flags & SF_BOUND) {
+		spinlock_acquire(&_id_lock);
+		sock->flags &= ~SF_BOUND;
 		hash_delete(&bound_sockets, &sock->unix.loc, sizeof(sock->unix.loc));
+		blocklist_unblock_all(&sock->pend_con_wait);
+		spinlock_release(&_id_lock);
 		sys_close(sock->unix.fd);
 	}
-	sock->flags &= ~SF_BOUND;
 	cleanup_connection(sock, 0);
 }
 
