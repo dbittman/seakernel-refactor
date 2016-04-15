@@ -54,6 +54,7 @@ sysret_t sys_socket(int domain, int type, int protocol)
 	if(domain >= MAX_AF)
 		return -EINVAL;
 	struct file *file = file_create(NULL, FDT_SOCK);
+	file->flags |= F_READ | F_WRITE;
 	int fd = process_allocate_fd(file);
 	if(fd < 0) {
 		kobj_putref(file);
@@ -74,6 +75,8 @@ sysret_t sys_socketpair(int domain, int type, int protocol, int *sv)
 	struct file *f1 = file_create(NULL, FDT_SOCK);
 	struct file *f2 = file_create(NULL, FDT_SOCK);
 
+	f1->flags |= F_READ | F_WRITE;
+	f2->flags |= F_READ | F_WRITE;
 	int fd1 = process_allocate_fd(f1);
 	if(fd1 < 0) {
 		kobj_putref(f1);

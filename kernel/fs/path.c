@@ -32,6 +32,10 @@ struct dirent *__create_last(struct inode *node, const char *name, size_t namele
 	// test node is dir
 	TRACE(&path_trace, "creating new entry %s %d\n", name, namelen);
 	uint64_t inoid;
+	if(!inode_check_perm(node, PERM_WRITE)) {
+		*err = -EACCES;
+		return NULL;
+	}
 	mutex_acquire(&node->fs->lock);
 	if((*err = node->fs->driver->fs_ops->alloc_inode(node->fs, &inoid)) < 0) {
 		mutex_release(&node->fs->lock);
@@ -84,6 +88,10 @@ int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode,
 			int err;
 			if(dir)
 				kobj_putref(dir);
+			if(!inode_check_perm(node, PERM_READ)) {
+				inode_put(node);
+				return -EACCES;
+			}
 			dir = inode_lookup_dirent(node, name, sep - name, &err);
 			TRACE(&path_trace, "lookup returned %p", dir);
 			if(!dir) {

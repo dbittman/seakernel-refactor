@@ -2,6 +2,7 @@
 #include <slab.h>
 #include <lib/hash.h>
 #include <mutex.h>
+#include <fs/stat.h>
 struct blockpoint;
 struct inode_id {
 	uint64_t fsid;
@@ -49,6 +50,7 @@ struct inodepage *inode_get_page(struct inode *node, int nodepage);
 struct inode *inode_lookup(struct inode_id *id);
 ssize_t inode_write_data(struct file *, size_t off, size_t len, const char *buf);
 ssize_t inode_read_data(struct file *, size_t off, size_t len, char *buf);
+bool inode_check_perm(struct inode *node, int type);
 
 static inline void inode_mark_dirty(struct inode *node)
 {

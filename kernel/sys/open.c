@@ -27,6 +27,18 @@ sysret_t sys_open(const char *path, int flags, int mode)
 		return -EEXIST;
 	}
 
+	if((flags & F_WRITE) && !inode_check_perm(node, PERM_WRITE)) {
+		kobj_putref(dir);
+		inode_put(node);
+		return -EACCES;
+	}
+
+	if((flags & F_READ) && !inode_check_perm(node, PERM_READ)) {
+		kobj_putref(dir);
+		inode_put(node);
+		return -EACCES;
+	}
+
 	struct file *file = file_create(dir, FDT_UNKNOWN);
 	file->pos = 0;
 	file->flags = flags;
@@ -84,6 +96,12 @@ ssize_t sys_read(int fd, void *buf, size_t count)
 	struct file *file = process_get_file(fd);
 	if(!file)
 		return -EBADF;
+
+	if(!(file->flags & F_READ)) {
+		kobj_putref(file);
+		return -EACCES;
+	}
+	
 	ssize_t amount = file_read(file, file->pos, count, buf);
 	if(amount > 0) {
 		file->pos += amount;
@@ -97,6 +115,11 @@ ssize_t sys_write(int fd, void *buf, size_t count)
 	struct file *file = process_get_file(fd);
 	if(!file)
 		return -EBADF;
+	if(!(file->flags & F_WRITE)) {
+		kobj_putref(file);
+		return -EACCES;
+	}
+
 	size_t off = (file->flags & O_APPEND) ? file_get_len(file) : file->pos;
 	file->pos = off;
 	ssize_t amount = file_write(file, off, count, buf);
@@ -112,6 +135,11 @@ ssize_t sys_pread(int fd, void *buf, size_t count, size_t off)
 	struct file *file = process_get_file(fd);
 	if(!file)
 		return -EBADF;
+	if(!(file->flags & F_READ)) {
+		kobj_putref(file);
+		return -EACCES;
+	}
+
 	ssize_t amount = file_read(file, off, count, buf);
 	kobj_putref(file);
 	return amount;
@@ -122,6 +150,11 @@ ssize_t sys_pwrite(int fd, void *buf, size_t count, size_t off)
 	struct file *file = process_get_file(fd);
 	if(!file)
 		return -EBADF;
+	if(!(file->flags & F_WRITE)) {
+		kobj_putref(file);
+		return -EACCES;
+	}
+
 	ssize_t amount = file_write(file, off, count, buf);
 	kobj_putref(file);
 	return amount;
@@ -132,6 +165,11 @@ ssize_t sys_pwritev(int fd, struct iovec *iov, int iovc, size_t off)
 	struct file *file = process_get_file(fd);
 	if(!file)
 		return -EBADF;
+	if(!(file->flags & F_WRITE)) {
+		kobj_putref(file);
+		return -EACCES;
+	}
+
 	size_t amount = 0;
 	for(int i=0;i<iovc;i++) {
 		if(!iov[i].len)
@@ -155,6 +193,11 @@ ssize_t sys_preadv(int fd, struct iovec *iov, int iovc, size_t off)
 	struct file *file = process_get_file(fd);
 	if(!file)
 		return -EBADF;
+	if(!(file->flags & F_READ)) {
+		kobj_putref(file);
+		return -EACCES;
+	}
+
 	size_t amount = 0;
 	for(int i=0;i<iovc;i++) {
 		if(!iov[i].len)
@@ -178,6 +221,11 @@ ssize_t sys_writev(int fd, struct iovec *iov, int iovc)
 	struct file *file = process_get_file(fd);
 	if(!file)
 		return -EBADF;
+	if(!(file->flags & F_WRITE)) {
+		kobj_putref(file);
+		return -EACCES;
+	}
+
 	size_t off = (file->flags & O_APPEND) ? file_get_len(file) : file->pos;
 	file->pos = off;
 	ssize_t res = sys_pwritev(fd, iov, iovc, off);
@@ -192,6 +240,11 @@ ssize_t sys_readv(int fd, struct iovec *iov, int iovc)
 	struct file *file = process_get_file(fd);
 	if(!file)
 		return -EBADF;
+	if(!(file->flags & F_READ)) {
+		kobj_putref(file);
+		return -EACCES;
+	}
+
 	ssize_t res = sys_preadv(fd, iov, iovc, file->pos);
 	if(res > 0)
 		file->pos += res;

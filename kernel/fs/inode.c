@@ -7,6 +7,8 @@
 #include <printk.h>
 #include <fs/stat.h>
 #include <device.h>
+#include <thread.h>
+#include <process.h>
 
 static struct kobj kobj_inode_page = KOBJ_DEFAULT(inodepage);
 
@@ -114,5 +116,25 @@ void inode_release_page(struct inode *node, struct inodepage *page)
 {
 	if(node->fs)
 		kobj_lru_put(&node->pages, page);
+}
+
+bool inode_check_perm(struct inode *node, int type)
+{
+	if(current_thread->process->euid == 0)
+		return true;
+	if(current_thread->process->euid == node->uid
+			&& (type & node->mode)) {
+		return true;
+	}
+	type >>= 3;
+	if(current_thread->process->egid == node->gid
+			&& (type & node->mode)) {
+		return true;
+	}
+	type >>= 3;
+	if(type & node->mode) {
+		return true;
+	}
+	return false;
 }
 

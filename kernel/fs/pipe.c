@@ -113,6 +113,8 @@ sysret_t sys_pipe(int *fds)
 {
 	struct file *rf = file_create(NULL, FDT_FIFO);
 	struct file *wf = file_create(NULL, 0);
+	rf->flags |= F_READ;
+	wf->flags |= F_WRITE;
 	wf->ops = rf->ops;
 	wf->devdata = rf->devdata;
 

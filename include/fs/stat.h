@@ -23,6 +23,10 @@
 #define S_ISLNK(mode)  (((mode) & S_IFMT) == S_IFLNK)
 #define S_ISSOCK(mode) (((mode) & S_IFMT) == S_IFSOCK)
 
+#define PERM_READ  0400
+#define PERM_WRITE 0200
+#define PERM_EXEC  0100
+
 #define S_ISUID 04000
 #define S_ISGID 02000
 #define S_ISVTX 01000
