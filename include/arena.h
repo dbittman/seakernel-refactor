@@ -51,3 +51,13 @@ static inline void *arena_allocate(struct arena *arena, size_t length)
 	return ret;
 }
 
+static inline void arena_destroy(struct arena *arena)
+{
+	struct arena_node *node = arena->start, *next;
+	while(node) {
+		next = node->next;
+		mm_virtual_deallocate((uintptr_t)node);
+		node = next;
+	}
+}
+

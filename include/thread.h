@@ -13,6 +13,7 @@
 #include <priqueue.h>
 #define THREAD_RESCHEDULE 1
 #define THREAD_EXIT 2
+#define THREAD_ONQUEUE 4
 enum thread_state {
 	THREADSTATE_INIT,
 	THREADSTATE_RUNNING,
@@ -29,7 +30,7 @@ struct thread {
 	void *user_tls_base;
 	unsigned long tid;
 	/* A */ long long time /* ago, I can still remember when that music... */;
-	int flags;
+	_Atomic int flags;
 	_Atomic enum thread_state state;
 
 	struct priqueue_node runqueue_node;

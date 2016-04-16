@@ -10,6 +10,7 @@
 #include <interrupt.h>
 #include <worker.h>
 #include <priqueue.h>
+#include <thread.h>
 extern int initial_boot_stack;
 struct processor plist[MAX_PROCESSORS];
 
@@ -22,7 +23,8 @@ void processor_add_thread(struct processor *proc, struct thread *thread)
 	 * we could have trouble (thread->processor would be null in schedule()).
 	 */
 	thread->processor = proc;
-	priqueue_insert(&proc->runqueue, &thread->runqueue_node, thread, thread_current_priority(thread));
+	if(!(atomic_fetch_or(&thread->flags, THREAD_ONQUEUE) & THREAD_ONQUEUE))
+		priqueue_insert(&proc->runqueue, &thread->runqueue_node, thread, thread_current_priority(thread));
 }
 
 void processor_create(int id, int flags)

@@ -277,14 +277,25 @@ static void _unix_init_sock(struct socket *sock)
 
 static int _unix_select(struct socket *sock, int flags, struct blockpoint *bp)
 {
-	if(!(sock->flags & SF_CONNEC))
+	if(!(sock->flags & SF_CONNEC)) {
+		if(sock->flags & SF_LISTEN) {
+			if(bp)
+				blockpoint_startblock(&sock->pend_con_wait, bp);
+			if(sock->pend_con.count > 0) {
+				if(bp)
+					blockpoint_unblock(bp);
+				return 1;
+			}
+			return 0;
+		}
 		return 1;
+	}
 
 	if(flags == SEL_ERROR)
 		return 0; // TODO
 
 	struct unix_connection *con = sock->unix.con;
-	struct charbuffer *buf;
+	struct charbuffer *buf = NULL;
 	if(con->server == sock && flags == SEL_READ)
 		buf = &con->in;
 	else if(con->server == sock && flags == SEL_WRITE)
@@ -294,6 +305,7 @@ static int _unix_select(struct socket *sock, int flags, struct blockpoint *bp)
 	else if(flags == SEL_READ)
 		buf = &con->out;
 
+	assert(buf != NULL);
 	if(bp)
 		blockpoint_startblock((flags == SEL_READ) ? &buf->wait_read : &buf->wait_write, bp);
 

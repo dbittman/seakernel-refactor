@@ -4,6 +4,24 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/select.h>
+
+int handle_client(int client)
+{
+	char buffer[1024];
+	ssize_t amount = read(client, buffer, 1023);
+	if(amount < 0) {
+		perror("read from client");
+		return -1;
+	} else if(amount == 0) {
+		fprintf(stderr, "syslogd: closing client %d\n", client);
+		close(client);
+		return -1;
+	}
+	buffer[amount] = 0;
+	fprintf(stderr, "%s", buffer);
+	return 0;
+}
 
 int main(int argc, char **argv)
 {
@@ -14,6 +32,7 @@ int main(int argc, char **argv)
 	unlink("/dev/log");
 
 	int master = socket(AF_UNIX, SOCK_STREAM, 0);
+	printf("Started syslogd with socket %d\n", master);
 	struct sockaddr_un addr = {
 		AF_UNIX, "/dev/log"
 	};
@@ -28,23 +47,37 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
+	fd_set active_fds, read_fds, err_fds;
+	FD_ZERO(&active_fds);
+	FD_SET(master, &active_fds);
 	while(true) {
-		struct sockaddr_un cliaddr;
-		socklen_t len;
-		int client = accept(master, (struct sockaddr *)&cliaddr, &len);
-		if(client == -1) {
-			perror("accept");
-			exit(1);
+		read_fds = active_fds;
+		err_fds = active_fds;
+		int sels = select(FD_SETSIZE, &read_fds, NULL, &err_fds, NULL);
+		for(int i=0;i<FD_SETSIZE;i++) {
+			if(FD_ISSET(i, &read_fds)) {
+				if(i == master) {
+					struct sockaddr_un cliaddr;
+					socklen_t len;
+					int client;
+					client = accept(master, (struct sockaddr *)&cliaddr, &len);
+					if(client > 0) {
+						FD_SET(client, &active_fds);
+					} else {
+						perror("accept");
+					}
+				} else {
+					if(handle_client(i) < 0) {
+						close(i);
+						FD_CLR(i, &active_fds);
+					}
+				}
+			} else if(FD_ISSET(i, &err_fds)) {
+				close(i);
+				FD_CLR(i, &active_fds);
+			}
 		}
 
-		char buf[1024];
-		int amount;
-		while((amount=read(client, buf, 1023)) > 0) {
-			buf[amount] = 0;
-			fprintf(stderr, "%s", buf);
-			memset(buf, 0, 1024);
-		}
-		close(client);
 	}
 
 	return 0;
