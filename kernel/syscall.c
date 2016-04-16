@@ -52,6 +52,7 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_setgid]   = SC sys_setgid,
 	[SYS_setresgid]   = SC sys_setresgid,
 
+	[SYS_fcntl]    = SC sys_fcntl,
 
 	[SYS_gettid]   = SC sys_gettid,
 
