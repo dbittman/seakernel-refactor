@@ -51,7 +51,6 @@ static ssize_t _pipe_read(struct file *file,
 		size_t off, size_t len, char *buf)
 {
 	(void)off;
-	printk("PIPE READ\n");
 	struct pipe *pipe = file->devdata;
 	if(pipe->writers == 0 && charbuffer_pending(&pipe->buf) == 0)
 		return 0;
@@ -66,7 +65,6 @@ static ssize_t _pipe_write(struct file *file,
 		size_t off, size_t len, const char *buf)
 {
 	(void)off;
-	printk("PIPE WRITE\n");
 	struct pipe *pipe = file->devdata;
 	if(pipe->readers == 0)
 		return -EPIPE; //TODO: also raise SIGPIPE.
@@ -98,6 +96,34 @@ static void _pipe_close(struct file *file)
 	/* TODO: notify charbuffer of closure */
 }
 
+static int _pipe_select(struct file *file, int flags, struct blockpoint *bp)
+{
+	int ret = 0;
+	struct pipe *pipe = file->devdata;
+	
+	switch(flags) {
+		case SEL_READ:
+			if(bp)
+				blockpoint_startblock(&pipe->buf.wait_read, bp);
+			if(!charbuffer_pending(&pipe->buf)) {
+				ret = 1;
+				if(bp)
+					blockpoint_unblock(bp);
+			}
+			break;
+		case SEL_WRITE:
+			if(bp)
+				blockpoint_startblock(&pipe->buf.wait_write, bp);
+			if(!charbuffer_avail(&pipe->buf)) {
+				ret = 1;
+				if(bp)
+					blockpoint_unblock(bp);
+			}
+			break;
+	}
+	return ret;
+}
+
 struct file_calls pipe_fops = {
 	.write = _pipe_write,
 	.read = _pipe_read,
@@ -106,7 +132,7 @@ struct file_calls pipe_fops = {
 	.open = _pipe_open,
 	.close = _pipe_close,
 
-	.ioctl = 0, .select = 0,
+	.ioctl = 0, .select = _pipe_select,
 };
 
 sysret_t sys_pipe(int *fds)

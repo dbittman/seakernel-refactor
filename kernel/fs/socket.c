@@ -275,11 +275,23 @@ static ssize_t _socket_write(struct file *file, size_t off, size_t len, const ch
 	return ret;
 }
 
+static int _socket_select(struct file *file, int flags, struct blockpoint *bp)
+{
+	struct socket *sock = kobj_getref(file->devdata);
+
+	int ret = 1;
+	if(sock->ops->select)
+		ret = sock->ops->select(sock, flags, bp);
+
+	kobj_putref(sock);
+	return ret;
+}
+
 struct file_calls socket_fops = {
 	.write = _socket_write,
 	.read = _socket_read,
 	.create = _socket_fops_create,
 	.destroy = _socket_fops_destroy,
-	.ioctl = 0, .select = 0, .open = 0, .close = 0,
+	.ioctl = 0, .select = _socket_select, .open = 0, .close = 0,
 };
 

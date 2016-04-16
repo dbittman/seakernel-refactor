@@ -29,5 +29,12 @@ struct timer {
 void timer_add(struct timer *timer, enum timer_mode mode, uint64_t ticks,
 		void (*fn)(void *), void *data);
 void timer_remove(struct timer *timer);
+
+
+typedef long time_t;
+typedef long suseconds_t;
+struct timespec { time_t tv_sec; long tv_nsec; };
+struct timeval { time_t tv_sec; suseconds_t tv_usec; };
+
 #endif
 

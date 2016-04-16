@@ -36,6 +36,7 @@ struct sock_calls {
 	ssize_t (*sendto)(struct socket *sock, const char *msg, size_t length,
 		int flags, const struct sockaddr *dest, socklen_t dest_len);
 	ssize_t (*recvfrom)(struct socket *, char *, size_t, int, struct sockaddr *, socklen_t *);
+	int (*select)(struct socket *, int, struct blockpoint *);
 };
 
 struct unix_connection {
