@@ -275,6 +275,45 @@ static void _unix_init_sock(struct socket *sock)
 	sock->unix.fd = -1;
 }
 
+static int _unix_select(struct socket *sock, int flags, struct blockpoint *bp)
+{
+	if(!(sock->flags & SF_CONNEC))
+		return 1;
+
+	if(flags == SEL_ERROR)
+		return 0; // TODO
+
+	struct unix_connection *con = sock->unix.con;
+	struct charbuffer *buf;
+	if(con->server == sock && flags == SEL_READ)
+		buf = &con->in;
+	else if(con->server == sock && flags == SEL_WRITE)
+		buf = &con->out;
+	else if(flags == SEL_WRITE)
+		buf = &con->in;
+	else if(flags == SEL_READ)
+		buf = &con->out;
+
+	if(bp)
+		blockpoint_startblock((flags == SEL_READ) ? &buf->wait_read : &buf->wait_write, bp);
+
+	int ret = 0;
+	if(flags == SEL_READ) {
+		if(charbuffer_pending(buf)) {
+			ret = 1;
+			if(bp)
+				blockpoint_unblock(bp);
+		}
+	} else if(flags == SEL_WRITE) {
+		if(charbuffer_avail(buf)) {
+			ret = 1;
+			if(bp)
+				blockpoint_unblock(bp);
+		}
+	}
+	return ret;
+}
+
 struct sock_calls af_unix_calls = {
 	.init = _unix_init_sock,
 	.shutdown = _unix_shutdown,
@@ -285,6 +324,7 @@ struct sock_calls af_unix_calls = {
 	.sockpair = _unix_sockpair,
 	.send = _unix_send,
 	.recv = _unix_recv,
+	.select = _unix_select,
 	/*
 	.sendto = _unix_sendto,
 	.recvfrom = _unix_recvfrom,

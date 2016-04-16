@@ -20,3 +20,12 @@ sysret_t sys_getpid(void);
 
 sysret_t sys_fcntl(int fd, int cmd, long arg);
 sysret_t sys_ioctl(int fd, unsigned long cmd, long arg);
+
+struct timespec;
+struct timeval;
+#include <signal.h>
+#include <file.h>
+sysret_t sys_pselect(int nfds, fd_set *readfds, fd_set *writefds,
+		fd_set *errfds, const struct timespec *timeout, const sigset_t *sigmask);
+sysret_t sys_select(int nfds, fd_set *readfds, fd_set *writefds,
+		fd_set *errfds, struct timeval *timeout);
