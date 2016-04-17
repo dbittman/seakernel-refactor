@@ -86,28 +86,22 @@ int main(int argc, char **argv)
 	read(sv[1], b, 4);
 	fprintf(out, ":: %s\n", b);
 */
-	for(volatile int i=0;i<1000000l;i++) {
+	for(volatile int i=0;i<50000000l;i++) {
 
 	}
 	fprintf(stderr, "START LOG\n");
 	if(!fork())  {
 		openlog("init2", 0, LOG_USER);
 		while(1) {
+		//fprintf(stderr, "init2\n");
 			syslog(LOG_WARNING, "Test log message\n");
-			int r = open("/dev/null", O_RDONLY);
-			char buf[1];
-			read(r, buf, 0);
-			for(volatile int i=0;i<10000l;i++);
 		}
 		closelog();
 	}
 	openlog("init", 0, LOG_USER);
 	while(1) {
+		//fprintf(stderr, "init\n");
 		syslog(LOG_WARNING, "Test log message\n");
-			int r = open("/dev/null", O_RDONLY);
-			char buf[1];
-			read(r, buf, 0);
-			for(volatile int i=0;i<10000l;i++);
 	}
 	closelog();
 	return 0;

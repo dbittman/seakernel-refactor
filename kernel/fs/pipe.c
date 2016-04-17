@@ -120,6 +120,8 @@ static int _pipe_select(struct file *file, int flags, struct blockpoint *bp)
 					blockpoint_unblock(bp);
 			}
 			break;
+		case SEL_ERROR:
+			return -1;
 	}
 	return ret;
 }

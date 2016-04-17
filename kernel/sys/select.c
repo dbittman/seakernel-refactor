@@ -9,133 +9,178 @@
 #include <arena.h>
 #include <printk.h>
 #include <processor.h>
+
+struct select_blockpoint {
+	struct blockpoint bp;
+	bool blocked, active, ready;
+	int type;
+};
+
+static void _select_closeall(struct file **files, int num)
+{
+	for(int i=0;i<num;i++) {
+		if(files[i])
+			kobj_putref(files[i]);
+	}
+}
+
+static struct file **_select_openall(struct arena *arena, int nfds, fd_set *readfds, fd_set *writefds, fd_set *errfds)
+{
+	struct file **files = arena_allocate(arena, nfds * sizeof(struct file *));
+	for(int fd = 0;fd < nfds;fd++) {
+		if((readfds && FD_ISSET(fd, readfds))
+				|| (writefds && FD_ISSET(fd, writefds))
+				|| (errfds && FD_ISSET(fd, errfds))) {
+			if(!(files[fd] = process_get_file(fd))) {
+				_select_closeall(files, fd);
+				return NULL;
+			}
+		} else {
+			files[fd] = NULL;
+		}
+	}
+	return files;
+}
+
+struct select_blockpoint *init_blockpoints(struct arena *arena, int nfds, fd_set *rset, fd_set *wset, fd_set *eset)
+{
+	struct select_blockpoint *bps = arena_allocate(arena, 3 * nfds * sizeof(struct select_blockpoint));
+	memset(bps, 0, 3 * nfds * sizeof(struct select_blockpoint));
+	for(int i=0;i<nfds;i++) {
+		if(rset && FD_ISSET(i, rset)) {
+			bps[i * 3].active = true;
+			bps[i * 3].type = SEL_READ;
+		}
+		if(wset && FD_ISSET(i, wset)) {
+			bps[i * 3 + 1].active = true;
+			bps[i * 3 + 1].type = SEL_WRITE;
+		}
+		if(eset && FD_ISSET(i, eset)) {
+			bps[i * 3 + 2].active = true;
+			bps[i * 3 + 2].type = SEL_ERROR;
+		}
+	}
+	return bps;
+}
+
+bool _select_start_blocking(struct file **files, int nfds, struct select_blockpoint *blocks, time_t timeout_nsec)
+{
+	bool any = false;
+	for(int fd=0;fd < nfds * 3;fd++) {
+		struct select_blockpoint *bp = &blocks[fd];
+		if(!bp->active)
+			continue;
+
+		int sel = 1;
+		blockpoint_create(&bp->bp, timeout_nsec > 0 ? BLOCK_TIMEOUT : 0, timeout_nsec / 1000);
+		if(files[fd / 3]->ops->select)
+			sel = files[fd / 3]->ops->select(files[fd / 3], bp->type, &bp->bp);
+
+		bp->ready = false;
+		bp->blocked = true;
+		if(sel > 0) {
+			bp->ready = true;
+			any = true;
+		} else if(sel < 0) {
+			bp->blocked = false;
+		}
+	}
+	return any;
+}
+
+bool _select_cleanup_blocking(int nfds, struct select_blockpoint *blocks)
+{
+	bool any = false;
+	for(int fd=0;fd<nfds * 3;fd++) {
+		struct select_blockpoint *bp = &blocks[fd];
+		if(!bp->active || !bp->blocked)
+			continue;
+
+		enum block_result res = blockpoint_cleanup(&bp->bp);
+
+		switch(res) {
+			case BLOCK_RESULT_BLOCKED:
+			case BLOCK_RESULT_TIMEOUT:
+				break;
+			case BLOCK_RESULT_INTERRUPTED:
+
+				break;
+			case BLOCK_RESULT_UNBLOCKED:
+				bp->ready = true;
+				any = true;
+				break;
+		}
+	}
+	assert(current_thread->state == THREADSTATE_RUNNING);
+	assert(current_thread->processor->preempt_disable == 0);
+	return any;
+}
+
+int _select_update_fds(struct select_blockpoint *blocks, int nfds, fd_set *read, fd_set *write, fd_set *err)
+{
+	int ret = 0;
+	fd_set *sets[3] = { read, write, err };
+	for(int fd=0;fd<nfds*3;fd++) {
+		struct select_blockpoint *bp = &blocks[fd];
+		if(!bp->active)
+			continue;
+
+		FD_CLR(fd / 3, sets[fd % 3]);
+		if(bp->ready) {
+			FD_SET(fd / 3, sets[fd % 3]);
+			ret++;
+		}
+	}
+	return ret;
+}
+
 sysret_t _do_select(int nfds, fd_set *readfds, fd_set *writefds,
 		fd_set *errfds, const struct timespec *timeout, const sigset_t *sigmask, struct timespec *remaining)
 {
-	(void)remaining;
-	(void)sigmask; //TODO
+	(void)sigmask; //TODO:
+	time_t time = timeout ? timeout->tv_sec * 1000000000 + timeout->tv_nsec : 0;
+	time_t end_time = time + time_get_current();
 	int ret = 0;
-	bool timed_out = false;
-	long time = timeout ? timeout->tv_sec * 1000000 + timeout->tv_nsec / 1000 : 0;
 	struct arena arena;
+	bool timed_out = false, any_ready = false;
 	arena_create(&arena);
-	
-	fd_set ret_readfds;
-	fd_set ret_writefds;
-	fd_set ret_errfds;
-	FD_ZERO(&ret_readfds);
-	FD_ZERO(&ret_writefds);
-	FD_ZERO(&ret_errfds);
 
-	struct bp_data {
-		struct blockpoint bp;
-		bool used, blocked;
-	} *bps[2];
-
-	bps[0] = arena_allocate(&arena, sizeof(struct bp_data) * nfds);
-	bps[1] = arena_allocate(&arena, sizeof(struct bp_data) * nfds);
-	struct file **files = arena_allocate(&arena, sizeof(struct file *) * nfds);
-
-	for(int i=0;i<nfds;i++) {
-		if((readfds && FD_ISSET(i, readfds))
-				|| (writefds && FD_ISSET(i, writefds))
-				|| (errfds && FD_ISSET(i, errfds))) {
-			files[i] = process_get_file(i);
-			if(!files[i]) {
-				ret = -EBADF;
-				goto out_close_all;
-			}
-		} else {
-			files[i] = NULL;
-		}
+	struct file **files = _select_openall(&arena, nfds, readfds, writefds, errfds);
+	if(files == NULL) {
+		goto out_arena;
 	}
-	while(ret == 0 && !timed_out) {
-		int blocked = 0, unblocked = 0;
-		for(int i=0;i<nfds;i++) {
-			bps[0][i].used = bps[1][i].used = false;
-			bps[0][i].blocked = bps[1][i].blocked = false;
-			if(readfds && FD_ISSET(i, readfds) && files[i]->ops->select) {
-				blockpoint_create(&bps[0][i].bp, timeout ? BLOCK_TIMEOUT : 0, time);
-				bps[0][i].used = true;
-				bps[0][i].blocked = true;
-				blocked++;
-				if(files[i]->ops->select(files[i], SEL_READ, &bps[0][i].bp)) {
-					FD_SET(i, &ret_readfds);
-					ret++;
-				}
-			} else if(readfds && FD_ISSET(i, readfds)) {
-				ret++;
-			}
-			if(writefds && FD_ISSET(i, writefds) && files[i]->ops->select) {
-				blockpoint_create(&bps[1][i].bp, timeout ? BLOCK_TIMEOUT : 0, time);
-				bps[1][i].used = true;
-				bps[1][i].blocked = true;
-				blocked++;
-				if(files[i]->ops->select(files[i], SEL_WRITE, &bps[1][i].bp)) {
-					FD_SET(i, &ret_writefds);
-					ret++;
-				}
-			} else if(writefds && FD_ISSET(i, writefds)) {
-				ret++;
-			}
 
-			if(errfds && FD_ISSET(i, errfds) && files[i]->ops->select) {
-				if(files[i]->ops->select(files[i], SEL_ERROR, NULL)) {
-					FD_SET(i, &ret_errfds);
-					ret++;
-				}
-			}
-		}
+	struct select_blockpoint *blocks;
 
-		if(ret != 0) {
+	blocks = init_blockpoints(&arena, nfds, readfds, writefds, errfds);
+
+	do {
+		time_t rem_time = end_time - time_get_current();
+		if(rem_time < 0) rem_time = 0;
+		any_ready = _select_start_blocking(files, nfds, blocks, rem_time);
+
+		if(!any_ready)
 			schedule();
-		}
 
-		for(int dir=0;dir<2;dir++) {
-			for(int i=0;i<nfds;i++) {
-				if(bps[dir][i].blocked) {
-					
-					enum block_result res = blockpoint_cleanup(&bps[dir][i].bp);
-					unblocked++;
-					switch(res) {
-						case BLOCK_RESULT_TIMEOUT:
-							timed_out = true;
-							break;
-						case BLOCK_RESULT_INTERRUPTED:
-							/* TODO */
-							break;
-						case BLOCK_RESULT_BLOCKED:
-							break;
-						default:
-							if(dir == 0) {
-								if(!FD_ISSET(i, &ret_readfds)) {
-									FD_SET(i, &ret_readfds);
-									ret++;
-								}
-							} else if(dir == 1) {
-								if(!FD_ISSET(i, &ret_writefds)) {
-									FD_SET(i, &ret_writefds);
-									ret++;
-								}
-							}
-							break;
-					}
-				}
-			}
+		any_ready |= _select_cleanup_blocking(nfds, blocks);
+
+		if(timeout && time_get_current() >= end_time) {
+			timed_out = true;
 		}
-		assert(current_thread->processor->preempt_disable == 0);
-		assert(blocked == unblocked);
+	} while(!any_ready && !timed_out);
+
+	if(remaining) {
+		time_t rem_time = end_time - time_get_current();
+		if(rem_time < 0) rem_time = 0;
+		remaining->tv_sec = rem_time / 1000000000;
+		remaining->tv_nsec = rem_time % 1000000000;
 	}
 
-	if(readfds) memcpy(readfds, &ret_readfds, sizeof(*readfds));
-	if(writefds) memcpy(writefds, &ret_writefds, sizeof(*writefds));
-	if(errfds) memcpy(errfds, &ret_errfds, sizeof(*errfds));
+	ret = _select_update_fds(blocks, nfds, readfds, writefds, errfds);
 
-out_close_all:
-	for(int j=0;j<nfds;j++) {
-		if(files[j])
-			kobj_putref(files[j]);
-	}
+	_select_closeall(files, nfds);
+
+out_arena:
 	arena_destroy(&arena);
 	return ret;
 }

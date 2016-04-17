@@ -87,13 +87,11 @@ void timer_tick(int flags)
 	counter++;
 	check_timers();
 	(void)flags;
-	if(counter % 10 == 0) {
-		if(min_time == current_thread->time)
-			min_time++;
-		current_thread->time++;
-		if(counter % 100 == 0)
-			current_thread->flags |= THREAD_RESCHEDULE;
-	}
+	if(min_time == current_thread->time)
+		min_time++;
+	current_thread->time++;
+	if(counter % 100 == 0)
+		current_thread->flags |= THREAD_RESCHEDULE;
 	arch_timer_tick();
 }
 

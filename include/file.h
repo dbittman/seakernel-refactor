@@ -60,9 +60,9 @@ extern struct file_calls fs_fops;
 extern struct file_calls pipe_fops;
 extern struct file_calls socket_fops;
 
-#define SEL_READ  1
-#define SEL_WRITE 2
-#define SEL_ERROR 3
+#define SEL_READ  0
+#define SEL_WRITE 1
+#define SEL_ERROR 2
 
 #define FD_SETSIZE 1024
 

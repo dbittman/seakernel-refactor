@@ -37,7 +37,7 @@ static void hpet_init(void)
 {
 	hpet = acpi_find_table("HPET");
 	if(!hpet)
-		return;
+		panic(0, "HPET not found");
 	uint64_t tmp = hpet_read64(0);
 	countperiod = tmp >> 32;
 	/* enable */
@@ -54,5 +54,10 @@ uint64_t arch_processor_get_cycle_count(void)
 	} else {
 		panic(0, "HPET not found");
 	}
+}
+
+uint64_t arch_processor_get_nanoseconds(void)
+{
+	return arch_processor_get_cycle_count();
 }
 

@@ -277,8 +277,10 @@ static void _unix_init_sock(struct socket *sock)
 
 static int _unix_select(struct socket *sock, int flags, struct blockpoint *bp)
 {
+	if(flags == SEL_ERROR)
+		return -1; // TODO
 	if(!(sock->flags & SF_CONNEC)) {
-		if(sock->flags & SF_LISTEN) {
+		if((sock->flags & SF_LISTEN) && flags == SEL_READ) {
 			if(bp)
 				blockpoint_startblock(&sock->pend_con_wait, bp);
 			if(sock->pend_con.count > 0) {
@@ -290,9 +292,6 @@ static int _unix_select(struct socket *sock, int flags, struct blockpoint *bp)
 		}
 		return 1;
 	}
-
-	if(flags == SEL_ERROR)
-		return 0; // TODO
 
 	struct unix_connection *con = sock->unix.con;
 	struct charbuffer *buf = NULL;

@@ -14,7 +14,6 @@ int handle_client(int client)
 		perror("read from client");
 		return -1;
 	} else if(amount == 0) {
-		fprintf(stderr, "syslogd: closing client %d\n", client);
 		close(client);
 		return -1;
 	}
@@ -73,8 +72,13 @@ int main(int argc, char **argv)
 					}
 				}
 			} else if(FD_ISSET(i, &err_fds)) {
-				close(i);
-				FD_CLR(i, &active_fds);
+				if(i == master) {
+					fprintf(stderr, "syslogd: found error condition on /dev/log.\n");
+				} else {
+					fprintf(stderr, "closing client %d due to error\n", i);
+					close(i);
+					FD_CLR(i, &active_fds);
+				}
 			}
 		}
 

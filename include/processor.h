@@ -74,6 +74,7 @@ static inline void processor_enable_preempt(void)
 #if FEATURE_SUPPORTED_CYCLE_COUNT
 uint64_t arch_processor_get_cycle_count(void);
 #endif
+uint64_t arch_processor_get_nanoseconds(void);
 
 #endif
 
