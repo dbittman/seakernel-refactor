@@ -17,7 +17,7 @@ void handler(int sig)
 
 int main(int argc, char **argv)
 {
-	signal(SIGALRM, handler);
+	//signal(SIGALRM, handler);
 	alarm(1);
 	for(;;);
 	fprintf(stderr, "Hello world from init!\n");

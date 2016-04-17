@@ -36,6 +36,7 @@ struct process {
 	struct dirent *cwd;
 	int cmask;
 	_Atomic int uid, gid, euid, egid, sgid, suid;
+	int exit_code;
 
 	struct sigaction actions[_NSIG+1];
 	struct spinlock signal_lock;
@@ -49,6 +50,7 @@ void process_copy_mappings(struct process *from, struct process *to);
 void process_remove_mappings(struct process *proc, bool);
 void process_copy_files(struct process *from, struct process *to);
 void process_close_files(struct process *proc, bool all);
+void process_exit(struct process *proc, int code);
 struct process *process_get_by_pid(int pid);
 
 #define USER_TLS_REGION_END   0x800000000000

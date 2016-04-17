@@ -48,7 +48,7 @@ __initializer static void __process_idmap_init(void)
 	kernel_process = kobj_allocate(&kobj_process);
 }
 
-static _Atomic int next_pid = 1;
+static _Atomic int next_pid = 0;
 static void _process_init(void *obj)
 {
 	struct process *proc = obj;
@@ -78,10 +78,11 @@ static void _process_create(void *obj)
 static void _process_put(void *obj)
 {
 	struct process *proc = obj;
+	assert(proc != kernel_process);
+	printk("Process put %d\n", proc->pid);
 	kobj_putref(proc->ctx);
 	process_close_files(proc, true);
 	process_remove_mappings(proc, true);
-	kobj_idmap_delete(&processids, obj, &proc->pid);
 	kobj_putref(proc->cwd);
 	kobj_putref(proc->root);
 }
@@ -93,4 +94,10 @@ struct kobj kobj_process = {
 	.put = _process_put,
 	.destroy = NULL,
 };
+
+void process_exit(struct process *proc, int code)
+{
+	proc->exit_code = code;
+	kobj_idmap_delete(&processids, proc, &proc->pid);
+}
 

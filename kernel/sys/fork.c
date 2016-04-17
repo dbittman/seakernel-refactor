@@ -20,6 +20,7 @@ static void copy_process(struct process *parent, struct process *child)
 		child->next_mmap_reg = parent->next_mmap_reg;
 	}
 	memcpy(child->actions, parent->actions, sizeof(child->actions));
+	child->parent = kobj_getref(parent);
 }
 
 static void copy_thread(struct thread *parent, struct thread *child)
@@ -55,6 +56,11 @@ sysret_t sys_fork(void *frame, size_t framelen)
 
 _Noreturn void sys_do_exit(int code)
 {
+	linkedlist_remove(&current_thread->process->threads, &current_thread->proc_entry);
+	kobj_putref(current_thread);
+	if(current_thread->process->threads.count == 0) {
+		process_exit(current_thread->process, code);
+	}
 	kobj_putref(current_thread->process);
 	current_thread->process = NULL;
 
@@ -89,6 +95,7 @@ sysret_t sys_kill(int pid, int sig)
 			break;
 	}
 	__linkedlist_unlock(&target->threads);
+	kobj_putref(target);
 	return 0;
 }
 

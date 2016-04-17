@@ -93,16 +93,16 @@ static inline void kobj_idmap_insert(struct kobj_idmap *idm, void *obj, void *id
 {
 	struct kobj_header *h = obj;
 	spinlock_acquire(&idm->lock);
-	kobj_getref(obj);
-	hash_insert(&idm->hash, id, idm->idlen, &h->idelem, obj);
+	if(hash_insert(&idm->hash, id, idm->idlen, &h->idelem, obj) == 0)
+		kobj_getref(obj);
 	spinlock_release(&idm->lock);
 }
 
 static inline void kobj_idmap_delete(struct kobj_idmap *idm, void *obj, void *id)
 {
 	spinlock_acquire(&idm->lock);
-	hash_delete(&idm->hash, id, idm->idlen);
-	kobj_putref(obj);
+	if(hash_delete(&idm->hash, id, idm->idlen) == 0)
+		kobj_putref(obj);
 	spinlock_release(&idm->lock);
 }
 
@@ -110,7 +110,7 @@ static inline void *kobj_idmap_lookup(struct kobj_idmap *idm, void *id)
 {
 	spinlock_acquire(&idm->lock);
 	void *ret = hash_lookup(&idm->hash, id, idm->idlen);
-	kobj_getref(ret);
+	if(ret) kobj_getref(ret);
 	spinlock_release(&idm->lock);
 	return ret;
 }

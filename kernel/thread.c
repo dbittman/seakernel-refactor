@@ -49,6 +49,8 @@ static void _thread_create(void *obj)
 static void _thread_put(void *obj)
 {
 	struct thread *thread = obj;
+	assert(thread != &thread->processor->idle_thread);
+	printk("Thread put %ld\n", thread->tid);
 	if(thread->ctx != &kernel_context) {
 		kobj_putref(thread->ctx);
 		thread->ctx = NULL;
