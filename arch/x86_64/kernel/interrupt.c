@@ -81,10 +81,6 @@ static void __fault(struct arch_exception_frame *frame)
 					frame->int_no, frame->rip, frame->err_code);
 		}
 	}
-	if(frame->cs != 0x8) {
-		if(thread_check_status_retuser(current_thread))
-			x86_64_do_signal(frame);
-	}
 }
 
 extern void x86_64_fork_return(void *);
@@ -104,6 +100,11 @@ void x86_64_exception_entry(struct arch_exception_frame *frame)
 	} else {
 		interrupt_entry(frame->int_no, frame->cs == 0x8 ? INTERRUPT_INKERNEL : 0);
 	}
+	if(frame->cs != 0x8) {
+		if(thread_check_status_retuser(current_thread))
+			x86_64_do_signal(frame);
+	}
+
 }
 
 #define DEBUG_SYS 0

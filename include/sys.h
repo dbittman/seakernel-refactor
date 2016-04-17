@@ -37,3 +37,8 @@ sysret_t sys_pselect(int nfds, fd_set *readfds, fd_set *writefds,
 		fd_set *errfds, const struct timespec *timeout, const sigset_t *sigmask);
 sysret_t sys_select(int nfds, fd_set *readfds, fd_set *writefds,
 		fd_set *errfds, struct timeval *timeout);
+
+struct itimerval;
+sysret_t sys_getitimer(int which, struct itimerval *cur);
+sysret_t sys_setitimer(int which, const struct itimerval *new, struct itimerval *old);
+

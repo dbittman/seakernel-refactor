@@ -38,9 +38,6 @@ void interrupt_entry(int vector, int flags)
 			f(flags);
 		}
 	}
-	if(current_thread && (current_thread->flags & THREAD_RESCHEDULE)) {
-		preempt();
-	}
 }
 
 int interrupt_register(int vector, void (*f)(int flags))

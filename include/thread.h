@@ -22,6 +22,22 @@ enum thread_state {
 	THREADSTATE_BLOCKED,
 };
 
+struct itimerval {
+	struct timeval it_interval; /* Interval for periodic timer */
+	struct timeval it_value;    /* Time until next expiration */
+};
+
+struct thread_timer {
+	struct timeval interval;
+	struct timeval value;
+	struct thread *thread;
+	struct timer timer;
+	_Atomic int sig;
+};
+#define ITIMER_REAL    0
+#define ITIMER_VIRTUAL 1
+#define ITIMER_PROF    2
+
 struct process;
 struct vm_context;
 struct processor;
@@ -50,6 +66,7 @@ struct thread {
 	int exit_code;
 
 	struct linkedlist saved_exception_frames;
+	struct thread_timer timers[3];
 };
 
 #define current_thread arch_thread_get_current()

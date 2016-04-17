@@ -33,6 +33,7 @@ static void _thread_init(void *obj)
 	sigemptyset(&thread->pending_signals);
 	sigemptyset(&thread->sigmask);
 	thread->flags = 0;
+	memset(thread->timers, 0, sizeof(thread->timers));
 }
 
 static void _thread_create(void *obj)
@@ -95,8 +96,14 @@ int thread_current_priority(struct thread *thr)
 
 _Noreturn void thread_exit(struct thread *thread)
 {
+	assert(thread == current_thread);
 	kobj_idmap_delete(&active_threads, thread, &thread->tid);
 	processor_disable_preempt();
+	for(int i=0;i<3;i++) {
+		if(atomic_exchange(&thread->timers[i].sig, 0)) {
+			timer_remove(&thread->timers[i].timer);
+		}
+	}
 	thread->flags |= THREAD_UNINTER;
 	thread->state = THREADSTATE_INIT;
 	thread->processor->running = &thread->processor->idle_thread;
