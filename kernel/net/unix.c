@@ -198,9 +198,7 @@ static int _unix_accept(struct socket *sock, struct sockaddr *addr, socklen_t *a
 		blockpoint_startblock(&sock->pend_con_wait, &bp);
 
 		client = linkedlist_remove_tail(&sock->pend_con);
-		if(client)
-			blockpoint_unblock(&bp);
-		else
+		if(!client)
 			schedule();
 		blockpoint_cleanup(&bp);
 	}
@@ -284,8 +282,6 @@ static int _unix_select(struct socket *sock, int flags, struct blockpoint *bp)
 			if(bp)
 				blockpoint_startblock(&sock->pend_con_wait, bp);
 			if(sock->pend_con.count > 0) {
-				if(bp)
-					blockpoint_unblock(bp);
 				return 1;
 			}
 			return 0;
@@ -312,14 +308,10 @@ static int _unix_select(struct socket *sock, int flags, struct blockpoint *bp)
 	if(flags == SEL_READ) {
 		if(charbuffer_pending(buf)) {
 			ret = 1;
-			if(bp)
-				blockpoint_unblock(bp);
 		}
 	} else if(flags == SEL_WRITE) {
 		if(charbuffer_avail(buf)) {
 			ret = 1;
-			if(bp)
-				blockpoint_unblock(bp);
 		}
 	}
 	return ret;

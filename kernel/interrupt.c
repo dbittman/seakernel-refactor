@@ -3,6 +3,22 @@
 #include <stdatomic.h>
 #include <thread.h>
 #include <printk.h>
+#include <slab.h>
+
+struct kobj kobj_exception_frame = KOBJ_DEFAULT(exception_frame);
+
+void interrupt_push_frame(struct arch_exception_frame *af)
+{
+	struct exception_frame *frame = kobj_allocate(&kobj_exception_frame);
+	memcpy(&frame->arch, af, sizeof(*af));
+	linkedlist_insert(&current_thread->saved_exception_frames, &frame->node, frame);
+}
+
+struct exception_frame *interrupt_pop_frame(void)
+{
+	return linkedlist_remove_head(&current_thread->saved_exception_frames);
+}
+
 void (*_Atomic hand[MAX_INTERRUPTS][MAX_HANDLERS])();
 
 void interrupt_init(void)

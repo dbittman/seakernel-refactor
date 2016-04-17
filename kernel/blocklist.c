@@ -15,10 +15,12 @@ void blocklist_create(struct blocklist *bl)
 
 void thread_unblock(struct thread *thread)
 {
-	TRACE(&blocking_trace, "unblock thread %ld (%d)",
-			thread->tid, thread->processor->id);
-	thread->state = THREADSTATE_RUNNING;
-	processor_add_thread(thread->processor, thread);
+	TRACE(&blocking_trace, "unblock thread %ld (%d) %d",
+			thread->tid, thread->processor->id, thread->flags & THREAD_UNINTER);
+	if(!(thread->flags & THREAD_UNINTER)) {
+		thread->state = THREADSTATE_RUNNING;
+		processor_add_thread(thread->processor, thread);
+	}
 }
 
 void blockpoint_unblock(struct blockpoint *bp)
@@ -85,10 +87,14 @@ static void __timeout(void *data)
 #include <processor.h>
 void blockpoint_startblock(struct blocklist *bl, struct blockpoint *bp)
 {
-	TRACE(&blocking_trace, "start block: %ld", current_thread->tid);
+	TRACE(&blocking_trace, "start block: %ld, %d", current_thread->tid, bp->flags & BLOCK_UNINTERRUPT);
 	processor_disable_preempt();
 	assert(current_thread->processor->preempt_disable > 0);
 	spinlock_acquire(&bl->lock);
+	if(bp->flags & BLOCK_UNINTERRUPT)
+		current_thread->flags |= THREAD_UNINTER;
+	else
+		current_thread->flags &= ~THREAD_UNINTER;
 	current_thread->processor->running = &current_thread->processor->idle_thread;
 	current_thread->state = THREADSTATE_BLOCKED;
 	bp->thread = current_thread;
@@ -107,7 +113,9 @@ enum block_result blockpoint_cleanup(struct blockpoint *bp)
 	TRACE(&blocking_trace, "cleanup block: %ld", current_thread->tid);
 	assert(bp->bl != NULL);
 	assert(current_thread->processor->preempt_disable > 0);
-	thread_unblock(current_thread);
+	current_thread->flags &= ~THREAD_UNINTER;
+	current_thread->state = THREADSTATE_RUNNING;
+	current_thread->processor->running = current_thread;
 	spinlock_acquire(&bp->bl->lock);
 	TRACE(&blocking_trace, "remove: %p %p", &bp->node, bp);
 	linkedlist_remove(&bp->bl->waitlist, &bp->node);

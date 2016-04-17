@@ -6,6 +6,7 @@
 #include <processor.h>
 #include <string.h>
 #include <printk.h>
+#include <errno.h>
 
 static void copy_process(struct process *parent, struct process *child)
 {
@@ -18,6 +19,7 @@ static void copy_process(struct process *parent, struct process *child)
 		child->next_user_tls = parent->next_user_tls;
 		child->next_mmap_reg = parent->next_mmap_reg;
 	}
+	memcpy(child->actions, parent->actions, sizeof(child->actions));
 }
 
 static void copy_thread(struct thread *parent, struct thread *child)
@@ -51,7 +53,7 @@ sysret_t sys_fork(void *frame, size_t framelen)
 	return ret;
 }
 
-_Noreturn void sys_exit(int code)
+_Noreturn void sys_do_exit(int code)
 {
 	kobj_putref(current_thread->process);
 	current_thread->process = NULL;
@@ -61,8 +63,48 @@ _Noreturn void sys_exit(int code)
 	thread_exit(current_thread);
 }
 
+void sys_exit(int code)
+{
+	current_thread->flags |= THREAD_EXIT;
+	current_thread->exit_code = code;
+}
+
 long sys_gettid(void)
 {
 	return current_thread->tid;
+}
+
+sysret_t sys_kill(int pid, int sig)
+{
+	struct process *target = process_get_by_pid(pid);
+	printk("KILL get: %p %d\n", target, pid);
+	if(!target)
+		return -ESRCH;
+	(void)sig;
+	__linkedlist_lock(&target->threads);
+	struct linkedentry *entry;
+	for(entry = linkedlist_iter_start(&target->threads); entry != linkedlist_iter_end(&target->threads);
+			entry = linkedlist_iter_next(entry)) {
+		struct thread *thread = linkedentry_obj(entry);
+		if(thread_send_signal(thread, sig))
+			break;
+	}
+	__linkedlist_unlock(&target->threads);
+	return 0;
+}
+
+sysret_t sys_sigaction(int sig, const struct sigaction *act, struct sigaction *old)
+{
+	struct process *proc = current_thread->process;
+	if(sig <= 0 || sig > _NSIG)
+		return -EINVAL;
+	spinlock_acquire(&proc->signal_lock);
+	//if(old)
+	//	memcpy(old, &proc->actions[sig], sizeof(*old));
+	memcpy(&proc->actions[sig], act, sizeof(*act));
+	(void)act;
+	(void)old;
+	spinlock_release(&proc->signal_lock);
+	return 0;
 }
 

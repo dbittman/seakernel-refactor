@@ -118,9 +118,7 @@ void *kobj_lru_get(struct kobj_lru *lru, void *id)
 			struct blockpoint bp;
 			blockpoint_create(&bp, BLOCK_UNINTERRUPT, 0);
 			blockpoint_startblock(&lru->wait, &bp);
-			if(header->flags & KOBJ_LRU_INIT) {
-				blockpoint_unblock(&bp);
-			} else {
+			if(!(header->flags & KOBJ_LRU_INIT)) {
 				spinlock_release(&lru->lock);
 				schedule();
 				spinlock_acquire(&lru->lock);

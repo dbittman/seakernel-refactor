@@ -175,6 +175,13 @@ initial_pml4:
 	.endr
 	.quad PHYS(boot_pdpt_upper)
 
+.global signal_restore_code_start
+.global signal_restore_code_end
+signal_restore_code_start:
+	mov $15, %rax
+	int $0x80
+signal_restore_code_end:
+
 .section .bss
 .align KERNEL_STACK_SIZE * 16
 .global initial_boot_stack

@@ -42,8 +42,23 @@ void mm_physical_deallocate(uintptr_t address)
 		pmm_buddy_deallocate(address);
 }
 
+static uintptr_t restore_page_phys;
+#include <system.h>
+extern int signal_restore_code_start;
+extern int signal_restore_code_end;
+__initializer static void _init_restore_page(void)
+{
+	restore_page_phys = mm_physical_allocate(arch_mm_page_size(0), true);
+	memcpy((void *)(restore_page_phys + PHYS_MAP_START), &signal_restore_code_start,
+			(uintptr_t)&signal_restore_code_end - (uintptr_t)&signal_restore_code_start);
+}
+
 void mm_fault_entry(uintptr_t address, int flags)
 {
+	if((address & page_mask(0)) == SIGNAL_RESTORE_PAGE && (flags & FAULT_USER) && (flags & FAULT_ERROR_PRES)) {
+		arch_mm_virtual_map(current_thread->process->ctx, SIGNAL_RESTORE_PAGE, restore_page_phys, arch_mm_page_size(0), MAP_EXECUTE | MAP_USER);
+		return;
+	}
 	if(current_thread->process && address >= USER_REGION_START && address < USER_REGION_END) {
 		if(mmu_mappings_handle_fault(address, flags))
 			return;

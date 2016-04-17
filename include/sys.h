@@ -3,9 +3,14 @@
 sysret_t sys_fork(void *, size_t);
 intptr_t sys_mmap(uintptr_t addr, size_t len, int prot, int flags, int fd, size_t off);
 sysret_t sys_execve(const char *path, char **arg, char **env);
-_Noreturn void sys_exit(int);
+void sys_exit(int code);
+_Noreturn void sys_do_exit(int code);
 long sys_gettid(void);
 long sys_arch_prctl(int code, unsigned long addr);
+
+struct sigaction;
+sysret_t sys_sigaction(int sig, const struct sigaction *act, struct sigaction *old);
+sysret_t sys_kill(int pid, int sig);
 
 sysret_t sys_setresgid(int rid, int eid, int sid);
 sysret_t sys_setresuid(int rid, int eid, int sid);
@@ -20,6 +25,9 @@ sysret_t sys_getpid(void);
 
 sysret_t sys_fcntl(int fd, int cmd, long arg);
 sysret_t sys_ioctl(int fd, unsigned long cmd, long arg);
+
+struct timespec;
+sysret_t sys_nanosleep(const struct timespec *req, struct timespec *rem);
 
 struct timespec;
 struct timeval;

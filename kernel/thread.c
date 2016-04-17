@@ -7,6 +7,7 @@
 #include <thread-bits.h>
 #include <lib/hash.h>
 #include <system.h>
+#include <signal.h>
 #include <process.h>
 static _Atomic int threadid = ATOMIC_VAR_INIT(0);
 
@@ -29,11 +30,16 @@ static void _thread_init(void *obj)
 	thread->wi_delete.arg = thread;
 	kobj_idmap_insert(&active_threads, thread, &thread->tid);
 	thread->process = kernel_process;
+	sigemptyset(&thread->pending_signals);
+	sigemptyset(&thread->sigmask);
+	thread->flags = 0;
 }
 
 static void _thread_create(void *obj)
 {
 	struct thread *thread = obj;
+	spinlock_create(&thread->signal_lock);
+	linkedlist_create(&thread->saved_exception_frames, 0);
 	thread->kernel_tls_base = (void *)mm_virtual_allocate(KERNEL_STACK_SIZE, false);
 
 	_thread_init(obj);
@@ -59,6 +65,21 @@ struct thread *thread_get_byid(unsigned long id)
 	return kobj_idmap_lookup(&active_threads, &id);
 }
 
+void thread_prepare_sleep(void)
+{
+	processor_disable_preempt();
+	assert(current_thread->processor->preempt_disable > 0);
+	current_thread->processor->running = &current_thread->processor->idle_thread;
+	current_thread->state = THREADSTATE_BLOCKED;
+}
+
+void thread_wakeup(void)
+{
+	current_thread->state = THREADSTATE_RUNNING;
+	current_thread->processor->running = current_thread;
+	processor_enable_preempt();
+}
+
 int thread_current_priority(struct thread *thr)
 {
 	struct processor *proc = thr->processor;
@@ -76,10 +97,11 @@ _Noreturn void thread_exit(struct thread *thread)
 {
 	kobj_idmap_delete(&active_threads, thread, &thread->tid);
 	processor_disable_preempt();
+	thread->flags |= THREAD_UNINTER;
 	thread->state = THREADSTATE_INIT;
-	thread->flags |= THREAD_EXIT;
 	thread->processor->running = &thread->processor->idle_thread;
 	workqueue_insert(&thread->processor->workqueue, &thread->wi_delete);
+	printk("thread %ld exited\n", thread->tid);
 	schedule();
 	__builtin_unreachable();
 }

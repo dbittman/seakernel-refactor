@@ -2,6 +2,7 @@
 #include <lib/hash.h>
 #include <spinlock.h>
 #include <slab.h>
+#include <signal.h>
 
 struct vm_context;
 struct thread;
@@ -35,6 +36,9 @@ struct process {
 	struct dirent *cwd;
 	int cmask;
 	_Atomic int uid, gid, euid, egid, sgid, suid;
+
+	struct sigaction actions[_NSIG+1];
+	struct spinlock signal_lock;
 };
 
 extern struct kobj kobj_process;
@@ -45,6 +49,7 @@ void process_copy_mappings(struct process *from, struct process *to);
 void process_remove_mappings(struct process *proc, bool);
 void process_copy_files(struct process *from, struct process *to);
 void process_close_files(struct process *proc, bool all);
+struct process *process_get_by_pid(int pid);
 
 #define USER_TLS_REGION_END   0x800000000000
 #define USER_TLS_REGION_START 0x700000000000
@@ -55,5 +60,7 @@ void process_close_files(struct process *proc, bool all);
 
 #define USER_REGION_START     arch_mm_page_size(0)
 #define USER_REGION_END       0x800000000000
+
+#define SIGNAL_RESTORE_PAGE   0x3000
 
 extern struct process *kernel_process;

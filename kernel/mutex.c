@@ -38,8 +38,6 @@ void mutex_acquire(struct mutex *mutex)
 		blockpoint_startblock(&mutex->wait, &bp);
 		if(atomic_fetch_add(&mutex->lock, 1) > 0) {
 			schedule();
-		} else {
-			blockpoint_unblock(&bp);
 		}
 		enum block_result res = blockpoint_cleanup(&bp);
 		assert(res == BLOCK_RESULT_UNBLOCKED);

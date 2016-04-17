@@ -9,17 +9,40 @@ static struct thread *__select_thread(struct processor *proc)
 {
 	/* throw the old process back on the queue */
 	if(proc->running->state == THREADSTATE_RUNNING && proc->running != &proc->idle_thread) {
-		if(!(atomic_fetch_or(&proc->running->flags, THREAD_ONQUEUE) & THREAD_ONQUEUE))
+		if(!(atomic_fetch_or(&proc->running->flags, THREAD_ONQUEUE) & THREAD_ONQUEUE)) {
 			priqueue_insert(&proc->runqueue, &proc->running->runqueue_node,
 					proc->running, thread_current_priority(proc->running));
+		}
 	}
 	struct thread *thread = priqueue_pop(&proc->runqueue);
 	if(!thread)
 		thread = &proc->idle_thread;
-	else
+	else {
 		thread->flags &= ~THREAD_ONQUEUE;
+	}
 	proc->running = thread;
 	return thread;
+}
+
+static void _check_signals(struct thread *thread)
+{
+	spinlock_acquire(&thread->signal_lock);
+
+	if(!sigisemptyset(&thread->pending_signals)) {
+		for(int i=1;i<_NSIG;i++) {
+			if(sigismember(&thread->pending_signals, i)) {
+				sigdelset(&thread->pending_signals, i);
+				thread->signal = i;
+				if(!(thread->flags & THREAD_UNINTER)) {
+					thread->state = THREADSTATE_RUNNING;
+					thread->processor->running = thread;
+				}
+				break;
+			}
+		}
+	}
+
+	spinlock_release(&thread->signal_lock);
 }
 
 static void __do_schedule(int save_preempt)
@@ -36,12 +59,15 @@ static void __do_schedule(int save_preempt)
 		curproc->preempt_disable = 1;
 	}
 	
+	_check_signals(current_thread);
+
 	struct thread *next = __select_thread(curproc);
 	processor_release(curproc);
 	current_thread->flags &= ~THREAD_RESCHEDULE;
 	if(next != current_thread) {
 		//printk(":%d: %ld -> %ld\n", curproc->id, current_thread->tid, next->tid);
 		arch_thread_context_switch(current_thread, next);
+		_check_signals(current_thread);
 	}
 
 	if(save_preempt) {

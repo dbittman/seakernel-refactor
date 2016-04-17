@@ -71,8 +71,6 @@ size_t charbuffer_write(struct charbuffer *cb, const char *buf, size_t len, int 
 			int rem = cb->capacity - (atomic_load(&cb->head) - atomic_load(&cb->tail));
 			if(rem == 0)
 				schedule();
-			else
-				blockpoint_unblock(&bp);
 			blockpoint_cleanup(&bp);
 			spinlock_acquire(&cb->write);
 			if(cb->term) {
@@ -140,8 +138,6 @@ size_t charbuffer_read(struct charbuffer *cb, char *buf, size_t len, int flags)
 			int rem = (atomic_load(&cb->head) - atomic_load(&cb->tail));
 			if(rem == 0 && !cb->term)
 				schedule();
-			else
-				blockpoint_unblock(&bp);
 			blockpoint_cleanup(&bp);
 			spinlock_acquire(&cb->read);
 			if(cb->term && charbuffer_pending(cb) == 0) {

@@ -107,8 +107,6 @@ static int _pipe_select(struct file *file, int flags, struct blockpoint *bp)
 				blockpoint_startblock(&pipe->buf.wait_read, bp);
 			if(!charbuffer_pending(&pipe->buf)) {
 				ret = 1;
-				if(bp)
-					blockpoint_unblock(bp);
 			}
 			break;
 		case SEL_WRITE:
@@ -116,8 +114,6 @@ static int _pipe_select(struct file *file, int flags, struct blockpoint *bp)
 				blockpoint_startblock(&pipe->buf.wait_write, bp);
 			if(!charbuffer_avail(&pipe->buf)) {
 				ret = 1;
-				if(bp)
-					blockpoint_unblock(bp);
 			}
 			break;
 		case SEL_ERROR:

@@ -7,15 +7,39 @@
 #include <syscall.h>
 #include <process.h>
 void x86_64_signal_eoi(void);
-struct __attribute__((packed)) exception_frame
-{
-	uint64_t r15, r14, r13, r12, rbp, rbx, r11, r10, r9, r8, rax, rcx, rdx, rsi, rdi;
-	uint64_t int_no, err_code;
-	uint64_t rip, cs, rflags, userrsp, ss;
-};
-
 void x86_64_change_fpusse_allow(bool enable);
-static void __fault(struct exception_frame *frame)
+
+static void x86_64_do_signal(struct arch_exception_frame *frame)
+{
+	int signal = current_thread->signal;
+	if(signal) {
+		current_thread->signal = 0;
+		spinlock_acquire(&current_thread->process->signal_lock);
+		struct sigaction *action = &current_thread->process->actions[signal];
+		if(action->sa_handler != SIG_IGN
+				&& action->sa_handler != SIG_DFL
+				&& action->sa_handler != SIG_ERR) {
+			interrupt_push_frame(frame);
+			frame->rip = (uint64_t)action->sa_handler;
+			frame->rdi = signal;
+			frame->userrsp -= 128;
+			frame->userrsp &= 0xFFFFFFFFFFFFFFF0;
+			*(uint64_t *)frame->userrsp = SIGNAL_RESTORE_PAGE;
+		}
+		spinlock_release(&current_thread->process->signal_lock);
+	}
+}
+
+static void x86_64_restore_frame(struct arch_exception_frame *frame)
+{
+	struct exception_frame *rest = interrupt_pop_frame();
+	if(rest) {
+		memcpy(frame, &rest->arch, sizeof(*frame));
+		kobj_putref(rest);
+	}
+}
+
+static void __fault(struct arch_exception_frame *frame)
 {
 	if(frame->int_no == 6 && current_thread && !current_thread->arch.usedfpu) {
 		/* we're emulating FPU instructions / disallowing SSE. Set a flag,
@@ -23,7 +47,6 @@ static void __fault(struct exception_frame *frame)
 		current_thread->arch.usedfpu = true;
 		x86_64_change_fpusse_allow(true);
 		asm volatile ("finit"); /* also, we may need to clear the FPU state */
-		return;
 	} else if(frame->int_no == 14) {
 		/* page-fault */
 		uint64_t cr2;
@@ -58,6 +81,10 @@ static void __fault(struct exception_frame *frame)
 					frame->int_no, frame->rip, frame->err_code);
 		}
 	}
+	if(frame->cs != 0x8) {
+		if(thread_check_status_retuser(current_thread))
+			x86_64_do_signal(frame);
+	}
 }
 
 extern void x86_64_fork_return(void *);
@@ -69,7 +96,7 @@ void arch_thread_fork_entry(void *_frame)
 	x86_64_fork_return(_frame);
 }
 
-void x86_64_exception_entry(struct exception_frame *frame)
+void x86_64_exception_entry(struct arch_exception_frame *frame)
 {
 	x86_64_signal_eoi();
 	if(frame->int_no < 32) {
@@ -80,11 +107,15 @@ void x86_64_exception_entry(struct exception_frame *frame)
 }
 
 #define DEBUG_SYS 0
-void x86_64_syscall_entry(struct exception_frame *frame)
+void x86_64_syscall_entry(struct arch_exception_frame *frame)
 {
 	if(frame->rax == SYS_fork) {
 		frame->rdi = (uintptr_t)frame;
 		frame->rsi = sizeof(*frame);
+	}
+	if(frame->rax == SYS_rt_sigreturn) {
+		x86_64_restore_frame(frame);
+		return;
 	}
 #if DEBUG_SYS
 	printk("syscall %ld %3lu: %lx %lx %lx %lx %lx %lx\n", current_thread->tid, frame->rax, frame->rdi, frame->rsi, frame->rdx, frame->r10, frame->r8, frame->r9);
@@ -98,5 +129,7 @@ void x86_64_syscall_entry(struct exception_frame *frame)
 	else
 		printk("syscall %ld %3lu: RET %lx\n", current_thread->tid, num, ret);
 #endif
+	if(thread_check_status_retuser(current_thread))
+		x86_64_do_signal(frame);
 }
 

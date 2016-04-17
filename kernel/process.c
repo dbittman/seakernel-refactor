@@ -9,6 +9,11 @@ struct process *kernel_process;
 
 static struct kobj_idmap processids;
 
+struct process *process_get_by_pid(int pid)
+{
+	return kobj_idmap_lookup(&processids, &pid);
+}
+
 uintptr_t process_allocate_user_tls(struct process *proc)
 {
 	uintptr_t base = atomic_fetch_add(&proc->next_user_tls, USER_TLS_SIZE);
@@ -56,6 +61,7 @@ static void _process_init(void *obj)
 	kobj_idmap_insert(&processids, obj, &proc->pid);
 	for(int i=0;i<MAX_FD;i++)
 		proc->files[i].file = NULL;
+	memset(proc->actions, 0, sizeof(proc->actions));
 }
 
 static void _process_create(void *obj)
@@ -66,6 +72,7 @@ static void _process_create(void *obj)
 	hash_create(&proc->mappings, HASH_LOCKLESS, 4096);
 	spinlock_create(&proc->map_lock);
 	spinlock_create(&proc->files_lock);
+	spinlock_create(&proc->signal_lock);
 }
 
 static void _process_put(void *obj)
