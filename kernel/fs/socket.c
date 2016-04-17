@@ -3,7 +3,7 @@
 #include <fs/socket.h>
 #include <errno.h>
 #include <fs/sys.h>
-
+#include <thread.h>
 extern struct sock_calls af_unix_calls;
 
 static void _socket_init(void *obj)
@@ -179,8 +179,10 @@ ssize_t _do_recv(struct socket *sock, char *buf, size_t len, int flags)
 
 ssize_t _do_send(struct socket *sock, const char *buf, size_t len, int flags)
 {
-	if(sock->flags & SF_SHUTDOWN)
-		return -EPIPE; //TODO: sigpipe
+	if(sock->flags & SF_SHUTDOWN) {
+		thread_send_signal(current_thread, SIGPIPE);
+		return -EPIPE;
+	}
 	if(!(sock->flags & SF_CONNEC)) //TODO: or connectionless
 		return -ENOTCONN;
 	if(sock->ops->send)

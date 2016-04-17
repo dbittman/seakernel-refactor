@@ -6,7 +6,9 @@
 #include <errno.h>
 #include <fs/stat.h>
 #include <string.h>
+#include <signal.h>
 #include <printk.h>
+#include <thread.h>
 struct pipe {
 	struct kobj_header _header;
 	struct charbuffer buf;
@@ -66,8 +68,10 @@ static ssize_t _pipe_write(struct file *file,
 {
 	(void)off;
 	struct pipe *pipe = file->devdata;
-	if(pipe->readers == 0)
-		return -EPIPE; //TODO: also raise SIGPIPE.
+	if(pipe->readers == 0) {
+		thread_send_signal(current_thread, SIGPIPE);
+		return -EPIPE;
+	}
 
 	int flags = CHARBUFFER_DO_ANY;
 	if(file->flags & O_NONBLOCK)

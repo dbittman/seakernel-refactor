@@ -3,13 +3,10 @@
 typedef struct __sigset_t { unsigned long __bits[128/sizeof(long)]; } sigset_t;
 
 struct sigaction {
-	union {
-		void (*sa_handler)(int);
-		void (*sa_sigaction)(int, void *, void *);
-	};
-	sigset_t sa_mask;
-	int sa_flags;
-	void (*sa_restorer)(void);
+	void (*handler)(int);
+	unsigned long flags;
+	void (*restorer)(void);
+	unsigned mask[2];
 };
 
 #define SIG_ERR  ((void (*)(int))-1)
@@ -67,6 +64,10 @@ struct sigaction {
 #include <string.h>
 #include <assert.h>
 
+#define SIG_BLOCK   0
+#define SIG_UNBLOCK 1
+#define SIG_SETMASK 2
+
 static inline void sigaddset(sigset_t *set, int sig)
 {
     unsigned s = sig-1;
@@ -108,5 +109,13 @@ static inline void sigemptyset(sigset_t *set)
 	    set->__bits[2] = 0;
 	    set->__bits[3] = 0;
 	}
+}
+
+#define SST_SIZE (_NSIG/8/sizeof(long))
+static inline int sigorset(sigset_t *dest, const sigset_t *left, const sigset_t *right)
+{
+    unsigned long i = 0, *d = (void*) dest, *l = (void*) left, *r = (void*) right;
+    for(; i < SST_SIZE; i++) d[i] = l[i] | r[i];
+    return 0;
 }
 

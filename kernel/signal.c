@@ -36,10 +36,10 @@ bool thread_check_status_retuser(struct thread *thread)
 
 		int signal = thread->signal;
 		struct process *process = thread->process;
-		if(signal != SIGKILL && signal_is_userspace_handler(process->actions[signal].sa_handler)) {
+		if(signal != SIGKILL && signal_is_userspace_handler(process->actions[signal].handler)) {
 			/* user-handled */
 			ret = true;
-		} else if(signal == SIGKILL || process->actions[signal].sa_handler == SIG_DFL) {
+		} else if(signal == SIGKILL || process->actions[signal].handler == SIG_DFL) {
 			/* default actions */
 			thread->signal = 0;
 			switch(signal) {

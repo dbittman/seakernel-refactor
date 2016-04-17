@@ -8,11 +8,13 @@
 #include <arch-interrupt.h>
 #include <slab.h>
 #include <lib/linkedlist.h>
+#include <signal.h>
 
 struct exception_frame {
 	struct kobj_header _header;
 	struct arch_exception_frame arch;
 	struct linkedentry node;
+	sigset_t mask;
 };
 
 void interrupt_init(void);
@@ -21,6 +23,6 @@ int interrupt_register(int vector, void (*f)(int flags));
 void arch_interrupt_mask(int vector);
 void arch_interrupt_unmask(int vector);
 struct exception_frame *interrupt_pop_frame(void);
-void interrupt_push_frame(struct arch_exception_frame *af);
+void interrupt_push_frame(struct arch_exception_frame *af, struct sigaction *action);
 #endif
 

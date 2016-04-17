@@ -77,7 +77,6 @@ long sys_gettid(void)
 sysret_t sys_kill(int pid, int sig)
 {
 	struct process *target = process_get_by_pid(pid);
-	printk("KILL get: %p %d\n", target, pid);
 	if(!target)
 		return -ESRCH;
 	(void)sig;
@@ -99,12 +98,38 @@ sysret_t sys_sigaction(int sig, const struct sigaction *act, struct sigaction *o
 	if(sig <= 0 || sig > _NSIG)
 		return -EINVAL;
 	spinlock_acquire(&proc->signal_lock);
-	//if(old)
-	//	memcpy(old, &proc->actions[sig], sizeof(*old));
+	if(old)
+		memcpy(old, &proc->actions[sig], sizeof(*old));
 	memcpy(&proc->actions[sig], act, sizeof(*act));
 	(void)act;
 	(void)old;
 	spinlock_release(&proc->signal_lock);
+	return 0;
+}
+
+sysret_t sys_sigprocmask(int how, const sigset_t *set, sigset_t *oset)
+{
+	if(how < 0)
+		return -EINVAL;
+	sigset_t old;
+	memcpy(&old, &current_thread->sigmask, sizeof(old));
+
+	switch(how) {
+		case SIG_BLOCK:
+			sigorset(&current_thread->sigmask, &current_thread->sigmask, set);
+			break;
+		case SIG_UNBLOCK:
+			for(int i=0;i<=_NSIG;i++) {
+				if(sigismember(set, i))
+					sigdelset(&current_thread->sigmask, i);
+			}
+			break;
+		default:
+			memcpy(&current_thread->sigmask, set, sizeof(*set));
+			break;
+	}
+	if(oset)
+		memcpy(oset, &old, sizeof(*oset));
 	return 0;
 }
 

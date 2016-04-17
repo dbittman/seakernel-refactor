@@ -7,16 +7,20 @@
 
 struct kobj kobj_exception_frame = KOBJ_DEFAULT(exception_frame);
 
-void interrupt_push_frame(struct arch_exception_frame *af)
+void interrupt_push_frame(struct arch_exception_frame *af, struct sigaction *action)
 {
 	struct exception_frame *frame = kobj_allocate(&kobj_exception_frame);
 	memcpy(&frame->arch, af, sizeof(*af));
+	memcpy(&frame->mask, &current_thread->sigmask, sizeof(frame->mask));
+	sigorset(&current_thread->sigmask, &current_thread->sigmask, (sigset_t *)&action->mask);
 	linkedlist_insert(&current_thread->saved_exception_frames, &frame->node, frame);
 }
 
 struct exception_frame *interrupt_pop_frame(void)
 {
-	return linkedlist_remove_head(&current_thread->saved_exception_frames);
+	struct exception_frame *frame = linkedlist_remove_head(&current_thread->saved_exception_frames);
+	memcpy(&current_thread->sigmask, &frame->mask, sizeof(sigset_t));
+	return frame;
 }
 
 void (*_Atomic hand[MAX_INTERRUPTS][MAX_HANDLERS])();

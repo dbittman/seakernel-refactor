@@ -1,5 +1,7 @@
 #pragma once
 #include <stdint.h>
+#include <signal.h>
+#include <file.h>
 sysret_t sys_fork(void *, size_t);
 intptr_t sys_mmap(uintptr_t addr, size_t len, int prot, int flags, int fd, size_t off);
 sysret_t sys_execve(const char *path, char **arg, char **env);
@@ -11,6 +13,7 @@ long sys_arch_prctl(int code, unsigned long addr);
 struct sigaction;
 sysret_t sys_sigaction(int sig, const struct sigaction *act, struct sigaction *old);
 sysret_t sys_kill(int pid, int sig);
+sysret_t sys_sigprocmask(int how, const sigset_t *set, sigset_t *oset);
 
 sysret_t sys_setresgid(int rid, int eid, int sid);
 sysret_t sys_setresuid(int rid, int eid, int sid);
@@ -31,8 +34,6 @@ sysret_t sys_nanosleep(const struct timespec *req, struct timespec *rem);
 
 struct timespec;
 struct timeval;
-#include <signal.h>
-#include <file.h>
 sysret_t sys_pselect(int nfds, fd_set *readfds, fd_set *writefds,
 		fd_set *errfds, const struct timespec *timeout, const sigset_t *sigmask);
 sysret_t sys_select(int nfds, fd_set *readfds, fd_set *writefds,

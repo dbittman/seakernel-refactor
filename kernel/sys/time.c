@@ -66,7 +66,7 @@ static void __setup_timer(int which)
 		timer_remove(&timer->timer);
 
 	time_t value = timer->value.tv_sec * 1000000 + timer->value.tv_usec;
-	printk("Adding timer value %ld\n", value);
+	value /= 4; //TODO: what
 	if(value == 0)
 		return;
 	timer->thread = current_thread;

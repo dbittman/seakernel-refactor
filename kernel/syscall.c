@@ -61,6 +61,7 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_gettid]   = SC sys_gettid,
 	[SYS_kill]     = SC sys_kill,
 	[SYS_rt_sigaction] = SC sys_sigaction,
+	[SYS_rt_sigprocmask] = SC sys_sigprocmask,
 	[SYS_getitimer] = SC sys_getitimer,
 	[SYS_setitimer] = SC sys_setitimer,
 

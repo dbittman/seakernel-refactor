@@ -16,11 +16,11 @@ static void x86_64_do_signal(struct arch_exception_frame *frame)
 		current_thread->signal = 0;
 		spinlock_acquire(&current_thread->process->signal_lock);
 		struct sigaction *action = &current_thread->process->actions[signal];
-		if(action->sa_handler != SIG_IGN
-				&& action->sa_handler != SIG_DFL
-				&& action->sa_handler != SIG_ERR) {
-			interrupt_push_frame(frame);
-			frame->rip = (uint64_t)action->sa_handler;
+		if(action->handler != SIG_IGN
+				&& action->handler != SIG_DFL
+				&& action->handler != SIG_ERR) {
+			interrupt_push_frame(frame, action);
+			frame->rip = (uint64_t)action->handler;
 			frame->rdi = signal;
 			frame->userrsp -= 128;
 			frame->userrsp &= 0xFFFFFFFFFFFFFFF0;
@@ -69,16 +69,29 @@ static void __fault(struct arch_exception_frame *frame)
 		//printk("pagefault (tid=%ld,pid=%d): %lx, %x, from %lx\n", current_thread->tid, current_thread->process->pid, cr2, flags, frame->rip);
 		mm_fault_entry(cr2, flags);
 	} else {
-		if(frame->int_no == 1) {
-			printk("trap %ld: %lx, %lx\n", current_thread->tid, frame->rip, frame->userrsp);
-			return;
-		}
+		//if(frame->int_no == 1) {
+		//	printk("trap %ld: %lx, %lx\n", current_thread->tid, frame->rip, frame->userrsp);
+		//	return;
+		//}
 		if(frame->cs == 0x8) {
 			panic(0, "kernel exception %ld: %lx err=%lx",
 					frame->int_no, frame->rip, frame->err_code);
 		} else {
-			panic(0, "usermode exception %ld: %lx err=%lx",
-					frame->int_no, frame->rip, frame->err_code);
+			switch(frame->int_no) {
+				case 0: case 4: case 7: case 16: case 19:
+					thread_send_signal(current_thread, SIGFPE);
+					break;
+				case 1: case 3:
+					thread_send_signal(current_thread, SIGTRAP);
+					break;
+				case 5: case 6: case 11: case 12: case 13: case 17: case 18:
+				case 20:
+					thread_send_signal(current_thread, SIGILL);
+					break;
+				default:
+					panic(0, "unhandled exception: %ld, kernel error.", frame->int_no);
+			}
+			thread_send_signal(current_thread, SIGILL);
 		}
 	}
 }
