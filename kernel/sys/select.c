@@ -73,11 +73,13 @@ bool _select_start_blocking(struct file **files, int nfds, struct select_blockpo
 
 		int sel = 1;
 		blockpoint_create(&bp->bp, timeout_nsec > 0 ? BLOCK_TIMEOUT : 0, timeout_nsec / 1000);
+		bp->blocked = true;
 		if(files[fd / 3]->ops->select)
 			sel = files[fd / 3]->ops->select(files[fd / 3], bp->type, &bp->bp);
+		else
+			bp->blocked = false;
 
 		bp->ready = false;
-		bp->blocked = true;
 		if(sel > 0) {
 			bp->ready = true;
 			any = true;

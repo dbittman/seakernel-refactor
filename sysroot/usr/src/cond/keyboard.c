@@ -491,7 +491,6 @@ void read_keyboard(void)
 	int amount;
 	if((amount=read(keyfd, data, 16)) > 0) {
 		for(int i=0;i<amount;i++) {
-			syslog(LOG_INFO, "got %x", data[i]);
 			keyboard_state_machine(data[i]);
 		}
 	}

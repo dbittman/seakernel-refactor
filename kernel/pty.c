@@ -98,18 +98,19 @@ static void write_char(struct pty *pty, char c)
 
 static void __raise_action(struct pty *pty, int sig)
 {
-	(void)pty;
-	(void)sig;
-	/*__linkedlist_lock(process_list);
-	struct linkedentry *node;
-	for(node = linkedlist_iter_start(process_list); node != linkedlist_iter_end(process_list);
-			node = linkedlist_iter_next(node)) {
-		struct process *proc = linkedentry_obj(node);
-		if(proc->pty == pty) {
-			tm_signal_send_process(proc, sig);
+	struct hashiter iter;
+	kobj_idmap_lock(&processids);
+	for(kobj_idmap_iter_init(&processids, &iter);
+			!kobj_idmap_iter_done(&iter);
+			kobj_idmap_iter_next(&iter)) {
+		struct process *proc = kobj_idmap_iter_get(&iter);
+		printk(":: %d\n", proc->pid);
+		if(proc->pty && proc->pty->pty == pty) {
+			printk("Sending %d\n", sig);
+			process_send_signal(proc, sig);
 		}
 	}
-	__linkedlist_unlock(process_list);*/
+	kobj_idmap_unlock(&processids);
 }
 
 static void process_input(struct pty *pty, char c)
@@ -219,35 +220,16 @@ static ssize_t _pty_fops_write(struct file *file, size_t off, size_t len, const 
 		return pty_write_slave(pf->pty, buffer, len, block);
 }
 
-
-
-
-
-
-
-
-
-
-
-
 static void _pty_fops_open(struct file *file)
 {
 	if(!file->devdata)
 		return;
-	kobj_getref(file->devdata);
 
 	if(!(file->flags & O_NOCTTY)) {
 		struct pty_file *old = current_thread->process->pty;
 		current_thread->process->pty = kobj_getref(file->devdata);
-		kobj_putref(old);
+		if(old) kobj_putref(old);
 	}
-}
-
-static void _pty_fops_close(struct file *file)
-{
-	if(!file->devdata)
-		return;
-	kobj_putref(file->devdata);
 }
 
 static void _pty_fops_create(struct file *file)
@@ -282,15 +264,37 @@ static int _pty_fops_ioctl(struct file *file, long cmd, long arg)
 {
 	int ret = 0;
 	struct pty_file *pf = file->devdata;
-	printk("IOCTL: (%lx) (%lx)\n", cmd, (long)TIOCGPTN);
 	switch(cmd) {
 		case TIOCGPTN:
-			printk("IOCTL: %ld %d\n", pf->pty->id, pf->master);
 			if(pf->master) {
 				*(int *)arg = pf->pty->id;
 			} else {
 				ret = -EINVAL;
 			}
+			break;
+		case TIOCSWINSZ:
+			memcpy(&pf->pty->size, (void *)arg, sizeof(pf->pty->size));
+			break;
+		case TIOCGWINSZ:
+			memcpy((void *)arg, &pf->pty->size, sizeof(pf->pty->size));
+			break;
+		case TCSETS:
+			memcpy(&pf->pty->term, (void *)arg, sizeof(pf->pty->term));
+			break;
+		case TCGETS:
+			memcpy((void *)arg, &pf->pty->term, sizeof(pf->pty->term));
+			break;
+		case TIOCSCTTY: 
+			{
+				struct pty_file *old = current_thread->process->pty;
+				current_thread->process->pty = kobj_getref(file->devdata);
+				if(old) kobj_putref(old);
+			} break;
+		case TIOCSPTLCK:
+			break;
+		default:
+			printk("IOCTL: (%lx)\n", cmd);
+			ret = -ENOTSUP;
 	}
 	return ret;
 }
@@ -326,7 +330,7 @@ static struct file_calls pty_fops = {
 	.create = _pty_fops_create,
 	.destroy = _pty_fops_destroy,
 	.open = _pty_fops_open,
-	.close = _pty_fops_close,
+	.close = NULL,
 	.select = _pty_fops_select,
 	.ioctl = _pty_fops_ioctl,
 	.read = _pty_fops_read,

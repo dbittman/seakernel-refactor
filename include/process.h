@@ -55,6 +55,10 @@ void process_copy_files(struct process *from, struct process *to);
 void process_close_files(struct process *proc, bool all);
 void process_exit(struct process *proc, int code);
 struct process *process_get_by_pid(int pid);
+void process_send_signal(struct process *target, int sig);
+
+
+extern struct kobj_idmap processids;
 
 #define USER_TLS_REGION_END   0x800000000000
 #define USER_TLS_REGION_START 0x700000000000

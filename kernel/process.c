@@ -7,7 +7,7 @@
 #include <printk.h>
 struct process *kernel_process;
 
-static struct kobj_idmap processids;
+struct kobj_idmap processids;
 
 struct process *process_get_by_pid(int pid)
 {

@@ -31,14 +31,14 @@ struct kobj {
 
 #define KOBJ_DEFAULT_ELEM(_name) \
 	.initialized = false, \
-	.name = "_name", \
+	.name = #_name, \
 	.size = sizeof(struct _name)
 
 
 
 #define KOBJ_DEFAULT(_name) {\
 	.initialized = false, \
-	.name = "_name", \
+	.name = #_name, \
 	.size = sizeof(struct _name), \
 	.create = NULL, \
 	.init = NULL, \
@@ -113,6 +113,36 @@ static inline void *kobj_idmap_lookup(struct kobj_idmap *idm, void *id)
 	if(ret) kobj_getref(ret);
 	spinlock_release(&idm->lock);
 	return ret;
+}
+
+static inline void kobj_idmap_lock(struct kobj_idmap *idm)
+{
+	spinlock_acquire(&idm->lock);
+}
+
+static inline void kobj_idmap_unlock(struct kobj_idmap *idm)
+{
+	spinlock_release(&idm->lock);
+}
+
+static inline void kobj_idmap_iter_init(struct kobj_idmap *idm, struct hashiter *iter)
+{
+	hash_iter_init(iter, &idm->hash);
+}
+
+static inline bool kobj_idmap_iter_done(struct hashiter *iter)
+{
+	return hash_iter_done(iter);
+}
+
+static inline void kobj_idmap_iter_next(struct hashiter *iter)
+{
+	hash_iter_next(iter);
+}
+
+static inline void *kobj_idmap_iter_get(struct hashiter *iter)
+{
+	return hash_iter_get(iter);
 }
 
 void kobj_lru_create(struct kobj_lru *lru, size_t idlen, size_t max, struct kobj *kobj,

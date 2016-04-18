@@ -23,6 +23,19 @@ bool thread_send_signal(struct thread *thread, int signal)
 	return ret;
 }
 
+void process_send_signal(struct process *target, int sig)
+{
+	__linkedlist_lock(&target->threads);
+	struct linkedentry *entry;
+	for(entry = linkedlist_iter_start(&target->threads); entry != linkedlist_iter_end(&target->threads);
+			entry = linkedlist_iter_next(entry)) {
+		struct thread *thread = linkedentry_obj(entry);
+		if(thread_send_signal(thread, sig))
+			break;
+	}
+	__linkedlist_unlock(&target->threads);
+}
+
 #include <printk.h>
 bool thread_check_status_retuser(struct thread *thread)
 {
@@ -31,7 +44,7 @@ bool thread_check_status_retuser(struct thread *thread)
 	}
 
 	bool ret = false;
-	if(current_thread && (current_thread->flags & THREAD_RESCHEDULE)) {
+	if(current_thread && ((current_thread->flags & THREAD_RESCHEDULE) || thread->signal)) {
 		preempt();
 
 		int signal = thread->signal;

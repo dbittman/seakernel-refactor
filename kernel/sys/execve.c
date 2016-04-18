@@ -94,6 +94,7 @@ sysret_t sys_execve(const char *path, char **arg, char **env)
 	/* TODO: mark executable as "busy" */
 
 	process_close_files(current_thread->process, false);
+	memset(current_thread->process->actions, 0, sizeof(current_thread->process->actions));
 
 	uintptr_t aux = (uintptr_t)current_thread->user_tls_base + USER_TLS_SIZE;
 

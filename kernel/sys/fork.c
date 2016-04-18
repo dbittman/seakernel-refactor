@@ -86,16 +86,7 @@ sysret_t sys_kill(int pid, int sig)
 	struct process *target = process_get_by_pid(pid);
 	if(!target)
 		return -ESRCH;
-	(void)sig;
-	__linkedlist_lock(&target->threads);
-	struct linkedentry *entry;
-	for(entry = linkedlist_iter_start(&target->threads); entry != linkedlist_iter_end(&target->threads);
-			entry = linkedlist_iter_next(entry)) {
-		struct thread *thread = linkedentry_obj(entry);
-		if(thread_send_signal(thread, sig))
-			break;
-	}
-	__linkedlist_unlock(&target->threads);
+	process_send_signal(target, sig);
 	kobj_putref(target);
 	return 0;
 }
