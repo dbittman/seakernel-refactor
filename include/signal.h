@@ -68,6 +68,8 @@ struct sigaction {
 #define SIG_UNBLOCK 1
 #define SIG_SETMASK 2
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wparentheses"
 static inline void sigaddset(sigset_t *set, int sig)
 {
     unsigned s = sig-1;
@@ -119,3 +121,4 @@ static inline int sigorset(sigset_t *dest, const sigset_t *left, const sigset_t 
     return 0;
 }
 
+#pragma GCC diagnostic pop

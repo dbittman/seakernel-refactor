@@ -9,13 +9,11 @@ bool thread_send_signal(struct thread *thread, int signal)
 	spinlock_acquire(&thread->signal_lock);
 	if(signal == SIGKILL) {
 		thread->signal = SIGKILL;
-		printk("Adding signal %d to thread %ld\n", signal, thread->tid);
 		if(thread != current_thread)
 			thread_unblock(thread);
 	} else if(!sigismember(&thread->sigmask, signal)) {
 		ret = true;
 		sigaddset(&thread->pending_signals, signal);
-		printk("Adding signal %d to thread %ld\n", signal, thread->tid);
 		if(thread != current_thread)
 			thread_unblock(thread);
 	}
@@ -36,7 +34,6 @@ void process_send_signal(struct process *target, int sig)
 	__linkedlist_unlock(&target->threads);
 }
 
-#include <printk.h>
 bool thread_check_status_retuser(struct thread *thread)
 {
 	if(thread->flags & THREAD_EXIT) {
