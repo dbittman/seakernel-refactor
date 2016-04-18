@@ -64,6 +64,7 @@ void mm_fault_entry(uintptr_t address, int flags)
 			return;
 		printk("SIGSEGV - process %d, addr %lx cause %x\n", current_thread->process->pid, address, flags);
 		thread_send_signal(current_thread, SIGSEGV);
+		return;
 	}
 	panic(0, "PF [t%ld, p%d] - %lx %x", current_thread->tid, current_thread->process->pid, address, flags);
 }

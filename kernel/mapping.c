@@ -195,7 +195,10 @@ int mmu_mappings_handle_fault(uintptr_t addr, int flags)
 			frame = map->frame;
 		} else {
 			if(!map->page) {
-				map->file->ops->map(map->file, map);
+				if(!map->file->ops->map(map->file, map)) {
+					/* failed */
+					goto out;
+				}
 			}
 			frame = map->page->frame;
 		}

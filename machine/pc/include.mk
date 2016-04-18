@@ -5,6 +5,7 @@ KERNEL_VIRT_BASE:=0xFFFFFFFF80000000
 C_SOURCES+=machine/pc/machine.c \
 		   machine/pc/devices/serial.c \
 		   machine/pc/devices/acpi.c \
+		   machine/pc/devices/vga.c \
 		   machine/pc/devices/ioapic.c \
 		   machine/pc/devices/uart.c
 

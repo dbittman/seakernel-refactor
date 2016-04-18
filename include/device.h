@@ -16,8 +16,6 @@ struct device {
 
 struct file_calls *dev_get_fops(struct inode *);
 int dev_register(struct device *dev, struct file_calls *calls, int type);
-int dev_char_builtin_major(void);
-int dev_com_builtin_major(void);
 
 #define major(x) \
 	        ((unsigned)( (((x)>>31>>1) & 0xfffff000) | (((x)>>8) & 0x00000fff) ))

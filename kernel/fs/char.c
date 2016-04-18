@@ -36,13 +36,18 @@ static struct file_calls char_calls = {
 	.map = 0, .unmap = 0,
 };
 
-__orderedinitializer(__orderedafter(DEVICE_INITIALIZER_ORDER)) static void _init_char(void)
+#include <fs/sys.h>
+static void _late_init(void)
 {
-	dev_register(&dev, &char_calls, S_IFCHR);
+	int ret = sys_mknod("/dev/null", S_IFCHR | 0666, makedev(dev.devnr, 0));
+	assert(ret == 0);
+	ret = sys_mknod("/dev/zero", S_IFCHR | 0666, makedev(dev.devnr, 1));
+	assert(ret == 0);
 }
 
-int dev_char_builtin_major(void)
+__orderedinitializer(__orderedafter(DEVICE_INITIALIZER_ORDER)) static void _init_char(void)
 {
-	return dev.devnr;
+	init_register_late_call(&_late_init, NULL);
+	dev_register(&dev, &char_calls, S_IFCHR);
 }
 

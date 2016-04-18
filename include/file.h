@@ -55,8 +55,8 @@ struct file_calls {
 	void (*open)(struct file *file);
 	void (*close)(struct file *file);
 
-	int (*map)(struct file *file, struct mapping *map);
-	int (*unmap)(struct file *file, struct mapping *map);
+	bool (*map)(struct file *file, struct mapping *map);
+	void (*unmap)(struct file *file, struct mapping *map);
 };
 
 struct file_calls *file_get_ops(struct inode *node);

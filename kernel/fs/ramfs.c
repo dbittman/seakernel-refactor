@@ -286,11 +286,5 @@ void initial_rootfs_init(void)
 	int tmp = sys_open("/dev", O_CREAT | O_RDONLY, S_IFDIR | 0777);
 	sys_close(tmp);
 
-	int ret = sys_mknod("/dev/null", S_IFCHR | 0666, makedev(dev_char_builtin_major(), 0));
-	assert(ret == 0);
-	ret = sys_mknod("/dev/zero", S_IFCHR | 0666, makedev(dev_char_builtin_major(), 1));
-	assert(ret == 0);
-	ret = sys_mknod("/dev/com0", S_IFCHR | 0666, makedev(dev_com_builtin_major(), 0));
-	assert(ret == 0);
 }
 

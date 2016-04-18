@@ -22,5 +22,6 @@ static inline unsigned long long __round_up_pow2(unsigned int a)
 	return 1ull << (sizeof(a) * 8 - __builtin_clz(a));
 }
 
+void init_register_late_call(void *call, void *data);
 #endif
 
