@@ -7,6 +7,10 @@
 #include <printk.h>
 #include <string.h>
 
+/* TODO: simplify this system. I don't
+ * think it needs to store the page, just
+ * the frame. */
+
 static void _mapping_init(void *obj)
 {
 	struct mapping *map = obj;
