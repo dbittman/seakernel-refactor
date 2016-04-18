@@ -42,6 +42,7 @@ static inline struct inode *file_get_inode(struct file *f)
 	return dirent_get_inode(f->dirent);
 }
 
+struct mapping;
 struct file_calls {
 	ssize_t (*read)(struct file *, size_t, size_t, char *);
 	ssize_t (*write)(struct file *, size_t, size_t, const char *);
@@ -53,6 +54,9 @@ struct file_calls {
 	int (*ioctl)(struct file *file, long cmd, long arg);
 	void (*open)(struct file *file);
 	void (*close)(struct file *file);
+
+	int (*map)(struct file *file, struct mapping *map);
+	int (*unmap)(struct file *file, struct mapping *map);
 };
 
 struct file_calls *file_get_ops(struct inode *node);

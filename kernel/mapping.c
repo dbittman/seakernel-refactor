@@ -1,6 +1,6 @@
 #include <map.h>
 #include <frame.h>
-#include <fs/inode.h>
+#include <file.h>
 #include <thread.h>
 #include <process.h>
 #include <assert.h>
@@ -10,7 +10,7 @@
 static void _mapping_init(void *obj)
 {
 	struct mapping *map = obj;
-	map->node = NULL;
+	map->file = NULL;
 	map->frame = 0;
 	map->flags = 0;
 }
@@ -29,7 +29,7 @@ struct kobj kobj_mapping = {
 };
 
 struct mapping *mapping_establish(struct process *proc, uintptr_t virtual, int prot,
-		int flags, struct inode *node, int nodepage)
+		int flags, struct file *file, int nodepage)
 {
 	uintptr_t vpage = virtual / arch_mm_page_size(0);
 	spinlock_acquire(&proc->map_lock);
@@ -43,7 +43,7 @@ struct mapping *mapping_establish(struct process *proc, uintptr_t virtual, int p
 	assert(!((flags & MMAP_MAP_SHARED) && (flags & MMAP_MAP_PRIVATE)));
 
 	map = kobj_allocate(&kobj_mapping);
-	map->node = node ? kobj_getref(node) : NULL;
+	map->file = file ? kobj_getref(file) : NULL;
 	map->flags = flags;
 	map->prot = prot;
 	map->vpage = vpage;
@@ -70,12 +70,13 @@ static bool _do_mapping_remove(struct process *proc, uintptr_t virtual, bool loc
 			frame_release(map->frame);
 		}
 	} else {
-		assert(map->node != NULL);
+		assert(map->file != NULL);
 		if(map->flags & MMAP_MAP_MAPPED)
-			inode_release_page(map->node, map->page);
-		inode_put(map->node);
+			if(map->file->ops->unmap)
+				map->file->ops->unmap(map->file, map);
+		kobj_putref(map->file);
 	}
-	map->node = NULL;
+	map->file = NULL;
 	kobj_putref(map);
 	if(!locked)
 		spinlock_release(&proc->map_lock);
@@ -87,13 +88,13 @@ bool mapping_remove(struct process *proc, uintptr_t virtual)
 	return _do_mapping_remove(proc, virtual, false);
 }
 
-void map_mmap(uintptr_t virtual, struct inode *node, int prot, int flags, size_t len, size_t off)
+void map_mmap(uintptr_t virtual, struct file *file, int prot, int flags, size_t len, size_t off)
 {
 	int num = len / arch_mm_page_size(0);
 	int nodepage = off / arch_mm_page_size(0);
 	for(int i=0;i<num;i++) {
 		mapping_establish(current_thread->process, virtual + i * arch_mm_page_size(0),
-				prot, flags, node, nodepage + i);
+				prot, flags, file, nodepage + i);
 	}
 }
 
@@ -111,7 +112,7 @@ void process_copy_mappings(struct process *from, struct process *to)
 	for(hash_iter_init(&iter, &from->mappings); !hash_iter_done(&iter); hash_iter_next(&iter)) {
 		struct mapping *map = hash_iter_get(&iter);
 		struct mapping *nm = mapping_establish(to, map->vpage * arch_mm_page_size(0), map->prot, map->flags,
-				map->node, map->nodepage);
+				map->file, map->nodepage);
 
 		if(!(map->flags & MMAP_MAP_ANON)) {
 			if(map->page) {
@@ -189,8 +190,9 @@ int mmu_mappings_handle_fault(uintptr_t addr, int flags)
 				map->frame = frame_allocate();
 			frame = map->frame;
 		} else {
-			if(!map->page)
-				map->page = inode_get_page(map->node, map->nodepage);
+			if(!map->page) {
+				map->file->ops->map(map->file, map);
+			}
 			frame = map->page->frame;
 		}
 		map->flags |= MMAP_MAP_MAPPED;
@@ -226,12 +228,17 @@ int mmu_mappings_handle_fault(uintptr_t addr, int flags)
 			} else {
 				struct inodepage *page = map->page;
 				map->flags |= MMAP_MAP_ANON;
-				map->frame = frame_allocate();
-				memcpy((void *)(map->frame + PHYS_MAP_START), (void *)(page->frame + PHYS_MAP_START), arch_mm_page_size(0));
+				uintptr_t newframe = frame_allocate();
+				memcpy((void *)(newframe + PHYS_MAP_START), (void *)(page->frame + PHYS_MAP_START), arch_mm_page_size(0));
 
 				arch_mm_virtual_unmap(proc->ctx, addr & page_mask(0));
-				arch_mm_virtual_map(proc->ctx, addr & page_mask(0), map->frame, arch_mm_page_size(0), setflags);
-				inode_release_page(map->node, page);
+				arch_mm_virtual_map(proc->ctx, addr & page_mask(0), newframe, arch_mm_page_size(0), setflags);
+				if(map->file->ops->unmap) {
+					map->file->ops->unmap(map->file, map);
+					kobj_putref(map->file);
+					map->file = NULL;
+				}
+				map->frame = newframe;
 			}
 		} else if(flags & FAULT_WRITE) {
 			if(!(map->flags & MMAP_MAP_ANON)) {

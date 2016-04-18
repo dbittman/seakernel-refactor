@@ -295,5 +295,6 @@ struct file_calls socket_fops = {
 	.create = _socket_fops_create,
 	.destroy = _socket_fops_destroy,
 	.ioctl = 0, .select = _socket_select, .open = 0, .close = 0,
+	.map = 0, .unmap = 0,
 };
 

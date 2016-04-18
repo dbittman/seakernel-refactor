@@ -62,6 +62,7 @@ void mm_fault_entry(uintptr_t address, int flags)
 	if(current_thread->process && address >= USER_REGION_START && address < USER_REGION_END) {
 		if(mmu_mappings_handle_fault(address, flags))
 			return;
+		printk("SIGSEGV - process %d, addr %lx cause %x\n", current_thread->process->pid, address, flags);
 		thread_send_signal(current_thread, SIGSEGV);
 	}
 	panic(0, "PF [t%ld, p%d] - %lx %x", current_thread->tid, current_thread->process->pid, address, flags);

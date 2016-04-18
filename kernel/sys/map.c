@@ -23,17 +23,19 @@ intptr_t sys_mmap(uintptr_t addr, size_t len, int prot, int flags, int fd, size_
 	struct file *file = NULL;
 	if(fd >= 0)
 		file = process_get_file(fd);
-	struct inode *ino = file ? file_get_inode(file) : NULL;
+
+	if(!file && !(flags & MMAP_MAP_ANON))
+		return -EBADF;
+	if(file && !file->ops->map) {
+		kobj_putref(file);
+		return -ENOTSUP;
+	}
+	uintptr_t virt = addr ? addr : process_allocate_mmap_region(current_thread->process, len);
+	map_mmap(virt, file, prot, flags, len, off);
+
 	if(file)
 		kobj_putref(file);
 
-	if(!ino && !(flags & MMAP_MAP_ANON))
-		return -EBADF;
-	uintptr_t virt = addr ? addr : process_allocate_mmap_region(current_thread->process, len);
-	map_mmap(virt, ino, prot, flags, len, off);
-
-	if(ino)
-		inode_put(ino);
-
 	return virt;
 }
+

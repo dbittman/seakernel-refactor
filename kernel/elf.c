@@ -41,7 +41,6 @@ int elf_parse_executable(struct elf_header *header, int fd, uintptr_t *max, uint
 				flags |= MMAP_MAP_PRIVATE;
 			else
 				flags |= MMAP_MAP_SHARED;
-
 			/* TODO: we should have macros for this */
 			sys_mmap(ph->p_addr & ~(arch_mm_page_size(0) - 1), ph->p_filesz + inpage_offset,
 					prot, flags, fd, ph->p_offset & ~(arch_mm_page_size(0) - 1));

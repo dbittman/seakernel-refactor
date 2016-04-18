@@ -133,7 +133,7 @@ struct file_calls pipe_fops = {
 	.destroy = _pipe_file_destroy,
 	.open = _pipe_open,
 	.close = _pipe_close,
-
+	.map = 0, .unmap = 0,
 	.ioctl = 0, .select = _pipe_select,
 };
 

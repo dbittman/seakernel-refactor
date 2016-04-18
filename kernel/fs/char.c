@@ -33,6 +33,7 @@ static struct file_calls char_calls = {
 	.read = _char_read,
 	.write = _char_write,
 	.create = 0, .destroy = 0, .ioctl = 0, .select = 0, .open = 0, .close = 0,
+	.map = 0, .unmap = 0,
 };
 
 __orderedinitializer(__orderedafter(DEVICE_INITIALIZER_ORDER)) static void _init_char(void)

@@ -53,10 +53,28 @@ struct kobj kobj_filesystem = {
 	.destroy = _filesystem_destroy,
 };
 
+static int _fs_inode_map(struct file *file, struct mapping *map)
+{
+	struct inode *node = file_get_inode(file);
+	map->page = inode_get_page(node, map->nodepage);
+	inode_put(node);
+	return !!map->page;
+}
+
+static int _fs_inode_unmap(struct file *file, struct mapping *map)
+{
+	struct inode *node = file_get_inode(file);
+	inode_release_page(node, map->page);
+	inode_put(node);
+	return 0;
+}
+
 struct file_calls fs_fops = {
 	.read = inode_read_data,
 	.write = inode_write_data,
 	.create = 0, .destroy = 0, .ioctl = 0, .select = 0, .open = 0, .close = 0,
+	.map = _fs_inode_map,
+	.unmap = _fs_inode_unmap,
 };
 
 int fs_load_inode(uint64_t fsid, uint64_t inoid, struct inode *node)

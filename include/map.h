@@ -19,7 +19,7 @@ struct mapping {
 	struct kobj_header _header;
 	struct hashelem elem;
 	uintptr_t vpage;
-	struct inode *node;
+	struct file *file;
 	union {
 		struct inodepage *page;
 		uintptr_t frame;
@@ -29,9 +29,9 @@ struct mapping {
 
 struct process;
 struct mapping *mapping_establish(struct process *proc, uintptr_t virtual, int prot,
-		int flags, struct inode *node, int nodepage);
+		int flags, struct file *, int nodepage);
 
 int mmu_mappings_handle_fault(uintptr_t addr, int flags);
-void map_mmap(uintptr_t virtual, struct inode *node, int prot, int flags, size_t len, size_t off);
+void map_mmap(uintptr_t virtual, struct file *, int prot, int flags, size_t len, size_t off);
 void map_unmap(uintptr_t virtual, size_t length);
 
