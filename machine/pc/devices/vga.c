@@ -4,13 +4,18 @@
 #include <frame.h>
 #include <map.h>
 #include <fs/sys.h>
+#include <printk.h>
+#include <fs/inode.h>
 static struct device dev;
 
 static bool _vga_map(struct file *file, struct mapping *map)
 {
 	(void)file;
 	frame_acquire(0xB8000);
-	map->frame = 0xB8000;
+	struct inodepage *page = kobj_allocate(&kobj_inode_page);
+	page->node = NULL;
+	map->page = page;
+	page->frame = 0xB8000;
 	return true;
 }
 
@@ -23,7 +28,7 @@ static struct file_calls vga_calls = {
 
 static void _late_init(void)
 {
-	int ret = sys_mknod("/dev/vga", S_IFCHR | 0666, makedev(dev.devnr, 0));
+	int ret = sys_mknod("/dev/vga", S_IFCHR | 0600, makedev(dev.devnr, 0));
 	assert(ret == 0);
 }
 

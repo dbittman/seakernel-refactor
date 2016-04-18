@@ -9,6 +9,7 @@
 #include <sys/un.h>
 #include <sys/select.h>
 #include <signal.h>
+#include <sys/mman.h>
 
 void handler(int sig)
 {
@@ -17,6 +18,20 @@ void handler(int sig)
 
 int main(int argc, char **argv)
 {
+
+	int f = open("/dev/vga", O_RDWR);
+	
+	void *addr = mmap(NULL, 0x1000, PROT_WRITE | PROT_READ, MAP_SHARED, f, 0);
+	printf("%p\n", addr);
+	unsigned char *screen = addr;
+
+	*screen = 'H';
+	*(screen+1) = 0x07;
+
+	printf("done\n");
+
+
+	for(;;);
 	//signal(SIGALRM, handler);
 	alarm(1);
 	for(;;);

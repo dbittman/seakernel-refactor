@@ -10,7 +10,7 @@
 #include <thread.h>
 #include <process.h>
 
-static struct kobj kobj_inode_page = KOBJ_DEFAULT(inodepage);
+struct kobj kobj_inode_page = KOBJ_DEFAULT(inodepage);
 
 static bool _inode_page_initialize(void *obj, void *_id, void *data)
 {
@@ -35,7 +35,7 @@ static void _inode_page_release(void *obj, void *data)
 	(void)data;
 	struct inodepage *page = obj;
 	/* TODO: should we write back pages in a more lazy way? (eg, during page_init?) */
-	if(page->flags & INODEPAGE_DIRTY)
+	if((page->flags & INODEPAGE_DIRTY) && page->node)
 		page->node->fs->driver->inode_ops->write_page(page->node, page->page, page->frame);
 	frame_release(page->frame);
 }

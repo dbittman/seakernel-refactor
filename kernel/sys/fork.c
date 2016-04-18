@@ -21,6 +21,7 @@ static void copy_process(struct process *parent, struct process *child)
 	}
 	memcpy(child->actions, parent->actions, sizeof(child->actions));
 	child->parent = kobj_getref(parent);
+	child->pty = parent->pty ? kobj_getref(parent->pty) : NULL;
 }
 
 static void copy_thread(struct thread *parent, struct thread *child)

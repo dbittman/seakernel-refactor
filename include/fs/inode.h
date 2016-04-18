@@ -41,6 +41,7 @@ struct inode {
 	int major, minor;
 };
 
+extern struct kobj kobj_inode_page;
 struct file;
 
 void inode_put(struct inode *inode);

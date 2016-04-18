@@ -5,6 +5,7 @@
 #include <thread.h>
 #include <map.h>
 #include <errno.h>
+#include <fs/sys.h>
 
 intptr_t sys_mmap(uintptr_t addr, size_t len, int prot, int flags, int fd, size_t off)
 {
@@ -29,6 +30,15 @@ intptr_t sys_mmap(uintptr_t addr, size_t len, int prot, int flags, int fd, size_
 	if(file && !file->ops->map) {
 		kobj_putref(file);
 		return -ENOTSUP;
+	}
+	if(file) {
+		if((prot & PROT_WRITE) && !(file->flags & F_WRITE) && (flags & MMAP_MAP_SHARED)) {
+			kobj_putref(file);
+			return -EACCES;
+		} else if(!(file->flags & F_READ)) {
+			kobj_putref(file);
+			return -EACCES;
+		}
 	}
 	uintptr_t virt = addr ? addr : process_allocate_mmap_region(current_thread->process, len);
 	map_mmap(virt, file, prot, flags, len, off);

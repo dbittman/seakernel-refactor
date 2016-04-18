@@ -58,6 +58,7 @@ static void _process_init(void *obj)
 	proc->pid = next_pid++;
 	proc->root = NULL;
 	proc->cwd = NULL;
+	proc->pty = NULL;
 	kobj_idmap_insert(&processids, obj, &proc->pid);
 	for(int i=0;i<MAX_FD;i++)
 		proc->files[i].file = NULL;
@@ -85,6 +86,8 @@ static void _process_put(void *obj)
 	process_remove_mappings(proc, true);
 	kobj_putref(proc->cwd);
 	kobj_putref(proc->root);
+	if(proc->pty)
+		kobj_putref(proc->pty);
 }
 
 struct kobj kobj_process = {

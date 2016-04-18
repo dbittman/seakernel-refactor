@@ -16,6 +16,7 @@ struct fildes {
 
 struct filesystem;
 struct dirent;
+struct pty;
 struct process {
 	struct kobj _header;
 	struct vm_context *ctx;
@@ -40,6 +41,8 @@ struct process {
 
 	struct sigaction actions[_NSIG+1];
 	struct spinlock signal_lock;
+
+	struct pty *pty;
 };
 
 extern struct kobj kobj_process;

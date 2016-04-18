@@ -249,7 +249,8 @@ int mmu_mappings_handle_fault(uintptr_t addr, int flags)
 			}
 		} else if(flags & FAULT_WRITE) {
 			if(!(map->flags & MMAP_MAP_ANON)) {
-				map->page->flags |= INODEPAGE_DIRTY;
+				if(map->flags & MMAP_MAP_SHARED)
+					map->page->flags |= INODEPAGE_DIRTY;
 				arch_mm_virtual_chattr(proc->ctx, addr & page_mask(0), setflags);
 			}
 		}
