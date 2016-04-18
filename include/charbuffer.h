@@ -13,6 +13,7 @@ struct charbuffer {
 	struct blocklist wait_write, wait_read;
 	struct spinlock write, read;
 	_Atomic bool term;
+	int eof;
 };
 
 static inline size_t charbuffer_pending(struct charbuffer *cb) { return cb->head - cb->tail; }

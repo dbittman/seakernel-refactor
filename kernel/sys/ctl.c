@@ -18,7 +18,7 @@ sysret_t sys_fcntl(int fd, int cmd, long arg)
 			current_thread->process->files[fd].flags = arg;
 			break;
 		case F_SETFL:
-			file->flags = arg & ~(F_READ | F_WRITE);
+			file->flags = (arg & ~(F_READ | F_WRITE)) | (arg & (F_READ | F_WRITE));
 			break;
 		case F_GETFL:
 			ret = file->flags;
@@ -31,14 +31,14 @@ sysret_t sys_fcntl(int fd, int cmd, long arg)
 	return ret;
 }
 
-sysret_t sys_ioctl(int fd, unsigned long cmd, long arg)
+sysret_t sys_ioctl(int fd, int cmd, long arg)
 {
 	struct file *file = process_get_file(fd);
 	if(!file)
 		return -EBADF;
 	long ret = -ENOTSUP;
 	if(file->ops->ioctl)
-		ret = file->ops->ioctl(file, cmd, arg);
+		ret = file->ops->ioctl(file, cmd & 0xFFFFFFFF /* TODO */, arg);
 	kobj_putref(file);
 	return ret;
 }

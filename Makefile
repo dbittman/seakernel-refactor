@@ -4,6 +4,7 @@ ASFLAGS=
 BUILDDIR=build
 CONFIGFILE=config.cfg
 LDFLAGS=
+.DEFAULT_GOAL=all
 # these are the required libraries that the kernel needs.
 LIBRARIES=ds string
 MAKEFILES=Makefile $(CONFIGFILE)
@@ -44,7 +45,9 @@ endif
 
 CFLAGS+=-O$(CONFIG_BUILD_OPTIMIZATION)
 
-all: $(BUILDDIR)/kernel.elf sysroot/init
+include sysroot/usr/src/include.mk
+
+all: $(BUILDDIR)/kernel.elf sysroot/init $(USRPROGS)
 
 # get all normal kernel sources
 include kernel/include.mk
@@ -66,12 +69,13 @@ endif
 AS=$(TOOLCHAIN_PREFIX)-as
 LD=$(TOOLCHAIN_PREFIX)-gcc
 
-MAKEFILES+=$(MACHINEDIR)/include.mk $(ARCHDIR)/include.mk
+MAKEFILES+=$(MACHINEDIR)/include.mk $(ARCHDIR)/include.mk sysroot/usr/src/include.mk
 
 # for each library that we're using, include their sources
 $(foreach lib,$(LIBRARIES),$(eval include lib/$(lib)/include.mk))
 
 MAKEFILES+=$(addsuffix /include.mk,$(addprefix lib/,$(LIBRARIES)))
+
 
 STARTFILE=$(shell $(LD) -print-file-name=crtbegin.o)
 ENDFILE=$(shell $(LD) -print-file-name=crtend.o)
@@ -91,6 +95,7 @@ OBJECTS+=$(BUILDDIR)/$(CRTNOBJ)
 endif
 listobj:
 	echo $(OBJECTS)
+	echo $(USRPROGS)
 
 # this is the final kernel binary, including the symbol table.
 $(BUILDDIR)/kernel.elf: $(OBJECTS) $(BUILDDIR)/link.ld $(MAKEFILES) $(BUILDDIR)/symbols.o
@@ -138,8 +143,8 @@ sysroot/init: sysroot/usr/src/init.c
 sysroot/syslogd: sysroot/usr/src/syslogd.c
 	$(TOOLCHAIN_PREFIX)-linux-musl-gcc -static -Og -g  -o $@ $< -Wall 
 
-test: $(BUILDDIR)/kernel.elf sysroot/init sysroot/syslogd
-	qemu-system-$(ARCH) -m 1024  -machine $(MACHINE) $(QEMU_FLAGS) -kernel $(BUILDDIR)/kernel.elf -serial stdio -initrd sysroot/init,sysroot/syslogd
+test: $(BUILDDIR)/kernel.elf $(USRPROGS)
+	qemu-system-$(ARCH) -m 1024  -machine $(MACHINE) $(QEMU_FLAGS) -kernel $(BUILDDIR)/kernel.elf -serial stdio -initrd sysroot/bin/init,sysroot/bin/syslogd,sysroot/bin/cond,sysroot/bin/test
 
 clean:
 	-rm -r $(BUILDDIR)

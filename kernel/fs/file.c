@@ -21,6 +21,8 @@ static void _file_init(void *obj)
 {
 	struct file *file = obj;
 	file->dirent = NULL;
+	file->ops = NULL;
+	file->devtype = FDT_UNKNOWN;
 }
 
 static void _file_create(void *obj)
@@ -35,6 +37,18 @@ struct kobj kobj_file = {
 	.put = _file_put,
 	.destroy = NULL,
 };
+
+struct file_calls *file_get_ops(struct inode *node)
+{
+	if(S_ISCHR(node->mode) || S_ISBLK(node->mode))
+		return dev_get_fops(node);
+	else if(S_ISFIFO(node->mode))
+		return &pipe_fops;
+	else if(S_ISSOCK(node->mode))
+		return &socket_fops;
+	else
+		return &fs_fops;
+}
 
 struct file *file_create(struct dirent *dir, enum file_device_type type)
 {
@@ -73,16 +87,14 @@ struct file *file_create(struct dirent *dir, enum file_device_type type)
 	return file;
 }
 
-struct file_calls *file_get_ops(struct inode *node)
+struct file *process_exchange_fd(struct file *file, int i)
 {
-	if(S_ISCHR(node->mode) || S_ISBLK(node->mode))
-		return dev_get_fops(node);
-	else if(S_ISFIFO(node->mode))
-		return &pipe_fops;
-	else if(S_ISSOCK(node->mode))
-		return &socket_fops;
-	else
-		return &fs_fops;
+	spinlock_acquire(&current_thread->process->files_lock);
+	struct process *proc = current_thread->process;
+	struct file *of = proc->files[i].file;
+	proc->files[i].file = kobj_getref(file);
+	spinlock_release(&current_thread->process->files_lock);
+	return of;
 }
 
 int process_allocate_fd(struct file *file)
@@ -139,6 +151,8 @@ void process_copy_files(struct process *from, struct process *to)
 			struct file *f = to->files[i].file;
 			if(f->ops && f->ops->open)
 				f->ops->open(f);
+			if(f->devdata)
+				kobj_getref(f->devdata); //TODO: should we...actually do this?
 		}
 	}
 	spinlock_release(&from->files_lock);
@@ -162,7 +176,7 @@ void process_close_files(struct process *proc, bool all)
 ssize_t file_read(struct file *f, size_t off, size_t len, char *buf)
 {
 	ssize_t ret = -EIO;
-	if(f->ops && f->ops->write)
+	if(f->ops && f->ops->read)
 		ret = f->ops->read(f, off, len, buf);
 	return ret;
 }

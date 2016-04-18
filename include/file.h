@@ -35,6 +35,7 @@ ssize_t file_write(struct file *f, size_t off, size_t len, const char *buf);
 int file_truncate(struct file *f, size_t len);
 size_t file_get_len(struct file *f);
 void file_close(struct file *file);
+struct file *process_exchange_fd(struct file *file, int);
 struct file *file_create(struct dirent *dir, enum file_device_type);
 
 static inline struct inode *file_get_inode(struct file *f)
@@ -59,7 +60,6 @@ struct file_calls {
 	void (*unmap)(struct file *file, struct mapping *map);
 };
 
-struct file_calls *file_get_ops(struct inode *node);
 extern struct file_calls fs_fops;
 extern struct file_calls pipe_fops;
 extern struct file_calls socket_fops;

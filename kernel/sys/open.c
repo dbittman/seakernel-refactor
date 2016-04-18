@@ -64,6 +64,29 @@ sysret_t sys_open(const char *path, int flags, int mode)
 	return fd;
 }
 
+sysret_t sys_dup(int old)
+{
+	struct file *file = process_get_file(old);
+	if(!file)
+		return -EBADF;
+
+	int nf = process_allocate_fd(file);
+	kobj_putref(file);
+	return nf;
+}
+
+sysret_t sys_dup2(int old, int new)
+{
+	struct file *file = process_get_file(old);
+	if(!file)
+		return -EBADF;
+
+	struct file *of = process_exchange_fd(file, new);
+	kobj_putref(file);
+	file_close(of);
+	return new;
+}
+
 sysret_t sys_mknod(const char *path, int mode, dev_t dev)
 {
 	int fd = sys_open(path, O_CREAT | O_WRONLY | O_EXCL, mode);

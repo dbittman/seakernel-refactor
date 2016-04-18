@@ -46,6 +46,7 @@ static void _pipe_file_create(struct file *file)
 
 static void _pipe_file_destroy(struct file *file)
 {
+	(void)file;
 	kobj_putref(file->devdata);
 }
 
@@ -97,7 +98,9 @@ static void _pipe_close(struct file *file)
 		pipe->writers--;
 	if(file->flags & F_READ)
 		pipe->readers--;
-	/* TODO: notify charbuffer of closure */
+
+	if(pipe->writers == 0)
+		charbuffer_terminate(&pipe->buf); //TODO : named pipes?
 }
 
 static int _pipe_select(struct file *file, int flags, struct blockpoint *bp)

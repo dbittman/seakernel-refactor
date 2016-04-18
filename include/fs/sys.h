@@ -42,6 +42,8 @@ ssize_t sys_preadv(int fd, struct iovec *iov, int iovc, size_t off);
 ssize_t sys_pwritev(int fd, struct iovec *iov, int iovc, size_t off);
 sysret_t sys_close(int fd);
 sysret_t sys_pipe(int *fds);
+sysret_t sys_dup2(int old, int new);
+sysret_t sys_dup(int old);
 
 sysret_t sys_socket(int domain, int type, int protocol);
 sysret_t sys_socketpair(int domain, int type, int protocol, int *sv);

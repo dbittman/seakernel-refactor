@@ -8,6 +8,7 @@ void charbuffer_create(struct charbuffer *cb, size_t cap)
 	assert(cap == 0x1000); /* NOTE: for now, lets fix this */
 	cb->capacity = cap;
 	cb->head = cb->tail = 0;
+	cb->eof = 0;
 	cb->term = false;
 	blocklist_create(&cb->wait_write);
 	blocklist_create(&cb->wait_read);
@@ -126,6 +127,11 @@ size_t charbuffer_read(struct charbuffer *cb, char *buf, size_t len, int flags)
 				spinlock_release(&cb->read);
 				return amount_read;
 			}
+			if(cb->eof && amount_read == 0) {
+				cb->eof = 0;
+				spinlock_release(&cb->read);
+				return 0;
+			}
 			struct blockpoint bp;
 			blockpoint_create(&bp, 0, 0);
 			blockpoint_startblock(&cb->wait_read, &bp);
@@ -174,6 +180,7 @@ void charbuffer_reset(struct charbuffer *cb)
 
 	cb->term = false;
 	cb->head = cb->tail = 0;
+	cb->eof = 0;
 	blocklist_unblock_all(&cb->wait_write);
 	blocklist_unblock_all(&cb->wait_read);
 

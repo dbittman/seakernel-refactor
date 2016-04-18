@@ -10,6 +10,7 @@
 #include <sys/select.h>
 #include <signal.h>
 #include <sys/mman.h>
+#include <pty.h>
 
 void handler(int sig)
 {
@@ -18,7 +19,7 @@ void handler(int sig)
 
 int main(int argc, char **argv)
 {
-
+/*
 	int f = open("/dev/vga", O_RDWR);
 	
 	void *addr = mmap(NULL, 0x1000, PROT_WRITE | PROT_READ, MAP_SHARED, f, 0);
@@ -30,6 +31,22 @@ int main(int argc, char **argv)
 
 	printf("done\n");
 
+	int master, slave;
+
+	char name[128];
+	int r = openpty(&master, &slave, name, NULL, NULL);
+	fprintf(stderr, ":: %d %d %d : %s\n", r, master, slave, name);
+
+	write(master, "Hello wm\n", 9);
+	write(slave, "Hello ws\n", 9);
+
+	fprintf(stderr, "okay\n");
+
+	char buf[128];
+	r = read(master, buf, 128);
+	fprintf(stderr, "m: %d : %s\n", r, buf);
+	r = read(slave, buf, 128);
+	fprintf(stderr, "s: %d : %s\n", r, buf);
 
 	for(;;);
 	//signal(SIGALRM, handler);
@@ -44,6 +61,12 @@ int main(int argc, char **argv)
 
 	for(;;);*/
 	if(!fork()) {
+		close(2);
+		close(1);
+		close(0);
+		open("/dev/com0", O_RDWR);
+		open("/dev/com0", O_RDWR);
+		open("/dev/com0", O_RDWR);
 		execvp("/syslogd", NULL);
 		perror("execvp");
 		exit(1);
@@ -56,6 +79,19 @@ int main(int argc, char **argv)
 			break;
 		}
 	}
+
+	if(!fork()) {
+		execlp("cond", "cond",
+				//"-a", "login",
+				//"-1", "sh /etc/rc/boot",
+				"-1", "test", (char *)NULL);
+		execvp("/cond", NULL);
+		perror("execvp cond");
+		exit(1);
+	}
+
+	for(;;) sleep(100);
+
 	fprintf(stderr, "START LOG\n");
 	int pid;
 	if(!(pid=fork()))  {

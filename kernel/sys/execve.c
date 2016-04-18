@@ -7,12 +7,14 @@
 #include <errno.h>
 #include <sys.h>
 #include <file.h>
+#include <arena.h>
 #include <fs/stat.h>
 
-static void write_data(uintptr_t *end, void *data, size_t len)
+static char *write_data(uintptr_t *end, void *data, size_t len)
 {
 	*end -= len;
 	memcpy((void *) *end, data, len);
+	return (char *)(*end);
 }
 
 static void write_aux(uintptr_t *end, long key, long value)
@@ -23,8 +25,6 @@ static void write_aux(uintptr_t *end, long key, long value)
 
 sysret_t sys_execve(const char *path, char **arg, char **env)
 {
-	(void)arg;
-	(void)env;
 	int err = 0;
 	int fd = sys_open(path, O_RDONLY, 0);
 	if(fd < 0)
@@ -59,6 +59,31 @@ sysret_t sys_execve(const char *path, char **arg, char **env)
 
 	/* other tests... */
 
+	/* backup */
+	struct arena arena;
+	arena_create(&arena);
+	long argc = 0;
+	char **savedargv = arena_allocate(&arena, sizeof(char *) * 4096);
+	for(int i=0;i<4095 && arg && arg[i];i++) {
+		int len = strlen(arg[i]);
+		char *space = arena_allocate(&arena,len+1);
+		memcpy(space, arg[i], len+1);
+		savedargv[i] = space;
+		argc++;
+	}
+	savedargv[argc] = NULL;
+	int envc = 0;
+	char **savedenv = arena_allocate(&arena, sizeof(char *) * 4096);
+	for(int i=0;i<4095 && env && env[i];i++) {
+		int len = strlen(env[i]);
+		char *space = arena_allocate(&arena,len+1);
+		memcpy(space, env[i], len+1);
+		savedenv[i] = space;
+		envc++;
+	}
+	savedenv[envc] = NULL;
+
+
 	process_remove_mappings(current_thread->process, false);
 	uintptr_t max, phdrs=0;
 	if(elf_parse_executable(&header, fd, &max, &phdrs) < 0) {
@@ -72,6 +97,17 @@ sysret_t sys_execve(const char *path, char **arg, char **env)
 
 	uintptr_t aux = (uintptr_t)current_thread->user_tls_base + USER_TLS_SIZE;
 
+	for(int i=0;i<argc;i++) {
+		savedargv[i] = write_data(&aux, savedargv[i], strlen(savedargv[i]) + 1);
+	}
+
+	for(int i=0;i<envc;i++) {
+		savedenv[i] = write_data(&aux, savedenv[i], strlen(savedenv[i]) + 1);
+	}
+
+	/* align aux */
+	aux &= 0xFFFFFFFFFFFFFFF0;
+
 	write_aux(&aux, AT_NULL, AT_NULL);
 	write_aux(&aux, AT_PAGESZ, arch_mm_page_size(0));
 	write_aux(&aux, AT_EXECFD, fd);
@@ -83,12 +119,14 @@ sysret_t sys_execve(const char *path, char **arg, char **env)
 	write_aux(&aux, AT_ENTRY, header.entry);
 	/* TODO: aux UID, etc */
 
-	
-	long nil = 0;
-	write_data(&aux, &nil, sizeof(nil));
-	write_data(&aux, &nil, sizeof(nil));
+	for(int i=envc;i>=0;i--) {
+		write_data(&aux, &savedenv[i], sizeof(char *));
+	}
 
-	long argc = 0;
+	for(int i=argc;i>=0;i--) {
+		write_data(&aux, &savedargv[i], sizeof(char *));
+	}
+	
 	write_data(&aux, &argc, sizeof(long));
 	arch_thread_usermode_jump(header.entry, aux);
 

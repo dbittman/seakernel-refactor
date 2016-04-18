@@ -144,7 +144,6 @@ sysret_t _do_select(int nfds, fd_set *readfds, fd_set *writefds,
 	struct arena arena;
 	bool timed_out = false, any_ready = false;
 	arena_create(&arena);
-
 	struct file **files = _select_openall(&arena, nfds, readfds, writefds, errfds);
 	if(files == NULL) {
 		goto out_arena;

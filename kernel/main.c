@@ -39,13 +39,6 @@ static void _init_entry(void *arg)
 {
 	(void)arg;
 
-	int f = sys_open("/dev/com0", O_RDWR, 0);
-	assert(f == 0);
-	f = sys_open("/dev/com0", O_RDWR, 0);
-	assert(f == 1);
-	f = sys_open("/dev/com0", O_RDWR, 0);
-	assert(f == 2);
-
 	int ret = sys_execve("/init", argv, env);
 	printk("failed to start init: %d\n", ret);
 	sys_exit(0);

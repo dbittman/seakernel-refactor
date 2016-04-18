@@ -286,7 +286,7 @@ static int _unix_select(struct socket *sock, int flags, struct blockpoint *bp)
 			}
 			return 0;
 		}
-		return 1;
+		return -1;
 	}
 
 	struct unix_connection *con = sock->unix.con;

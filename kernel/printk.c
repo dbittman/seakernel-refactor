@@ -184,9 +184,9 @@ int snprintf(char *buf, size_t len, const char *fmt, ...)
 	va_list args;
 	va_start(args, fmt);
 	vbufprintk(buf, fmt, args);
-	spinlock_acquire(&_lock);
-	serial_puts(buf);
-	spinlock_release(&_lock);
+	//spinlock_acquire(&_lock);
+	//serial_puts(buf);
+	//spinlock_release(&_lock);
 	va_end(args);
 	return 0;
 }

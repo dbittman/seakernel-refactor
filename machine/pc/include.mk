@@ -7,6 +7,7 @@ C_SOURCES+=machine/pc/machine.c \
 		   machine/pc/devices/acpi.c \
 		   machine/pc/devices/vga.c \
 		   machine/pc/devices/ioapic.c \
+		   machine/pc/devices/keyboard.c \
 		   machine/pc/devices/uart.c
 
 ifneq ($(CONFIG_ARCH),x86_64)
