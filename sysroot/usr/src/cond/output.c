@@ -364,7 +364,7 @@ void init_screen(void)
 {
 	syslog(LOG_INFO, "taking control of screen\n");
 
-	screen_fd = open("/dev/vga", O_RDWR);
+	screen_fd = open("/dev/vga", O_RDWR | O_CLOEXEC);
 	if(screen_fd >= 0) {
 		SCREEN = mmap(NULL, 0x1000, PROT_WRITE | PROT_READ, MAP_SHARED, screen_fd, 0);
 	} else {

@@ -177,7 +177,7 @@ int main(int argc, char **argv)
 	openlog("cond", 0, 0);
 	parse_options(argc, argv);
 	syslog(LOG_INFO, "starting cond v. 0.1\n");
-	keyfd = open("/dev/keyboard", O_RDWR | O_NONBLOCK);
+	keyfd = open("/dev/keyboard", O_RDWR | O_NONBLOCK | O_CLOEXEC);
 	if(keyfd == -1) {
 		syslog(LOG_ERR, "failed to open keyboard file: %s\n", strerror(errno));
 		exit(1);
