@@ -33,7 +33,6 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_execve]   = SC sys_execve,
 	[SYS_dup]      = SC sys_dup,
 	[SYS_dup2]     = SC sys_dup2,
-	[SYS_brk]      = SC sys_brk,
 
 	[SYS_socket]   = SC sys_socket,
 	[SYS_socketpair]   = SC sys_socketpair,
@@ -71,7 +70,14 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_arch_prctl] = SC sys_arch_prctl,
 
 
+	/* non-linux syscalls */
 	[SYS_dump_perf]  = SC sys_dump_perf,
+
+
+	/* syscalls I don't want to provide TODO */
+	[SYS_brk]      = SC sys_brk,
+	[SYS_getcwd]   = SC sys_getcwd,
+
 };
 
 long syscall_entry(long num,

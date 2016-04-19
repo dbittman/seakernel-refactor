@@ -22,6 +22,7 @@ static void copy_process(struct process *parent, struct process *child)
 	memcpy(child->actions, parent->actions, sizeof(child->actions));
 	child->parent = kobj_getref(parent);
 	child->pty = parent->pty ? kobj_getref(parent->pty) : NULL;
+	child->brk = parent->brk;
 }
 
 static void copy_thread(struct thread *parent, struct thread *child)
@@ -111,21 +112,24 @@ sysret_t sys_sigprocmask(int how, const sigset_t *set, sigset_t *oset)
 	if(how < 0)
 		return -EINVAL;
 	sigset_t old;
+	printk(":: %d %p\n", how, set);
 	memcpy(&old, &current_thread->sigmask, sizeof(old));
 
-	switch(how) {
-		case SIG_BLOCK:
-			sigorset(&current_thread->sigmask, &current_thread->sigmask, set);
-			break;
-		case SIG_UNBLOCK:
-			for(int i=0;i<=_NSIG;i++) {
-				if(sigismember(set, i))
-					sigdelset(&current_thread->sigmask, i);
-			}
-			break;
-		default:
-			memcpy(&current_thread->sigmask, set, sizeof(*set));
-			break;
+	if(set) {
+		switch(how) {
+			case SIG_BLOCK:
+				sigorset(&current_thread->sigmask, &current_thread->sigmask, set);
+				break;
+			case SIG_UNBLOCK:
+				for(int i=0;i<=_NSIG;i++) {
+					if(sigismember(set, i))
+						sigdelset(&current_thread->sigmask, i);
+				}
+				break;
+			default:
+				memcpy(&current_thread->sigmask, set, sizeof(*set));
+				break;
+		}
 	}
 	if(oset)
 		memcpy(oset, &old, sizeof(*oset));

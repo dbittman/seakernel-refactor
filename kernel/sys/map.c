@@ -49,12 +49,14 @@ intptr_t sys_mmap(uintptr_t addr, size_t len, int prot, int flags, int fd, size_
 	return virt;
 }
 
+/* TODO: I would like to not have this */
+#include <printk.h>
 uintptr_t sys_brk(void *nb)
 {
 	uintptr_t new = (((uintptr_t)nb + arch_mm_page_size(0) - 1) & page_mask(0)) + arch_mm_page_size(0);
-	if(new < current_thread->process->brk)
-		return new;
 	if(new < USER_MAX_BRK && new >= USER_MIN_BRK) {
+		if(new < current_thread->process->brk)
+			return new;
 		map_mmap(current_thread->process->brk, NULL, PROT_READ | PROT_WRITE, MMAP_MAP_PRIVATE | MMAP_MAP_ANON, new - current_thread->process->brk, 0);
 		current_thread->process->brk = (uintptr_t)new;
 		return new;
