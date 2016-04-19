@@ -7,7 +7,7 @@ bool thread_send_signal(struct thread *thread, int signal)
 {
 	bool ret = false;
 	spinlock_acquire(&thread->signal_lock);
-	if(signal == SIGKILL) {
+	if(signal == SIGKILL || signal == SIGSTOP) {
 		thread->signal = SIGKILL;
 		if(thread != current_thread)
 			thread_unblock(thread);
@@ -46,25 +46,34 @@ bool thread_check_status_retuser(struct thread *thread)
 
 		int signal = thread->signal;
 		struct process *process = thread->process;
-		if(signal != SIGKILL && signal_is_userspace_handler(process->actions[signal].handler)) {
+		if(signal != SIGKILL && signal != SIGSTOP && signal_is_userspace_handler(process->actions[signal].handler)) {
 			/* user-handled */
 			ret = true;
-		} else if(signal == SIGKILL || process->actions[signal].handler == SIG_DFL) {
+		} else if(signal == SIGKILL || signal == SIGSTOP || process->actions[signal].handler == SIG_DFL) {
 			/* default actions */
 			thread->signal = 0;
+			bool core = false;
 			switch(signal) {
-				case SIGABRT: case SIGALRM: case SIGBUS: case SIGFPE: case SIGHUP: case SIGILL:
-				case SIGINT: case SIGKILL: case SIGPIPE: case SIGQUIT: case SIGSEGV:
+				case SIGSEGV: case SIGQUIT: case SIGFPE: case SIGABRT: case SIGILL:
+					core = true;
+					/* fall through */
+				case SIGALRM: case SIGBUS: case SIGHUP: 
+				case SIGINT: case SIGKILL: case SIGPIPE: 
 				case SIGTERM: case SIGUSR1: case SIGUSR2: case SIGPOLL: case SIGPROF:
 				case SIGSYS: case SIGTRAP:
 					/* kill */
 					thread->flags |= THREAD_EXIT;
+					thread->process->status = process_make_status(0, signal, false, core);
+					thread->process->flags |= PROC_STATUS_CHANGED;
 					break;
 				case SIGCONT:
+					thread->process->status = 0xffff;
+					thread->process->flags |= PROC_STATUS_CHANGED;
 					/* TODO: stopping and continuing */
 					break;
 				case SIGSTOP: case SIGTSTP: case SIGTTIN: case SIGTTOU:
-
+					thread->process->status = 0x7f;
+					thread->process->flags |= PROC_STATUS_CHANGED;
 					break;
 			}
 		}

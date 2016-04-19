@@ -16,6 +16,7 @@
 #include <fs/sys.h>
 #include <sys.h>
 #include <arena.h>
+#include <process.h>
 #include <lib/linkedlist.h>
 extern void _init(void);
 void test_late(void);
@@ -39,6 +40,8 @@ static void _init_entry(void *arg)
 {
 	(void)arg;
 
+	current_thread->process->pgroupid = 1;
+	current_thread->process->seshid = 1;
 	int ret = sys_execve("/init", argv, env);
 	printk("failed to start init: %d\n", ret);
 	sys_exit(0);

@@ -14,6 +14,9 @@ struct fildes {
 	int flags;
 };
 
+#define PROC_STATUS_CHANGED 1
+#define PROC_EXITED 2
+
 struct filesystem;
 struct dirent;
 struct pty_file;
@@ -23,6 +26,7 @@ struct process {
 	struct linkedlist threads;
 	struct process * _Atomic parent;
 	struct spinlock lock;
+	_Atomic int flags, status;
 
 	struct hash mappings;
 	struct spinlock map_lock;
@@ -37,6 +41,7 @@ struct process {
 	struct dirent *cwd;
 	int cmask;
 	_Atomic int uid, gid, euid, egid, sgid, suid;
+	_Atomic int seshid, pgroupid;
 	int exit_code;
 
 	struct sigaction actions[_NSIG+1];
@@ -45,6 +50,7 @@ struct process {
 	struct pty_file *pty;
 
 	_Atomic uintptr_t brk;
+	struct blocklist wait;
 };
 
 extern struct kobj kobj_process;
@@ -58,6 +64,18 @@ void process_close_files(struct process *proc, bool all);
 void process_exit(struct process *proc, int code);
 struct process *process_get_by_pid(int pid);
 void process_send_signal(struct process *target, int sig);
+
+static inline int process_make_status(int code, int sig, bool exited, bool coredump)
+{
+	int st = 0;
+	if(exited) {
+		st |= code << 8;
+	} else {
+		st |= sig;
+		if(coredump) st |= 0x80;
+	}
+	return st;
+}
 
 
 extern struct kobj_idmap processids;
@@ -78,3 +96,22 @@ extern struct kobj_idmap processids;
 #define SIGNAL_RESTORE_PAGE   0x3000
 
 extern struct process *kernel_process;
+
+#define WNOHANG    1
+#define WUNTRACED  2
+
+#define WSTOPPED   2
+#define WEXITED    4
+#define WCONTINUED 8
+#define WNOWAIT    0x1000000
+
+#define WEXITSTATUS(s) (((s) & 0xff00) >> 8)
+#define WTERMSIG(s) ((s) & 0x7f)
+#define WSTOPSIG(s) WEXITSTATUS(s)
+#define WCOREDUMP(s) ((s) & 0x80)
+#define WIFEXITED(s) (!WTERMSIG(s))
+#define WIFSTOPPED(s) ((short)((((s)&0xffff)*0x10001)>>8) > 0x7f00)
+#define WIFSIGNALED(s) (((s)&0xffff)-1U < 0xffu)
+#define WIFCONTINUED(s) ((s) == 0xffff)
+
+

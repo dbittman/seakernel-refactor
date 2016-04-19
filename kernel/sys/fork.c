@@ -23,6 +23,8 @@ static void copy_process(struct process *parent, struct process *child)
 	child->parent = kobj_getref(parent);
 	child->pty = parent->pty ? kobj_getref(parent->pty) : NULL;
 	child->brk = parent->brk;
+	child->pgroupid = parent->pgroupid;
+	child->seshid = parent->seshid;
 }
 
 static void copy_thread(struct thread *parent, struct thread *child)

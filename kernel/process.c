@@ -59,6 +59,8 @@ static void _process_init(void *obj)
 	proc->root = NULL;
 	proc->cwd = NULL;
 	proc->pty = NULL;
+	proc->status = 0;
+	proc->flags = 0;
 	kobj_idmap_insert(&processids, obj, &proc->pid);
 	for(int i=0;i<MAX_FD;i++)
 		proc->files[i].file = NULL;
@@ -74,6 +76,7 @@ static void _process_create(void *obj)
 	spinlock_create(&proc->map_lock);
 	spinlock_create(&proc->files_lock);
 	spinlock_create(&proc->signal_lock);
+	blocklist_create(&proc->wait);
 }
 
 static void _process_put(void *obj)
@@ -101,6 +104,9 @@ struct kobj kobj_process = {
 void process_exit(struct process *proc, int code)
 {
 	proc->exit_code = code;
-	kobj_idmap_delete(&processids, proc, &proc->pid);
+	if(WIFEXITED(proc->status)) {
+		proc->status = process_make_status(code, 0, true, false);
+	}
+	proc->flags |= PROC_EXITED | PROC_STATUS_CHANGED;
 }
 
