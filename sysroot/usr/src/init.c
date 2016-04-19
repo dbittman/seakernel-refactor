@@ -84,7 +84,7 @@ int main(int argc, char **argv)
 		execlp("cond", "cond",
 				//"-a", "login",
 				//"-1", "sh /etc/rc/boot",
-				"-1", "test", (char *)NULL);
+				"-1", "bash", (char *)NULL);
 		execvp("/cond", NULL);
 		perror("execvp cond");
 		exit(1);

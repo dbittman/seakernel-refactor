@@ -104,9 +104,7 @@ static void __raise_action(struct pty *pty, int sig)
 			!kobj_idmap_iter_done(&iter);
 			kobj_idmap_iter_next(&iter)) {
 		struct process *proc = kobj_idmap_iter_get(&iter);
-		printk(":: %d\n", proc->pid);
 		if(proc->pty && proc->pty->pty == pty) {
-			printk("Sending %d\n", sig);
 			process_send_signal(proc, sig);
 		}
 	}

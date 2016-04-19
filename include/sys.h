@@ -9,6 +9,7 @@ void sys_exit(int code);
 _Noreturn void sys_do_exit(int code);
 long sys_gettid(void);
 long sys_arch_prctl(int code, unsigned long addr);
+uintptr_t sys_brk(void *nb);
 
 struct sigaction;
 sysret_t sys_sigaction(int sig, const struct sigaction *act, struct sigaction *old);

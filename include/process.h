@@ -43,6 +43,8 @@ struct process {
 	struct spinlock signal_lock;
 
 	struct pty_file *pty;
+
+	_Atomic uintptr_t brk;
 };
 
 extern struct kobj kobj_process;
@@ -69,6 +71,9 @@ extern struct kobj_idmap processids;
 
 #define USER_REGION_START     arch_mm_page_size(0)
 #define USER_REGION_END       0x800000000000
+
+#define USER_MAX_BRK          0x400000000000
+#define USER_MIN_BRK          0x400000
 
 #define SIGNAL_RESTORE_PAGE   0x3000
 

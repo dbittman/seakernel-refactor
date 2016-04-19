@@ -93,6 +93,8 @@ sysret_t sys_execve(const char *path, char **arg, char **env)
 
 	/* TODO: mark executable as "busy" */
 
+	current_thread->process->brk = (max + arch_mm_page_size(0)) & page_mask(0);
+
 	process_close_files(current_thread->process, false);
 	memset(current_thread->process->actions, 0, sizeof(current_thread->process->actions));
 
