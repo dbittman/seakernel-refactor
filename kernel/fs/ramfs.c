@@ -18,6 +18,7 @@ struct ramfs_inode {
 	struct hash data;
 	struct hash dirents;
 	int mode, atime, mtime, ctime;
+	int links;
 	int uid, gid;
 	struct hashelem elem;
 	uint64_t id;
@@ -37,6 +38,7 @@ static void _ramfs_inode_init(void *obj)
 {
 	struct ramfs_inode *i = obj;
 	i->length = 0;
+	i->links = 0;
 }
 
 static void _ramfs_inode_create(void *obj)
@@ -168,15 +170,46 @@ static int _lookup(struct inode *node, const char *name, size_t namelen, struct 
 	return 0;
 }
 
-static int _link(struct inode *node, const char *name, size_t namelen, struct inode *target)
+static size_t _getdents(struct inode *node, size_t start, struct gd_dirent *gd, size_t count)
 {
 	struct ramfs_data *rfs = node->fs->fsdata;
+	assert(rfs != NULL);
 	struct ramfs_inode *ri = hash_lookup(&rfs->inodes, &node->id.inoid, sizeof(uint64_t));
-	struct ramfs_inode *rt = hash_lookup(&rfs->inodes, &target->id.inoid, sizeof(uint64_t));
 	assert(ri != NULL);
-	assert(rt != NULL);
-	assert(node->fs == target->fs);
 
+	size_t read = 0;
+	struct hashiter iter;
+	char *rec = (char *)gd;
+	__hash_lock(&ri->dirents);
+	for(hash_iter_init(&iter, &ri->dirents);
+			!hash_iter_done(&iter); hash_iter_next(&iter)) {
+		struct ramfs_dirent *rd = hash_iter_get(&iter);
+
+		int reclen = rd->namelen + sizeof(struct gd_dirent) + 1;
+		reclen = (reclen & ~15) + 16;
+
+		if(read >= start) {
+			if(reclen + (read - start) > count)
+				break;
+			struct gd_dirent *dp = (void *)rec;
+			dp->d_reclen = reclen;
+			memcpy(dp->d_name, rd->name, rd->namelen);
+			dp->d_name[rd->namelen] = 0;
+			dp->d_off = read + reclen + start;
+			dp->d_type = 0;
+			dp->d_ino = rd->ino;
+
+			rec += reclen;
+		}
+		read += reclen;
+	}
+
+	__hash_unlock(&ri->dirents);
+	return (uintptr_t)rec - (uintptr_t)gd;
+}
+
+static int __ramfs_do_link(struct ramfs_inode *ri, const char *name, size_t namelen, struct ramfs_inode *rt)
+{
 	mutex_acquire(&ri->lock);
 	struct ramfs_dirent *dir = kobj_allocate(&kobj_ramfs_dirent);
 	strncpy(dir->name, name, namelen);
@@ -189,8 +222,22 @@ static int _link(struct inode *node, const char *name, size_t namelen, struct in
 		return -EEXIST;
 	}
 
+	rt->links++;
+
 	mutex_release(&ri->lock);
 	return 0;
+}
+
+static int _link(struct inode *node, const char *name, size_t namelen, struct inode *target)
+{
+	struct ramfs_data *rfs = node->fs->fsdata;
+	struct ramfs_inode *ri = hash_lookup(&rfs->inodes, &node->id.inoid, sizeof(uint64_t));
+	struct ramfs_inode *rt = hash_lookup(&rfs->inodes, &target->id.inoid, sizeof(uint64_t));
+	assert(ri != NULL);
+	assert(rt != NULL);
+	assert(node->fs == target->fs);
+
+	return __ramfs_do_link(ri, name, namelen, rt);
 }
 
 static struct inode_ops ramfs_inode_ops = {
@@ -200,6 +247,7 @@ static struct inode_ops ramfs_inode_ops = {
 	.update = NULL,
 	.lookup = _lookup,
 	.link = _link,
+	.getdents = _getdents,
 };
 
 static struct fs_ops ramfs_fs_ops = {
@@ -220,6 +268,7 @@ static void _ramfs_create(void *obj)
 	hash_create(&ramfs_data->inodes, 0, 256);
 	struct ramfs_inode *root = kobj_allocate(&kobj_ramfs_inode);
 	root->id = 0;
+	root->mode = S_IFDIR | 0755;
 	hash_insert(&ramfs_data->inodes, &root->id, sizeof(root->id), &root->elem, root);
 }
 
@@ -268,7 +317,15 @@ void initial_rootfs_init(void)
 	dir->ino.inoid = 0;
 	dir->ino.fsid = current_thread->process->root->id;
 
+	struct inode *node = dirent_get_inode(dir);
+	assert(node != NULL);
+
+	_link(node, ".", 1, node);
+	_link(node, "..", 2, node);
+
+	inode_put(node);
 	current_thread->process->cwd = dir;
+
 	int i=0;
 	struct boot_module *bm;
 	while((bm = machine_get_boot_module(i++))) {

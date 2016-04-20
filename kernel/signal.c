@@ -76,6 +76,7 @@ bool thread_check_status_retuser(struct thread *thread)
 					thread->process->flags |= PROC_STATUS_CHANGED;
 					break;
 			}
+			blocklist_unblock_all(&thread->process->wait);
 		}
 	}
 

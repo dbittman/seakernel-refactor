@@ -4,12 +4,16 @@
 #include <file.h>
 sysret_t sys_fork(void *, size_t);
 intptr_t sys_mmap(uintptr_t addr, size_t len, int prot, int flags, int fd, size_t off);
+void *sys_mremap(void *old, size_t oldsz, size_t newsz, int flags, void *new);
 sysret_t sys_execve(const char *path, char **arg, char **env);
 void sys_exit(int code);
 _Noreturn void sys_do_exit(int code);
 long sys_gettid(void);
 long sys_arch_prctl(int code, unsigned long addr);
 uintptr_t sys_brk(void *nb);
+
+struct rusage;
+sysret_t sys_wait4(int pid, int *status, int options, struct rusage *usage);
 
 struct sigaction;
 sysret_t sys_sigaction(int sig, const struct sigaction *act, struct sigaction *old);

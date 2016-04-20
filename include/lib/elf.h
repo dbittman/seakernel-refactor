@@ -1,6 +1,9 @@
 #pragma once
 
 #define PH_LOAD 1
+#define PH_INTERP	3
+#define ET_EXEC		2
+#define ET_DYN		3
 #define ELF_PF_R 4
 #define ELF_PF_W 2
 #define ELF_PF_X 1
@@ -66,3 +69,4 @@ struct elf_program_header
 } __attribute__((packed));
 
 int elf_parse_executable(struct elf_header *header, int fd, uintptr_t *max, uintptr_t *);
+intptr_t elf_check_interp(struct elf_header *header, int fd, uintptr_t *);

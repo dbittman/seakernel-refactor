@@ -63,7 +63,14 @@ int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode,
 {
 	(void)flags;
 	TRACE(&path_trace, "resolve path %s", path);
-	struct inode *start = _start ? kobj_getref(_start) : dirent_get_inode(current_thread->process->cwd);
+	struct dirent *dir = NULL;
+	struct inode *start = NULL;
+	if(_start) {
+		start = kobj_getref(_start);
+	} else {
+		dir = kobj_getref(current_thread->process->cwd);
+		start = dirent_get_inode(dir);
+	}
 	if(*path == '/') {
 		path++;
 		inode_put(start);
@@ -76,7 +83,6 @@ int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode,
 
 	const char *sep;
 	const char *name = path;
-	struct dirent *dir = NULL;
 	struct inode *node = start;
 	int returnval = 0;
 	do { 
@@ -115,7 +121,7 @@ int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode,
 
 	if(dir_out)
 		*dir_out = dir;
-	else
+	else if(dir)
 		kobj_putref(dir);
 
 	if(ino_out)

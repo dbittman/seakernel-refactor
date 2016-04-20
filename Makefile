@@ -144,7 +144,7 @@ sysroot/syslogd: sysroot/usr/src/syslogd.c
 	$(TOOLCHAIN_PREFIX)-linux-musl-gcc -static -Og -g  -o $@ $< -Wall 
 
 test: $(BUILDDIR)/kernel.elf $(USRPROGS)
-	qemu-system-$(ARCH) -m 1024  -machine $(MACHINE) $(QEMU_FLAGS) -kernel $(BUILDDIR)/kernel.elf -serial stdio -initrd sysroot/bin/init,sysroot/bin/syslogd,sysroot/bin/cond,sysroot/bin/test,bash
+	qemu-system-$(ARCH) -m 1024  -machine $(MACHINE) $(QEMU_FLAGS) -kernel $(BUILDDIR)/kernel.elf -serial stdio -initrd sysroot/bin/init,sysroot/bin/syslogd,sysroot/bin/cond,sysroot/bin/test,bash,coreutils,readelf,sysroot/usr/lib/libc.so
 
 clean:
 	-rm -r $(BUILDDIR)

@@ -6,6 +6,7 @@
 #include <slab.h>
 #include <fs/inode.h>
 #include <mutex.h>
+#include <fs/dirent.h>
 
 struct inode;
 struct dirent;
@@ -17,6 +18,7 @@ struct inode_ops {
 	int (*update)(struct inode *);
 	int (*lookup)(struct inode *, const char *name, size_t namelen, struct dirent *);
 	int (*link)(struct inode *, const char *name, size_t namelen, struct inode *);
+	size_t (*getdents)(struct inode *node, size_t, struct gd_dirent *, size_t);
 };
 
 struct filesystem;

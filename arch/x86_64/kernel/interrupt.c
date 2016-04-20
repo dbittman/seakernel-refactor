@@ -66,13 +66,13 @@ static void __fault(struct arch_exception_frame *frame)
 		if(frame->err_code & (1 << 4)) {
 			flags |= FAULT_EXEC;
 		}
-		//printk("pagefault (tid=%ld,pid=%d): %lx, %x, from %lx\n", current_thread->tid, current_thread->process->pid, cr2, flags, frame->rip);
+		printk("pagefault (tid=%ld,pid=%d): %lx, %x, from %lx\n", current_thread->tid, current_thread->process->pid, cr2, flags, frame->rip);
 		mm_fault_entry(cr2, flags);
 	} else {
-		//if(frame->int_no == 1) {
-		//	printk("trap %ld: %lx, %lx\n", current_thread->tid, frame->rip, frame->userrsp);
-		//	return;
-		//}
+		if(frame->int_no == 1) {
+			printk("trap %ld: %lx, %lx\n", current_thread->tid, frame->rip, frame->userrsp);
+			return;
+		}
 		if(frame->cs == 0x8) {
 			panic(0, "kernel exception %ld: %lx err=%lx",
 					frame->int_no, frame->rip, frame->err_code);
@@ -120,7 +120,7 @@ void x86_64_exception_entry(struct arch_exception_frame *frame)
 
 }
 
-#define DEBUG_SYS 1
+#define DEBUG_SYS 0
 void x86_64_syscall_entry(struct arch_exception_frame *frame)
 {
 	if(frame->rax == SYS_fork) {

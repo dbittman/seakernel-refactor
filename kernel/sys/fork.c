@@ -114,7 +114,6 @@ sysret_t sys_sigprocmask(int how, const sigset_t *set, sigset_t *oset)
 	if(how < 0)
 		return -EINVAL;
 	sigset_t old;
-	printk(":: %d %p\n", how, set);
 	memcpy(&old, &current_thread->sigmask, sizeof(old));
 
 	if(set) {

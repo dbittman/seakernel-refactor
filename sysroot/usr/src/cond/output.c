@@ -190,9 +190,9 @@ void clear_screen(struct pty *pty, int mode)
 
 void update_cursor(struct pty *pty)
 {
-	/* TODO: invisible cursor */
+	/* TODO: cursor */
 	if(pty == current_pty) {
-		syscall(93, pty->cx, pty->cy - pty->sp, 0, 0, 0);
+		//syscall(93, pty->cx, pty->cy - pty->sp, 0, 0, 0);
 	}
 }
 

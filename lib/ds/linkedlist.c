@@ -57,6 +57,7 @@ void linkedlist_create(struct linkedlist *list, int flags)
 	if(!(flags & LINKEDLIST_LOCKLESS)) {
 		spinlock_create(&list->lock);
 	}
+	list->flags = flags;
 	list->head = &list->sentry;
 	list->head->next = list->head;
 	list->head->prev = list->head;
@@ -109,3 +110,4 @@ struct linkedentry *linkedlist_find(struct linkedlist *list, bool (*fn)(struct l
                 return NULL;
         return ent;
 }
+

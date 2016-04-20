@@ -1,4 +1,24 @@
 #pragma once
+#include <timer.h>
+struct stat {
+	int64_t st_dev;
+	int64_t st_ino;
+	unsigned long st_nlink;
+
+	unsigned st_mode;
+	unsigned st_uid;
+	unsigned st_gid;
+	unsigned int    __pad0;
+	int64_t st_rdev;
+	int64_t st_size;
+	long st_blksize;
+	int64_t st_blocks;
+
+	struct timespec st_atim;
+	struct timespec st_mtim;
+	struct timespec st_ctim;
+	long __unused[3];
+};
 
 #define S_IFMT  0170000
 

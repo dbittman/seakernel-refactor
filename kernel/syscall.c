@@ -5,6 +5,7 @@
 #include <sys.h>
 #include <fs/sys.h>
 #include <errno.h>
+#include <process.h>
 
 #define MAX_SYSCALL 1024
 
@@ -33,6 +34,11 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_execve]   = SC sys_execve,
 	[SYS_dup]      = SC sys_dup,
 	[SYS_dup2]     = SC sys_dup2,
+	[SYS_fstat]    = SC sys_fstat,
+	[SYS_stat]    = SC sys_stat,
+	[SYS_wait4]   = SC sys_wait4,
+	[SYS_getdents64] = SC sys_getdents,
+	[SYS_mremap]    = SC sys_mremap,
 
 	[SYS_socket]   = SC sys_socket,
 	[SYS_socketpair]   = SC sys_socketpair,
@@ -95,7 +101,7 @@ long syscall_entry(long num,
 	if(call) {
 		ret = call(arg1, arg2, arg3, arg4, arg5, arg6);
 	} else {
-		//printk("UNIMP\n");
+		printk("[p%d, t%ld]: unimplemented syscall %ld\n", current_thread->process->pid, current_thread->tid, num);
 		ret = -ENOSYS;
 	}
 

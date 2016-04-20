@@ -46,6 +46,10 @@ sysret_t sys_dup2(int old, int new);
 sysret_t sys_dup(int old);
 sysret_t sys_getcwd(char *buf, size_t size);
 
+struct stat;
+sysret_t sys_stat(const char *path, struct stat *buf);
+sysret_t sys_fstat(int fd, struct stat *buf);
+
 sysret_t sys_socket(int domain, int type, int protocol);
 sysret_t sys_socketpair(int domain, int type, int protocol, int *sv);
 sysret_t sys_accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
@@ -54,3 +58,6 @@ sysret_t sys_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 sysret_t sys_listen(int sockfd, int backlog);
 sysret_t sys_recvfrom(int sockfd, char *buf, size_t len, int flags, struct sockaddr *src, socklen_t *srclen);
 sysret_t sys_sendto(int sockfd, const char *buf, size_t len, int flags, const struct sockaddr *dest, socklen_t addrlen);
+
+struct gd_dirent;
+sysret_t sys_getdents(int fd, struct gd_dirent *dp, int count);

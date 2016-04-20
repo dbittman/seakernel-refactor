@@ -121,7 +121,7 @@ static int __cleanup_waiters(struct waiter *root, int options, int *status)
 	return ret;
 }
 
-sysret_t wait4(int pid, int *status, int options, struct rusage *usage)
+sysret_t sys_wait4(int pid, int *status, int options, struct rusage *usage)
 {
 	/* TODO: fill out usage */
 	(void)usage;

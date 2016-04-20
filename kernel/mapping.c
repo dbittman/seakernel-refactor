@@ -6,7 +6,7 @@
 #include <assert.h>
 #include <printk.h>
 #include <string.h>
-
+#include <errno.h>
 /* TODO: simplify this system. I don't
  * think it needs to store the page, just
  * the frame. */
@@ -32,11 +32,12 @@ struct kobj kobj_mapping = {
 	.destroy = NULL,
 };
 
-struct mapping *mapping_establish(struct process *proc, uintptr_t virtual, int prot,
-		int flags, struct file *file, int nodepage)
+static struct mapping *_do_mapping_establish(struct process *proc, uintptr_t virtual, int prot,
+		int flags, struct file *file, int nodepage, bool locked)
 {
 	uintptr_t vpage = virtual / arch_mm_page_size(0);
-	spinlock_acquire(&proc->map_lock);
+	if(!locked)
+		spinlock_acquire(&proc->map_lock);
 	struct mapping *map = hash_lookup(&proc->mappings, &vpage, sizeof(vpage));
 	if(map) {
 		spinlock_release(&proc->map_lock);
@@ -53,8 +54,15 @@ struct mapping *mapping_establish(struct process *proc, uintptr_t virtual, int p
 	map->vpage = vpage;
 	map->nodepage = nodepage;
 	hash_insert(&proc->mappings, &map->vpage, sizeof(map->vpage), &map->elem, map);
-	spinlock_release(&proc->map_lock);
+	if(!locked)
+		spinlock_release(&proc->map_lock);
 	return map;
+}
+
+struct mapping *mapping_establish(struct process *proc, uintptr_t virtual, int prot,
+		int flags, struct file *file, int nodepage)
+{
+	return _do_mapping_establish(proc, virtual, prot, flags, file, nodepage, false);
 }
 
 static bool _do_mapping_remove(struct process *proc, uintptr_t virtual, bool locked)
@@ -85,6 +93,100 @@ static bool _do_mapping_remove(struct process *proc, uintptr_t virtual, bool loc
 	if(!locked)
 		spinlock_release(&proc->map_lock);
 	return true;
+}
+
+int mapping_move(uintptr_t virt, size_t oldsz, size_t newsz, uintptr_t new)
+{
+	struct process *proc = current_thread->process;
+	spinlock_acquire(&proc->map_lock);
+	struct mapping *base = NULL;
+	for(uintptr_t off = 0;off < oldsz;off += arch_mm_page_size(0)) {
+		uintptr_t vpage = (off + virt) / arch_mm_page_size(0);
+		struct mapping *map = hash_lookup(&proc->mappings, &vpage, sizeof(vpage));
+		if(!map) {
+			spinlock_release(&proc->map_lock);
+			return -EFAULT;
+		}
+		if(!base)
+			base = map;
+		int cpage = base->nodepage + vpage - virt / arch_mm_page_size(0);
+		if(map->prot != base->prot || (map->flags & (MMAP_MAP_SHARED | MMAP_MAP_ANON | MMAP_MAP_PRIVATE)) != (base->flags & (MMAP_MAP_SHARED | MMAP_MAP_ANON | MMAP_MAP_PRIVATE))
+				|| (map->file != base->file) || (map->nodepage != cpage)) {
+			spinlock_release(&proc->map_lock);
+			return -EFAULT;
+		}
+	}
+
+	assert(base != NULL);
+
+	int page = 0;
+	uintptr_t off;
+	for(off = 0;off < newsz;off += arch_mm_page_size(0)) {
+		uintptr_t vpage_old = (off + virt) / arch_mm_page_size(0);
+		uintptr_t vpage_new = (off + new) / arch_mm_page_size(0);
+		if(off < oldsz) {
+			struct mapping *map = hash_lookup(&proc->mappings, &vpage_old, sizeof(vpage_old));
+			assert(map != NULL);
+			int r = hash_delete(&proc->mappings, &vpage_old, sizeof(vpage_old));
+			assert(r == 0);
+			arch_mm_virtual_unmap(proc->ctx, vpage_old * arch_mm_page_size(0));
+			map->vpage = vpage_new;
+			map->flags &= ~MMAP_MAP_MAPPED;
+			r = hash_insert(&proc->mappings, &map->vpage, sizeof(map->vpage), &map->elem, map);
+			assert(r == 0);
+		} else {
+			_do_mapping_establish(proc, new + off, base->prot, base->flags & ~MMAP_MAP_MAPPED, base->file, base->nodepage + page, true);
+		}
+		page++;
+	}
+	if(newsz < oldsz) {
+		for(;off < oldsz;off+=arch_mm_page_size(0)) {
+			_do_mapping_remove(proc, virt + off, true);
+		}
+	}
+	spinlock_release(&proc->map_lock);
+	return 0;
+}
+
+int mapping_try_expand(uintptr_t virt, size_t oldsz, size_t newsz)
+{
+	struct process *proc = current_thread->process;
+	spinlock_acquire(&proc->map_lock);
+	uintptr_t tmp = 0;
+	struct mapping *base = 0;
+	if(oldsz < newsz) {
+		for(uintptr_t off = 0;off < newsz;off += arch_mm_page_size(0)) {
+			uintptr_t vpage = (off + virt) / arch_mm_page_size(0);
+			struct mapping *map = hash_lookup(&proc->mappings, &vpage, sizeof(vpage));
+			if(off == 0)
+				base = map;
+			if(!map && off < oldsz) {
+				spinlock_release(&proc->map_lock);
+				return -EFAULT;
+			}
+			if(off >= oldsz && tmp == 0)
+				tmp = virt + off;
+			
+			if(map) {
+				/* undo */
+				for(uintptr_t undo = tmp; tmp < virt + off;tmp += arch_mm_page_size(0)) {
+					_do_mapping_remove(proc, undo, true);
+				}
+				return -ENOMEM;
+			}
+
+			assert(base != NULL);
+
+			_do_mapping_establish(proc, virt + off, base->prot, base->flags & ~MMAP_MAP_MAPPED, base->file, base->nodepage + vpage - (virt / arch_mm_page_size(0)), true);
+		}
+	} else {
+		virt = ((virt + newsz - 1) & page_mask(0)) + arch_mm_page_size(0);
+		for(; virt < virt+oldsz;virt += arch_mm_page_size(0)) {
+			_do_mapping_remove(proc, virt, true);
+		}
+	}
+	spinlock_release(&proc->map_lock);
+	return 0;
 }
 
 bool mapping_remove(struct process *proc, uintptr_t virtual)

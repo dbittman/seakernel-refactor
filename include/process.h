@@ -80,18 +80,21 @@ static inline int process_make_status(int code, int sig, bool exited, bool cored
 
 extern struct kobj_idmap processids;
 
-#define USER_TLS_REGION_END   0x800000000000
-#define USER_TLS_REGION_START 0x700000000000
+#define USER_MAX_BRK            0x300000000000
+#define USER_SHLIB_REGION_START 0x300000000000
+#define USER_SHLIB_REGION_END   0x400000000000
+#define USER_TLS_REGION_END     0x800000000000
+#define USER_TLS_REGION_START   0x700000000000
 
-#define USER_MMAP_REGION_END   0x700000000000
-#define USER_MMAP_REGION_START 0x400000000000
+#define USER_MMAP_REGION_END    0x700000000000
+#define USER_MMAP_REGION_START  0x400000000000
 
 
 #define USER_REGION_START     arch_mm_page_size(0)
 #define USER_REGION_END       0x800000000000
 
-#define USER_MAX_BRK          0x400000000000
 #define USER_MIN_BRK          0x400000
+
 
 #define SIGNAL_RESTORE_PAGE   0x3000
 

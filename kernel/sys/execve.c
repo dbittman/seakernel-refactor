@@ -41,6 +41,7 @@ sysret_t sys_execve(const char *path, char **arg, char **env)
 		goto out_close;
 	}
 
+	printk("**** EXECVE: p%d t%ld - %s\n", current_thread->process->pid, current_thread->tid, path);
 	/* set-id */
 	struct file *file = process_get_file(fd);
 	struct inode *node = file_get_inode(file);
@@ -82,9 +83,18 @@ sysret_t sys_execve(const char *path, char **arg, char **env)
 		envc++;
 	}
 	savedenv[envc] = NULL;
-
-
+	
+	
 	process_remove_mappings(current_thread->process, false);
+
+	intptr_t base = 0;
+	uintptr_t interp_entry;
+	base = elf_check_interp(&header, fd, &interp_entry);
+	if(base < 0) {
+		err = -ELIBBAD;
+		goto out_close;
+	}
+
 	uintptr_t max, phdrs=0;
 	if(elf_parse_executable(&header, fd, &max, &phdrs) < 0) {
 		sys_exit(-ENOEXEC);
@@ -119,6 +129,8 @@ sysret_t sys_execve(const char *path, char **arg, char **env)
 		write_aux(&aux, AT_PHENT, header.phsize);
 		write_aux(&aux, AT_PHNUM, header.phnum);
 	}
+	if(base > 0)
+		write_aux(&aux, AT_BASE, base);
 	write_aux(&aux, AT_ENTRY, header.entry);
 	/* TODO: aux UID, etc */
 
@@ -131,7 +143,8 @@ sysret_t sys_execve(const char *path, char **arg, char **env)
 	}
 	
 	write_data(&aux, &argc, sizeof(long));
-	arch_thread_usermode_jump(header.entry, aux);
+	printk(":: %lx\n", interp_entry + base);
+	arch_thread_usermode_jump(base == 0 ? header.entry : interp_entry + base, aux);
 
 out_close:
 	sys_close(fd);

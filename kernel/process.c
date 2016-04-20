@@ -108,5 +108,6 @@ void process_exit(struct process *proc, int code)
 		proc->status = process_make_status(code, 0, true, false);
 	}
 	proc->flags |= PROC_EXITED | PROC_STATUS_CHANGED;
+	blocklist_unblock_all(&proc->wait);
 }
 

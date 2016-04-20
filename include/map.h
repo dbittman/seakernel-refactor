@@ -13,6 +13,9 @@
 #define PROT_WRITE 2
 #define PROT_EXEC  4
 
+#define MREMAP_MAYMOVE 1
+#define MREMAP_FIXED 2
+
 struct inode;
 struct inodepage;
 struct mapping {
@@ -34,4 +37,6 @@ struct mapping *mapping_establish(struct process *proc, uintptr_t virtual, int p
 int mmu_mappings_handle_fault(uintptr_t addr, int flags);
 void map_mmap(uintptr_t virtual, struct file *, int prot, int flags, size_t len, size_t off);
 void map_unmap(uintptr_t virtual, size_t length);
+int mapping_try_expand(uintptr_t virt, size_t oldsz, size_t newsz);
+int mapping_move(uintptr_t virt, size_t oldsz, size_t newsz, uintptr_t new);
 
