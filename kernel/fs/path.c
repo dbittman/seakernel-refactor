@@ -11,13 +11,13 @@
 #include <errno.h>
 TRACE_DEFINE(path_trace, "path");
 
-static struct dirent *follow_symlink(struct inode *node, int *err)
+struct dirent *follow_symlink(struct inode *node, int *err)
 {
 	char path[256];
 	struct dirent *dir = NULL;
 	if(S_ISLNK(node->mode)) {
 		memset(path, 0, 256);
-		inode_do_read_data(node, 0, 255, buf);
+		inode_do_read_data(node, 0, 255, path);
 		/* TODO: follow by default? */
 		*err = fs_path_resolve(path, node, PATH_SYMLINK, 0, &dir, NULL);
 		if(*err < 0)

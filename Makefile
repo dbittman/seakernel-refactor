@@ -77,6 +77,11 @@ $(foreach lib,$(LIBRARIES),$(eval include lib/$(lib)/include.mk))
 MAKEFILES+=$(addsuffix /include.mk,$(addprefix lib/,$(LIBRARIES)))
 
 
+
+#drivers
+include drivers/include.mk
+
+
 STARTFILE=$(shell $(LD) -print-file-name=crtbegin.o)
 ENDFILE=$(shell $(LD) -print-file-name=crtend.o)
 
