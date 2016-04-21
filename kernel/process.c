@@ -104,6 +104,7 @@ struct kobj kobj_process = {
 void process_exit(struct process *proc, int code)
 {
 	proc->exit_code = code;
+	process_close_files(proc, true);
 	if(WIFEXITED(proc->status)) {
 		proc->status = process_make_status(code, 0, true, false);
 	}

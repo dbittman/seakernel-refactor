@@ -17,7 +17,7 @@ static ssize_t _read(struct file *file, size_t off, size_t len, char *buf)
 {
 	(void)off;
 	(void)file;
-	return charbuffer_read(&keybuf, buf, len, (file->flags & O_NONBLOCK ? CHARBUFFER_DO_NONBLOCK : 0) | CHARBUFFER_DO_ANY);
+	return charbuffer_read(&keybuf, buf, len, ((file->flags & O_NONBLOCK) ? CHARBUFFER_DO_NONBLOCK : 0) | CHARBUFFER_DO_ANY);
 }
 
 static int _select(struct file *file, int flags, struct blockpoint *bp)
@@ -45,6 +45,20 @@ static struct file_calls keyboard_ops = {
 	.write = NULL,
 };
 
+void flush_port(void)
+{
+        unsigned temp;
+        do
+        {
+                temp = x86_64_inb(0x64);
+                if((temp & 0x01) != 0)
+                {
+                        (void)x86_64_inb(0x60);
+                        continue;
+                }
+        } while((temp & 0x02) != 0);
+}
+
 static void _key_interrupt(int flags)
 {
 	(void)flags;
@@ -64,5 +78,6 @@ __initializer static void _init_keyboard(void)
 	init_register_late_call(&_late_init, NULL);
 	dev_register(&dev, &keyboard_ops, S_IFCHR);
 	charbuffer_create(&keybuf, 0x1000);
+	flush_port();
 }
 

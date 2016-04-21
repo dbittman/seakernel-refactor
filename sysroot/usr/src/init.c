@@ -67,7 +67,7 @@ int main(int argc, char **argv)
 		open("/dev/com0", O_RDWR);
 		open("/dev/com0", O_RDWR);
 		open("/dev/com0", O_RDWR);
-		execvp("/syslogd", NULL);
+		execvp("/bin/syslogd", NULL);
 		perror("execvp");
 		exit(1);
 	}
@@ -81,11 +81,11 @@ int main(int argc, char **argv)
 	}
 
 	if(!fork()) {
-		execlp("cond", "cond",
+		execlp("/bin/cond", "cond",
 				//"-a", "login",
 				//"-1", "sh /etc/rc/boot",
-				"-1", "bash", (char *)NULL);
-		execvp("/cond", NULL);
+				"-1", "bash --login", (char *)NULL,
+				"-a", "bash --login", (char *)NULL);
 		perror("execvp cond");
 		exit(1);
 	}

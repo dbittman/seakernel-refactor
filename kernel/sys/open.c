@@ -56,8 +56,6 @@ sysret_t sys_open(const char *path, int flags, int mode)
 	if((flags & O_TRUNC) && (flags & F_WRITE))
 		file_truncate(file, 0);
 
-	if(file->ops && file->ops->open)
-		file->ops->open(file);
 
 	inode_put(node);
 	kobj_putref(file);
@@ -83,7 +81,8 @@ sysret_t sys_dup2(int old, int new)
 
 	struct file *of = process_exchange_fd(file, new);
 	kobj_putref(file);
-	file_close(of);
+	if(of)
+		file_close(of);
 	return new;
 }
 
@@ -111,6 +110,61 @@ sysret_t sys_close(int fd)
 		return -EBADF;
 	process_release_fd(fd);
 	file_close(file);
+	return 0;
+}
+
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
+
+sysret_t sys_lseek(int fd, ssize_t off, int whence)
+{
+	struct file *file = process_get_file(fd);
+	if(!file)
+		return -EBADF;
+
+	if(file->devtype == FDT_FIFO || file->devtype == FDT_SOCK) {
+		kobj_putref(file);
+		return -ESPIPE;
+	}
+
+	int ret = 0;
+	switch(whence) {
+		ssize_t pos;
+		case SEEK_SET:
+			if(off < 0)
+				ret = -EINVAL;
+			else
+				file->pos = off;
+			break;
+		case SEEK_CUR:
+			pos = file->pos;
+			if(pos + off < 0)
+				ret = -EINVAL;
+			else
+				file->pos = off + pos;
+			break;
+		case SEEK_END: 
+			{
+				struct inode *node = file_get_inode(file);
+				pos = node->length;
+				if((ssize_t)pos + off < 0)
+					ret = -EINVAL;
+				else
+					file->pos = pos + off;
+				inode_put(node);
+			} break;
+	}
+	kobj_putref(file);
+	return ret;
+}
+
+sysret_t sys_mkdir(const char *path, int mode)
+{
+	int f = sys_open(path, O_CREAT | O_RDWR | O_EXCL, S_IFDIR | (mode & 0777));
+	if(f < 0)
+		return f;
+	sys_close(f);
 	return 0;
 }
 
@@ -273,5 +327,14 @@ ssize_t sys_readv(int fd, struct iovec *iov, int iovc)
 		file->pos += res;
 	kobj_putref(file);
 	return res;
+}
+
+sysret_t sys_fadvise(int fd, ssize_t offset, size_t len, int advice)
+{
+	(void)fd;
+	(void)offset;
+	(void)len;
+	(void)advice;
+	return 0;
 }
 

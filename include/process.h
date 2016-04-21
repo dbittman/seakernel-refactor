@@ -7,7 +7,7 @@
 struct vm_context;
 struct thread;
 
-#define MAX_FD 128
+#define MAX_FD 256
 
 struct fildes {
 	struct file *file;
@@ -38,7 +38,7 @@ struct process {
 	_Atomic uintptr_t next_user_tls, next_mmap_reg;
 
 	struct filesystem *root;
-	struct dirent *cwd;
+	struct dirent * _Atomic cwd;
 	int cmask;
 	_Atomic int uid, gid, euid, egid, sgid, suid;
 	_Atomic int seshid, pgroupid;

@@ -63,7 +63,7 @@ struct select_blockpoint *init_blockpoints(struct arena *arena, int nfds, fd_set
 	return bps;
 }
 
-bool _select_start_blocking(struct file **files, int nfds, struct select_blockpoint *blocks, time_t timeout_nsec)
+bool _select_start_blocking(struct file **files, int nfds, struct select_blockpoint *blocks, time_t timeout_nsec, bool do_timeout)
 {
 	bool any = false;
 	for(int fd=0;fd < nfds * 3;fd++) {
@@ -72,10 +72,10 @@ bool _select_start_blocking(struct file **files, int nfds, struct select_blockpo
 			continue;
 
 		int sel = 1;
-		blockpoint_create(&bp->bp, timeout_nsec > 0 ? BLOCK_TIMEOUT : 0, timeout_nsec / 1000);
-		bp->blocked = true;
+		blockpoint_create(&bp->bp, do_timeout ? BLOCK_TIMEOUT : 0, timeout_nsec / 1000);
+		bp->blocked = !(do_timeout && timeout_nsec == 0);
 		if(files[fd / 3]->ops->select)
-			sel = files[fd / 3]->ops->select(files[fd / 3], bp->type, &bp->bp);
+			sel = files[fd / 3]->ops->select(files[fd / 3], bp->type, (do_timeout && timeout_nsec == 0) ? NULL : &bp->bp);
 		else
 			bp->blocked = false;
 
@@ -158,7 +158,7 @@ sysret_t _do_select(int nfds, fd_set *readfds, fd_set *writefds,
 	do {
 		time_t rem_time = end_time - time_get_current();
 		if(rem_time < 0) rem_time = 0;
-		any_ready = _select_start_blocking(files, nfds, blocks, rem_time);
+		any_ready = _select_start_blocking(files, nfds, blocks, rem_time, timeout != NULL);
 
 		if(!any_ready)
 			schedule();

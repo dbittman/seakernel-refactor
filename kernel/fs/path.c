@@ -11,6 +11,21 @@
 #include <errno.h>
 TRACE_DEFINE(path_trace, "path");
 
+static struct dirent *follow_symlink(struct inode *node, int *err)
+{
+	char path[256];
+	struct dirent *dir = NULL;
+	if(S_ISLNK(node->mode)) {
+		memset(path, 0, 256);
+		inode_do_read_data(node, 0, 255, buf);
+		/* TODO: follow by default? */
+		*err = fs_path_resolve(path, node, PATH_SYMLINK, 0, &dir, NULL);
+		if(*err < 0)
+			return NULL;
+	}
+	return dir;
+}
+
 static struct dirent *inode_lookup_dirent(struct inode *node, const char *name, size_t namelen, int *err)
 {
 	TRACE(&path_trace, "lookup dirent: %ld, %s %d", node->id.inoid, name, namelen);
@@ -32,6 +47,8 @@ struct dirent *__create_last(struct inode *node, const char *name, size_t namele
 	// test node is dir
 	TRACE(&path_trace, "creating new entry %s %d\n", name, namelen);
 	uint64_t inoid;
+	if((mode & S_IFMT) == 0)
+		mode |= S_IFREG;
 	if(!inode_check_perm(node, PERM_WRITE)) {
 		*err = -EACCES;
 		return NULL;
@@ -52,6 +69,11 @@ struct dirent *__create_last(struct inode *node, const char *name, size_t namele
 	if((*err = fs_link(node, name, namelen, target)) < 0) {
 		inode_put(target);
 		return NULL;
+	}
+
+	if(S_ISDIR(mode)) {
+		fs_link(target, ".", 1, target);
+		fs_link(target, "..", 2, node);
 	}
 	
 	struct dirent *dir = inode_lookup_dirent(node, name, namelen, err);

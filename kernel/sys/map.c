@@ -10,6 +10,7 @@
 
 intptr_t sys_mmap(uintptr_t addr, size_t len, int prot, int flags, int fd, size_t off)
 {
+	printk("mmap %lx %lx, %x %x, %d %lx\n", addr, len, prot, flags, fd, off);
 	if(len == 0
 			|| (!(flags & MMAP_MAP_PRIVATE) && !(flags & MMAP_MAP_SHARED))
 			|| ((flags & MMAP_MAP_PRIVATE) && (flags & MMAP_MAP_SHARED)))
@@ -51,12 +52,11 @@ intptr_t sys_mmap(uintptr_t addr, size_t len, int prot, int flags, int fd, size_
 	} else {
 		virt = process_allocate_mmap_region(current_thread->process, len);
 	}
+	printk("--> %lx - %lx\n", virt, virt + len);
 	map_mmap(virt, file, prot, flags, len, off);
 
 	if(file)
 		kobj_putref(file);
-
-	printk("MMap:: %lx, %lx\n", virt, len);
 
 	return virt;
 }
@@ -79,7 +79,6 @@ uintptr_t sys_brk(void *nb)
 void *sys_mremap(void *old, size_t oldsz, size_t newsz, int flags, void *new)
 {
 	int err;
-	printk("MREMAP: %p, %lx, %lx, %d, %p\n", old, oldsz, newsz, flags, new);
 	if(newsz == 0 || oldsz == 0 || ((uintptr_t)old != ((uintptr_t)old & page_mask(0))))
 		return (void *)-EINVAL;
 	if((flags & MREMAP_FIXED) && !(MREMAP_MAYMOVE))
@@ -97,7 +96,6 @@ void *sys_mremap(void *old, size_t oldsz, size_t newsz, int flags, void *new)
 				new = old;
 		}
 		err = mapping_move((uintptr_t)old, oldsz, newsz, (uintptr_t)new);
-		printk("Mapping moved: %p (%d)\n", new, err);
 	}
 
 	if(err < 0)

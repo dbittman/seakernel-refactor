@@ -21,6 +21,15 @@ void* memchr(const void* ptr, int value, size_t num) {
     return NULL;
 }
 
+char *strcat(char *str, const char *cat)
+{
+	str += strlen(str);
+	do {
+		*str++ = *cat;
+	} while(*cat++);
+	return str;
+}
+
 int strcmp(const char* str1, const char* str2) {
 	size_t len1 = strlen(str1);
 	size_t len2 = strlen(str2);
@@ -108,3 +117,37 @@ void* memmove(void* destination, const void* source, size_t num) {
     }
     return destination;
 }
+
+long strtol(char *str, char **end, int base)
+{
+	long tmp = 0;
+	bool neg = false;
+	if(*str == '-') {
+		neg = true;
+		str++;
+	}
+	if(*str == '+')
+		str++;
+
+	while(*str) {
+		if(*str >= '0' && *str <= '0' + (base - 1)) {
+			tmp *= base;
+			tmp += *str - '0';
+		} else if(*str >= 'a' && *str < 'a' + (base - 10)) {
+			tmp *= base;
+			tmp += *str - 'a';
+		} else if(*str >= 'A' && *str < 'A' + (base - 10)) {
+			tmp *= base;
+			tmp += *str - 'A';
+		} else {
+			break;
+		}
+
+		str++;
+	}
+
+	if(end) *end = str;
+
+	return neg ? -tmp : tmp;
+}
+

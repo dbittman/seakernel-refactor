@@ -49,7 +49,7 @@ struct kobj {
 #define KOBJ_LRU_ERR  2
 
 struct kobj_header {
-	_Atomic size_t _koh_refs;
+	_Atomic ssize_t _koh_refs;
 	struct kobj *_koh_kobj;
 	struct stack_elem _koh_elem;
 	struct slab *_koh_slab;

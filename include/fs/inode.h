@@ -52,6 +52,9 @@ struct inode *inode_lookup(struct inode_id *id);
 ssize_t inode_write_data(struct file *, size_t off, size_t len, const char *buf);
 ssize_t inode_read_data(struct file *, size_t off, size_t len, char *buf);
 bool inode_check_perm(struct inode *node, int type);
+bool inode_check_access(struct inode *node, int type);
+ssize_t inode_do_write_data(struct inode *ino, size_t off, size_t len, const char *buf);
+ssize_t inode_do_read_data(struct inode *ino, size_t off, size_t len, char *buf);
 
 static inline void inode_mark_dirty(struct inode *node)
 {

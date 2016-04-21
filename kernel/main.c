@@ -25,13 +25,13 @@ void perf_init(void);
 void initial_rootfs_init(void);
 
 static char *argv[] = {
-	"/init",
+	"/bin/init",
 	NULL,
 };
 
 static char *env[] = {
 	"HOME=/",
-	"PATH=/",
+	"PATH=/bin:/usr/bin",
 	"TERM=seaos",
 	NULL,
 };
@@ -42,9 +42,9 @@ static void _init_entry(void *arg)
 
 	current_thread->process->pgroupid = 1;
 	current_thread->process->seshid = 1;
-	int ret = sys_execve("/init", argv, env);
+	int ret = sys_execve("/bin/init", argv, env);
 	printk("failed to start init: %d\n", ret);
-	sys_exit(0);
+	for(;;);
 }
 
 static void init_worker(struct worker *worker)
@@ -98,6 +98,7 @@ void main(void)
 			entry != linkedlist_back_iter_end(&late_init_calls);
 			entry = linkedlist_back_iter_next(entry)) {
 		struct li_call *call = linkedentry_obj(entry);
+		assert(call != NULL);
 		((void (*)(void *))call->call)(call->data);
 	}
 	

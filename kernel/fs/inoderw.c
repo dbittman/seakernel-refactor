@@ -3,10 +3,8 @@
 #include <string.h>
 #include <printk.h>
 #include <file.h>
-ssize_t inode_read_data(struct file *f, size_t off, size_t len, char *buf)
+ssize_t inode_do_read_data(struct inode *ino, size_t off, size_t len, char *buf)
 {
-	(void)f; /* TODO: use flags */
-	struct inode *ino = file_get_inode(f);
 	size_t pageoff = off % arch_mm_page_size(0);
 	size_t pagenum = off / arch_mm_page_size(0);
 	size_t amount = 0;
@@ -36,10 +34,17 @@ ssize_t inode_read_data(struct file *f, size_t off, size_t len, char *buf)
 	return amount;
 }
 
-ssize_t inode_write_data(struct file *f, size_t off, size_t len, const char *buf)
+ssize_t inode_read_data(struct file *f, size_t off, size_t len, char *buf)
 {
 	(void)f; /* TODO: use flags */
 	struct inode *ino = file_get_inode(f);
+	ssize_t ret = inode_do_read_data(ino, off, len, buf);
+	inode_put(ino);
+	return ret;
+}
+
+ssize_t inode_do_write_data(struct inode *ino, size_t off, size_t len, const char *buf)
+{
 	size_t pageoff = off % arch_mm_page_size(0);
 	size_t pagenum = off / arch_mm_page_size(0);
 	size_t amount = 0;
@@ -65,5 +70,14 @@ ssize_t inode_write_data(struct file *f, size_t off, size_t len, const char *buf
 		amount += thiswrite;
 	}
 	return amount;
+}
+
+ssize_t inode_write_data(struct file *f, size_t off, size_t len, const char *buf)
+{
+	(void)f; /* TODO: use flags */
+	struct inode *ino = file_get_inode(f);
+	ssize_t ret = inode_do_write_data(ino, off, len, buf);
+	inode_put(ino);
+	return ret;
 }
 

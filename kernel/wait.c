@@ -3,6 +3,7 @@
 #include <arena.h>
 #include <blocklist.h>
 #include <errno.h>
+#include <printk.h>
 struct rusage
 {
 	struct timeval ru_utime;
@@ -88,7 +89,7 @@ static int __read_status(struct process *proc, int options, int *status)
 	if(!(atomic_fetch_and(&proc->flags, ~PROC_STATUS_CHANGED) & PROC_STATUS_CHANGED))
 		return 0;
 
-	int st = proc->status;
+	unsigned int st = proc->status;
 
 	if(WIFSTOPPED(st) && !(options & WUNTRACED))
 		return 0;
@@ -104,17 +105,9 @@ static int __cleanup_waiters(struct waiter *root, int options, int *status)
 {
 	int ret = 0;
 	for(struct waiter *w = root;w != NULL;w = w->next) {
-		enum block_result res = blockpoint_cleanup(&w->bp);
+		blockpoint_cleanup(&w->bp);
 		if(ret == 0) {
-			switch(res) {
-				case BLOCK_RESULT_INTERRUPTED:
-					ret = -EINTR;
-					break;
-				case BLOCK_RESULT_UNBLOCKED:
-					ret = __read_status(w->proc, options, status);
-					break;
-				default: break;
-			}
+			ret = __read_status(w->proc, options, status);
 		}
 		kobj_putref(w->proc);
 	}

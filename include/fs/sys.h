@@ -45,6 +45,13 @@ sysret_t sys_pipe(int *fds);
 sysret_t sys_dup2(int old, int new);
 sysret_t sys_dup(int old);
 sysret_t sys_getcwd(char *buf, size_t size);
+sysret_t sys_mkdir(const char *path, int mode);
+sysret_t sys_access(const char *path, int mode);
+sysret_t sys_lseek(int fd, ssize_t off, int whence);
+sysret_t sys_lstat(const char *path, struct stat *buf);
+sysret_t sys_chdir(const char *path);
+sysret_t sys_fchdir(int fd);
+sysret_t sys_fadvise(int fd, ssize_t offset, size_t len, int advice);
 
 struct stat;
 sysret_t sys_stat(const char *path, struct stat *buf);

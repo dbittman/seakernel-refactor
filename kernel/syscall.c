@@ -39,6 +39,12 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_wait4]   = SC sys_wait4,
 	[SYS_getdents64] = SC sys_getdents,
 	[SYS_mremap]    = SC sys_mremap,
+	[SYS_mkdir]     = SC sys_mkdir,
+	[SYS_access]    = SC sys_access,
+	[SYS_lstat]     = SC sys_lstat,
+	[SYS_lseek]     = SC sys_lseek,
+	[SYS_chdir]     = SC sys_chdir,
+	[SYS_fchdir]    = SC sys_fchdir,
 
 	[SYS_socket]   = SC sys_socket,
 	[SYS_socketpair]   = SC sys_socketpair,
@@ -72,6 +78,7 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_rt_sigprocmask] = SC sys_sigprocmask,
 	[SYS_getitimer] = SC sys_getitimer,
 	[SYS_setitimer] = SC sys_setitimer,
+	[SYS_fadvise64] = SC sys_fadvise,
 
 	[SYS_arch_prctl] = SC sys_arch_prctl,
 
@@ -82,7 +89,6 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 
 	/* syscalls I don't want to provide TODO */
 	[SYS_brk]      = SC sys_brk,
-	[SYS_getcwd]   = SC sys_getcwd,
 
 };
 

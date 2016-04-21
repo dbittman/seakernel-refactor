@@ -68,5 +68,5 @@ struct elf_program_header
 	uint64_t p_align;
 } __attribute__((packed));
 
-int elf_parse_executable(struct elf_header *header, int fd, uintptr_t *max, uintptr_t *);
+int elf_parse_executable(struct elf_header *header, int fd, uintptr_t *max, uintptr_t *, uintptr_t *);
 intptr_t elf_check_interp(struct elf_header *header, int fd, uintptr_t *);

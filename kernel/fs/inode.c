@@ -118,16 +118,16 @@ void inode_release_page(struct inode *node, struct inodepage *page)
 		kobj_lru_put(&node->pages, page);
 }
 
-bool inode_check_perm(struct inode *node, int type)
+static bool _do_inode_check_perm(struct inode *node, int type, int uid, int gid)
 {
-	if(current_thread->process->euid == 0)
+	if(uid == 0)
 		return true;
-	if(current_thread->process->euid == node->uid
+	if((uid == node->uid)
 			&& (type & node->mode)) {
 		return true;
 	}
 	type >>= 3;
-	if(current_thread->process->egid == node->gid
+	if(gid == node->gid
 			&& (type & node->mode)) {
 		return true;
 	}
@@ -138,3 +138,12 @@ bool inode_check_perm(struct inode *node, int type)
 	return false;
 }
 
+bool inode_check_perm(struct inode *node, int type)
+{
+	return _do_inode_check_perm(node, type, current_thread->process->euid, current_thread->process->egid);
+}
+
+bool inode_check_access(struct inode *node, int type)
+{
+	return _do_inode_check_perm(node, type, current_thread->process->uid, current_thread->process->gid);
+}

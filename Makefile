@@ -47,7 +47,7 @@ CFLAGS+=-O$(CONFIG_BUILD_OPTIMIZATION)
 
 include sysroot/usr/src/include.mk
 
-all: $(BUILDDIR)/kernel.elf sysroot/init $(USRPROGS)
+all: $(BUILDDIR)/kernel.elf $(BUILDDIR)/initrd.tar $(USRPROGS)
 
 # get all normal kernel sources
 include kernel/include.mk
@@ -137,16 +137,18 @@ autotest:
 
 -include $(OBJECTS:.o=.d)
 
-sysroot/init: sysroot/usr/src/init.c
-	$(TOOLCHAIN_PREFIX)-linux-musl-gcc -static -Og -g  -o $@ $< -Wall 
+ALL_SYSROOT=$(shell find sysroot)
+$(BUILDDIR)/initrd.tar: $(ALL_SYSROOT) $(USRPROGS) Makefile
+	@echo -e "[TAR]\t$(BUILDDIR)/initrd.tar"
+	@-rm $(BUILDDIR)/initrd.tar 2>/dev/null
+	@tar --format=ustar -C sysroot -c -f $(BUILDDIR)/initrd.tar .
+	@mkdir -p sysroot-install
+	@tar --format=ustar -C sysroot-install -r -f $(BUILDDIR)/initrd.tar .
 
-sysroot/syslogd: sysroot/usr/src/syslogd.c
-	$(TOOLCHAIN_PREFIX)-linux-musl-gcc -static -Og -g  -o $@ $< -Wall 
+test: $(BUILDDIR)/kernel.elf $(USRPROGS) $(BUILDDIR)/initrd.tar
+	qemu-system-$(ARCH) -m 1024  -machine $(MACHINE) $(QEMU_FLAGS) -kernel $(BUILDDIR)/kernel.elf -serial stdio -initrd $(BUILDDIR)/initrd.tar
 
-test: $(BUILDDIR)/kernel.elf $(USRPROGS)
-	qemu-system-$(ARCH) -m 1024  -machine $(MACHINE) $(QEMU_FLAGS) -kernel $(BUILDDIR)/kernel.elf -serial stdio -initrd sysroot/bin/init,sysroot/bin/syslogd,sysroot/bin/cond,sysroot/bin/test,bash,coreutils,readelf,sysroot/usr/lib/libc.so
-
-clean:
+clean: clean_progs
 	-rm -r $(BUILDDIR)
 
 flags:

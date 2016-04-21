@@ -19,6 +19,7 @@ static void _pipe_init(void *obj)
 {
 	struct pipe *pipe = obj;
 	charbuffer_reset(&pipe->buf);
+	pipe->readers = pipe->writers = 0;
 }
 
 static void _pipe_create(void *obj)
@@ -30,6 +31,8 @@ static void _pipe_create(void *obj)
 static void _pipe_destroy(void *obj)
 {
 	struct pipe *pipe = obj;
+	assert(pipe->readers == 0);
+	assert(pipe->writers == 0);
 	charbuffer_destroy(&pipe->buf);
 }
 
@@ -41,7 +44,7 @@ static struct kobj kobj_pipe = {
 static void _pipe_file_create(struct file *file)
 {
 	struct pipe *pipe = file->devdata = kobj_allocate(&kobj_pipe);
-	pipe->readers = pipe->writers = 1;
+	pipe->readers = pipe->writers = 0;
 }
 
 static void _pipe_file_destroy(struct file *file)
@@ -98,8 +101,10 @@ static void _pipe_close(struct file *file)
 		pipe->writers--;
 	if(file->flags & F_READ)
 		pipe->readers--;
+	assert(pipe->writers >= 0);
+	assert(pipe->readers >= 0);
 
-	if(pipe->writers == 0)
+	if(pipe->writers == 0 || pipe->readers == 0)
 		charbuffer_terminate(&pipe->buf); //TODO : named pipes?
 }
 
@@ -144,8 +149,6 @@ sysret_t sys_pipe(int *fds)
 {
 	struct file *rf = file_create(NULL, FDT_FIFO);
 	struct file *wf = file_create(NULL, 0);
-	rf->flags |= F_READ;
-	wf->flags |= F_WRITE;
 	wf->ops = rf->ops;
 	wf->devdata = rf->devdata;
 
@@ -167,6 +170,10 @@ sysret_t sys_pipe(int *fds)
 
 	fds[0] = rfd;
 	fds[1] = wfd;
+
+	struct pipe *pipe = wf->devdata;
+	assert(pipe->readers == 1);
+	assert(pipe->writers == 1);
 
 	return 0;
 }

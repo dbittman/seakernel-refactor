@@ -77,6 +77,7 @@ static bool _do_mapping_remove(struct process *proc, uintptr_t virtual, bool loc
 		return false;
 	}
 	hash_delete(&proc->mappings, &vpage, sizeof(vpage));
+	arch_mm_virtual_unmap(proc->ctx, virtual);
 	if(map->flags & MMAP_MAP_ANON) {
 		if(map->frame != 0) {
 			frame_release(map->frame);
@@ -198,10 +199,13 @@ void map_mmap(uintptr_t virtual, struct file *file, int prot, int flags, size_t 
 {
 	int num = len / arch_mm_page_size(0);
 	int nodepage = off / arch_mm_page_size(0);
+	//spinlock_acquire(&current_thread->process->map_lock);
 	for(int i=0;i<num;i++) {
-		mapping_establish(current_thread->process, virtual + i * arch_mm_page_size(0),
-				prot, flags, file, nodepage + i);
+		_do_mapping_remove(current_thread->process, virtual + i * arch_mm_page_size(0), false);
+		_do_mapping_establish(current_thread->process, virtual + i * arch_mm_page_size(0),
+				prot, flags, file, nodepage + i, false);
 	}
+	//spinlock_release(&current_thread->process->map_lock);
 }
 
 void map_unmap(uintptr_t virtual, size_t length)
@@ -254,7 +258,6 @@ void process_remove_mappings(struct process *proc, bool user_tls_too)
 		if(map->vpage * arch_mm_page_size(0) < USER_TLS_REGION_START
 				|| map->vpage * arch_mm_page_size(0) >= USER_TLS_REGION_END
 				|| user_tls_too) {
-			arch_mm_virtual_unmap(proc->ctx, map->vpage * arch_mm_page_size(0));
 			_do_mapping_remove(proc, map->vpage * arch_mm_page_size(0), true);
 		}
 	}
@@ -279,7 +282,6 @@ int mmu_mappings_handle_fault(uintptr_t addr, int flags)
 		setflags |= MAP_WRITE;
 	if(map->prot & PROT_EXEC)
 		setflags |= MAP_EXECUTE;
-
 
 	if((flags & FAULT_WRITE) && !(map->prot & PROT_WRITE)) {
 		goto out;

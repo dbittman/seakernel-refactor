@@ -40,7 +40,9 @@ struct file *file_create(struct dirent *dir, enum file_device_type);
 
 static inline struct inode *file_get_inode(struct file *f)
 {
-	return dirent_get_inode(f->dirent);
+	if(f->dirent)
+		return dirent_get_inode(f->dirent);
+	return NULL;
 }
 
 struct mapping;

@@ -5,13 +5,14 @@
 #include <mmu.h>
 #include <printk.h>
 #include <string.h>
-int elf_parse_executable(struct elf_header *header, int fd, uintptr_t *max, uintptr_t *phdr)
+int elf_parse_executable(struct elf_header *header, int fd, uintptr_t *max, uintptr_t *phdr, uintptr_t *_base)
 {
 	int r;
 	char buffer[header->phnum * header->phsize];
 	if((r = sys_pread(fd, buffer, sizeof(buffer), header->phoff)) < 0)
 		return r;
 	*max = 0;
+	uintptr_t base = 0;
 	for(int i=0;i<header->phnum;i++) {
 		struct elf_program_header *ph = (void *)(buffer + (i*header->phsize));
 
@@ -36,25 +37,30 @@ int elf_parse_executable(struct elf_header *header, int fd, uintptr_t *max, uint
             if(ph->p_flags & ELF_PF_X)
                 prot |= PROT_EXEC;
 
-			int flags = MMAP_MAP_FIXED;
+			int flags = header->type == ET_DYN ? 0 : MMAP_MAP_FIXED;
 			if(prot & PROT_WRITE)
 				flags |= MMAP_MAP_PRIVATE;
 			else
 				flags |= MMAP_MAP_SHARED;
 			/* TODO: we should have macros for this */
-			sys_mmap(ph->p_addr & ~(arch_mm_page_size(0) - 1), ph->p_filesz + inpage_offset,
-					prot, flags, fd, ph->p_offset & ~(arch_mm_page_size(0) - 1));
+			uintptr_t v = sys_mmap((ph->p_addr & page_mask(0)) + base, ph->p_filesz + inpage_offset,
+					prot, flags, fd, ph->p_offset & page_mask(0));
 			if(additional > page_free) {
-				sys_mmap(((newend - 1) & ~(arch_mm_page_size(0) - 1)) + arch_mm_page_size(0),
+				sys_mmap(((newend - 1) & page_mask(0)) + arch_mm_page_size(0) + base,
 						additional - page_free, prot, flags | MMAP_MAP_ANON, -1, 0);
 			}
-			memset((void *)newend, 0, additional);
+			memset((void *)(newend + base), 0, additional);
+			if(base == 0 && header->type == ET_DYN)
+				base = v;
 		}
 
 	}
 	if(!*max)
 		return -1;
-	*max = ((*max - 1) & ~(arch_mm_page_size(0) - 1)) + arch_mm_page_size(0);
+	if(header->type == ET_DYN)
+		*phdr = header->phoff + base;
+	*max = ((*max - 1) & ~(arch_mm_page_size(0) - 1)) + arch_mm_page_size(0) + base;
+	*_base = base;
 
 	return 0;
 }
@@ -62,7 +68,7 @@ int elf_parse_executable(struct elf_header *header, int fd, uintptr_t *max, uint
 intptr_t elf_load_interp(char *path, uintptr_t *entry)
 {
 	/* hack */
-	path = "/libc.so";
+	path = "/usr/lib/libc.so";
 	int fd = sys_open(path, O_RDWR, 0);
 	if(!fd)
 		return -1;
@@ -103,12 +109,11 @@ intptr_t elf_load_interp(char *path, uintptr_t *entry)
 			/* TODO: we should have macros for this */
 			uintptr_t v = sys_mmap((ph->p_addr & page_mask(0)) + base, ph->p_filesz + inpage_offset,
 					prot, flags, fd, ph->p_offset & page_mask(0));
-			printk("Mapping %lx (%lx) %lx\n", ph->p_addr + base, base, v);
 			if(additional > page_free) {
 				sys_mmap(((newend - 1) & page_mask(0)) + arch_mm_page_size(0) + base,
 						additional - page_free, prot, flags | MMAP_MAP_ANON, -1, 0);
 			}
-			memset((void *)newend + base, 0, additional);
+			memset((void *)(newend + base), 0, additional);
 			if(base == 0)
 				base = v;
 		}

@@ -57,7 +57,7 @@ bool blocklist_unblock_one(struct blocklist *bl)
 
 void blocklist_unblock_all(struct blocklist *bl)
 {
-	TRACE(&blocking_trace, "unblock one");
+	TRACE(&blocking_trace, "unblock all");
 	spinlock_acquire(&bl->lock);
 
 	struct linkedentry *entry;

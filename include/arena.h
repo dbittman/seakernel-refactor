@@ -39,8 +39,11 @@ static inline void *arena_allocate(struct arena *arena, size_t length)
 
 	if(!node) {
 		assert(prev != NULL);
-		node = prev->next = (void *)mm_virtual_allocate(__round_up_pow2(length * 2), true);
-		node->len = __round_up_pow2(length * 2);
+		size_t len = __round_up_pow2(length * 2);
+		if(len < arch_mm_page_size(0))
+			len = arch_mm_page_size(0);
+		node = prev->next = (void *)mm_virtual_allocate(len, true);
+		node->len = len;
 		node->used = sizeof(struct arena_node);
 	}
 	

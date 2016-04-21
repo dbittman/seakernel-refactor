@@ -11,3 +11,5 @@ void* memmove(void* destination, const void* source, size_t num);
 char *strncpy(char *dest, const char *src, size_t n);
 const char *strrchrc(const char *str, char v);
 const char *strchrc(const char *str, char v);
+long strtol(char *str, char **end, int base);
+char *strcat(char *str, const char *cat);

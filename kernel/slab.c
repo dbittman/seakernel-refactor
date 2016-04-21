@@ -157,7 +157,7 @@ size_t kobj_putref(void *obj)
 {
 	assert(obj != NULL);
 	struct kobj_header *header = obj;
-	size_t count = atomic_fetch_sub(&header->_koh_refs, 1);
+	ssize_t count = atomic_fetch_sub(&header->_koh_refs, 1);
 	if(count <= 0) {
 		panic(0, "double-free of object %p, %s", obj, header->_koh_kobj->name);
 	}

@@ -6,6 +6,9 @@
 #include <file.h>
 #include <errno.h>
 #include <fs/filesystem.h>
+
+/* TODO: all the file_get_inode calls can return NULL! */
+
 static void _stat(struct inode *node, struct stat *buf)
 {
 	buf->st_dev = makedev(node->major, node->minor);
@@ -34,54 +37,94 @@ sysret_t sys_stat(const char *path, struct stat *buf)
 	return 0;
 }
 
+sysret_t sys_chdir(const char *path)
+{
+	struct inode *node;
+	struct dirent *dir;
+	int err = fs_path_resolve(path, NULL, 0, 0, &dir, &node);
+	if(err < 0)
+		return err;
+
+	if(!S_ISDIR(node->mode)) {
+		inode_put(node);
+		kobj_putref(dir);
+		return -ENOTDIR;
+	}
+
+	inode_put(node);
+	struct dirent *old = atomic_exchange(&current_thread->process->cwd, dir);
+	kobj_putref(old);
+
+	return 0;
+}
+
+sysret_t sys_fchdir(int fd)
+{
+	struct file *file = process_get_file(fd);
+	if(!file)
+		return -EBADF;
+	if(!file->dirent)
+		return -EINVAL;
+	struct inode *node = file_get_inode(file);
+	if(!S_ISDIR(node->mode)) {
+		inode_put(node);
+		kobj_putref(file);
+		return -ENOTDIR;
+	}
+
+	inode_put(node);
+	struct dirent *dir = atomic_exchange(&current_thread->process->cwd, kobj_getref(file->dirent));
+	kobj_putref(dir);
+
+	kobj_putref(file);
+	return 0;
+}
+
+sysret_t sys_access(const char *path, int mode)
+{
+	struct inode *node;
+	int ret = fs_path_resolve(path, NULL, 0, 0, NULL, &node);
+	if(ret < 0)
+		return ret;
+
+	bool ok = true;
+	if(mode & 4)
+		ok = ok && inode_check_access(node, PERM_READ);
+	if(mode & 2)
+		ok = ok && inode_check_access(node, PERM_WRITE);
+	if(mode & 1)
+		ok = ok && inode_check_access(node, PERM_EXEC);
+
+	inode_put(node);
+	return 0;
+}
+
+sysret_t sys_lstat(const char *path, struct stat *buf)
+{
+	struct inode *node;
+	int ret = fs_path_resolve(path, NULL, PATH_SYMLINK, 0, NULL, &node);
+	if(ret < 0)
+		return ret;
+	_stat(node, buf);
+	inode_put(node);
+	return 0;
+}
+
 sysret_t sys_fstat(int fd, struct stat *buf)
 {
 	struct file *file = process_get_file(fd);
 	if(!file)
 		return -EBADF;
 	struct inode *node = file_get_inode(file);
+	if(node) {
+		_stat(node, buf);
+		inode_put(node);
+	} else {
+		/* TODO: what to do here? */
+		buf->st_mode = S_IFIFO;
+	}
 	kobj_putref(file);
-	_stat(node, buf);
-	inode_put(node);
 	return 0;
-}
-
-sysret_t sys_getcwd(char *buf, size_t size)
-{
-	*buf = '/';
-	*(buf+1) = 0;
-	(void)size;
-	return 0;
-	/*
-	struct dirent *dir = kobj_getref(current_thread->process->cwd);
-	struct inode *node = dirent_get_inode(dir);
-
-	if(dir->namelen+1 >= size) {
-		kobj_putref(dir);
-		inode_put(node);
-		return -ERANGE;
-	}
-
-	memcpy(buf, dir->name, dir->namelen);
-	*(buf + dir->namelen) = '/';
-	int pos = dir->namelen + 1;
-	kobj_putref(dir);
-
-	while(1) {
-		struct inode *next_inode;
-		struct dirent *next_dirent;
-		int err = fs_path_resolve("..", node, 0, 0, &next_dirent, &next_node);
-		inode_put(node);
-		if(err) {
-			return err;
-		}
-		
-		memcpy(buf+pos, next_dirent->name, next_dirent->namelen);
-		*(buf+pos+next_dirent->namelen) = '/';
-
-		node = next_inode;
-	}
-	*/
 }
 
 sysret_t sys_getdents(int fd, struct gd_dirent *dp, int count)

@@ -96,9 +96,15 @@ sysret_t sys_execve(const char *path, char **arg, char **env)
 	}
 
 	uintptr_t max, phdrs=0;
-	if(elf_parse_executable(&header, fd, &max, &phdrs) < 0) {
+	uintptr_t exe_base = 0;
+	if(elf_parse_executable(&header, fd, &max, &phdrs, &exe_base) < 0) {
 		sys_exit(-ENOEXEC);
 		/* ...die */
+	}
+
+	if(header.type == ET_DYN) {
+		base = exe_base;
+		interp_entry = header.entry;
 	}
 
 	/* TODO: mark executable as "busy" */
@@ -143,7 +149,8 @@ sysret_t sys_execve(const char *path, char **arg, char **env)
 	}
 	
 	write_data(&aux, &argc, sizeof(long));
-	printk(":: %lx\n", interp_entry + base);
+	if(base != 0)
+		printk("interp base %lx\n", base);
 	arch_thread_usermode_jump(base == 0 ? header.entry : interp_entry + base, aux);
 
 out_close:

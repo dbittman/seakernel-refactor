@@ -178,7 +178,7 @@ static size_t pty_write_master(struct pty *pty, const char *buffer, size_t lengt
 
 static size_t pty_read_slave(struct pty *pty, char *buffer, size_t length, bool block)
 {
-	return charbuffer_read(&pty->input, buffer, length, block);
+	return charbuffer_read(&pty->input, buffer, length, block | CHARBUFFER_DO_ANY);
 }
 
 static size_t pty_write_slave(struct pty *pty, const char *buffer, size_t length, bool block)
@@ -242,7 +242,7 @@ static void _pty_fops_create(struct file *file)
 		pf->master = true;
 		struct pty *np = kobj_allocate(&kobj_pty);
 		char str[128];
-		snprintf(str, 128, "/dev/pts/%d", np->id);
+		snprintf(str, 128, "/dev/pts/%ld", np->id);
 		sys_mknod(str, S_IFCHR | 0666, makedev(dev.devnr, np->id));
 		pf->pty = np;
 	}
@@ -276,7 +276,7 @@ static int _pty_fops_ioctl(struct file *file, long cmd, long arg)
 		case TIOCGWINSZ:
 			memcpy((void *)arg, &pf->pty->size, sizeof(pf->pty->size));
 			break;
-		case TCSETS:
+		case TCSETS: case TCSETSW:
 			memcpy(&pf->pty->term, (void *)arg, sizeof(pf->pty->term));
 			break;
 		case TCGETS:
@@ -307,19 +307,25 @@ static int _pty_fops_select(struct file *file, int flags, struct blockpoint *bp)
 	size_t ready = 0;
 	if(pf->master && (flags == SEL_READ)) {
 		bl = &pty->output.wait_read;
+		if(bp)
+			blockpoint_startblock(bl, bp);
 		ready = charbuffer_pending(&pty->output);
 	} else if(pf->master && (flags == SEL_WRITE)) {
 		bl = &pty->input.wait_write;
+		if(bp)
+			blockpoint_startblock(bl, bp);
 		ready = charbuffer_avail(&pty->input);
 	} else if(!pf->master && (flags == SEL_READ)) {
 		bl = &pty->input.wait_read;
+		if(bp)
+			blockpoint_startblock(bl, bp);
 		ready = charbuffer_pending(&pty->input);
 	} else {
 		bl = &pty->output.wait_write;
+		if(bp)
+			blockpoint_startblock(bl, bp);
 		ready = charbuffer_avail(&pty->output);
 	}
-	if(bp)
-		blockpoint_startblock(bl, bp);
 	
 	return ready > 0;
 }

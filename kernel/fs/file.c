@@ -89,10 +89,14 @@ struct file *file_create(struct dirent *dir, enum file_device_type type)
 
 struct file *process_exchange_fd(struct file *file, int i)
 {
+	if(i >= MAX_FD)
+		return NULL;
 	spinlock_acquire(&current_thread->process->files_lock);
 	struct process *proc = current_thread->process;
 	struct file *of = proc->files[i].file;
 	proc->files[i].file = kobj_getref(file);
+	if(file->ops && file->ops->open)
+		file->ops->open(file);
 	spinlock_release(&current_thread->process->files_lock);
 	return of;
 }
@@ -105,6 +109,8 @@ int process_allocate_fd(struct file *file)
 		if(proc->files[i].file == NULL) {
 			proc->files[i].file = kobj_getref(file);
 			proc->files[i].flags = 0;
+			if(file->ops && file->ops->open)
+				file->ops->open(file);
 			spinlock_release(&current_thread->process->files_lock);
 			return i;
 		}

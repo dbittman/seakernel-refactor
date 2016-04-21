@@ -1,6 +1,7 @@
 #pragma once
 
 #define PATH_CREATE 1
+#define PATH_SYMLINK 2
 
 #define PATH_DID_CREATE 1
 

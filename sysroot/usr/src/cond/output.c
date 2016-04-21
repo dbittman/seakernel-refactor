@@ -11,6 +11,7 @@ char *SCREEN = NULL;
 #define WIDTH(p) p->win.ws_col
 #define HEIGHT(p) p->win.ws_row
 
+static int screen_fd = 0;
 void append_scroll_down(struct pty *pty);
 void escape_code(struct pty *pty);
 void clear_line(struct pty *pty, int n, int mode)
@@ -192,6 +193,9 @@ void update_cursor(struct pty *pty)
 {
 	/* TODO: cursor */
 	if(pty == current_pty) {
+		int x = pty->cx;
+		int y = pty->cy - pty->sp;
+		ioctl(screen_fd, 0, (unsigned long)x | (unsigned long)y << 32);
 		//syscall(93, pty->cx, pty->cy - pty->sp, 0, 0, 0);
 	}
 }
@@ -310,25 +314,49 @@ void escape_command(struct pty *pty, unsigned char cmd, int argc, int args[])
  * \e[%d;%dC
  */
 
-#define READ(c) read(pty->masterfd, &c, 1)
+static char inbuf[64];
+int inbp = 0;
+int inbcnt = 0;
+#include <time.h>
+static inline int READ(struct pty *pty, char *c)
+{
+	if(inbp < inbcnt) {
+		*c = inbuf[inbp++];
+		return 1;
+	} else {
+		int ret;
+		int count = 0;
+		while((ret = read(pty->masterfd, c, 1)) == 0) {
+			struct timespec t;
+			t.tv_sec  =0;
+			t.tv_nsec = 1000000;
+			nanosleep(&t, NULL);
+			if(count++ == 100)
+				break;
+		}
+		return ret;
+	}
+}
 
 void escape_code(struct pty *pty)
 {
 	char digitbuf[4];
 	memset(digitbuf, 0, sizeof(digitbuf));
-	int digitpos = 0;
 
 	int args[4];
 	memset(args, 0, sizeof(args));
-	int argc = 0;
 	
 	unsigned char c;
-	if(READ(c) != 1)
+	if(READ(pty, &c) != 1) {
 		return;
+	}
 	if(c == '[') {
+		int argc = 0;
+		int digitpos = 0;
 		while(1) {
-			if(READ(c) != 1)
+			if(READ(pty, &c) != 1) {
 				return;
+			}
 			if(isalpha(c)) {
 				/* end of escape sequence, we have the command. */
 				if(digitpos > 0 && argc < 4) {
@@ -351,15 +379,17 @@ void escape_code(struct pty *pty)
 
 void process_output(struct pty *pty)
 {
-	unsigned char c;
-	if(read(pty->masterfd, &c, 1) == 1) {
-		disp_character(pty, c);
+	if((inbcnt=read(pty->masterfd, inbuf, 64)) > 0) {
+		inbp = 0;
+		while(inbp < inbcnt) {
+			inbp++;
+			disp_character(pty, inbuf[inbp-1]);
+		}
 	}
 }
 
 #include <sys/mman.h>
 #include <fcntl.h>
-static int screen_fd = 0;
 void init_screen(void)
 {
 	syslog(LOG_INFO, "taking control of screen\n");

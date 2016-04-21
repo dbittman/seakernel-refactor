@@ -135,6 +135,7 @@ static int _load_inode(struct filesystem *fs, uint64_t ino, struct inode *node)
 	node->length = ri->length;
 	node->uid = ri->uid;
 	node->gid = ri->gid;
+	node->id.inoid = ino;
 	mutex_release(&ri->lock);
 	
 	return 0;
@@ -259,15 +260,16 @@ struct fsdriver ramfs = {
 	.inode_ops = &ramfs_inode_ops,
 	.fs_ops = &ramfs_fs_ops,
 	.name = "ramfs",
-	.rootid = 0,
+	.rootid = 1,
 };
 
 static void _ramfs_create(void *obj)
 {
 	struct ramfs_data *ramfs_data = obj;
+	ramfs_data->next_id = 1;
 	hash_create(&ramfs_data->inodes, 0, 256);
 	struct ramfs_inode *root = kobj_allocate(&kobj_ramfs_inode);
-	root->id = 0;
+	root->id = 1;
 	root->mode = S_IFDIR | 0755;
 	hash_insert(&ramfs_data->inodes, &root->id, sizeof(root->id), &root->elem, root);
 }
@@ -305,6 +307,72 @@ static void _init_ramfs(void)
 #include <fs/stat.h>
 #include <fs/dirent.h>
 #include <device.h>
+
+struct ustar_header {
+        char name[100];
+        char mode[8];
+        char uid[8];
+        char gid[8];
+        char size[12];
+        char mtime[12];
+        char checksum[8];
+        char typeflag[1];
+        char linkname[100];
+        char magic[6];
+        char version[2];
+        char uname[32];
+        char gname[32];
+        char devmajor[8];
+        char devminor[8];
+        char prefix[155];
+        char pad[12];
+};
+
+static void parse_tar_file(char *start, size_t tarlen)
+{
+	struct ustar_header *uh = (struct ustar_header *)start;
+	while((char *)uh < start + tarlen) {
+		int err;
+		char *name = uh->name;
+		if(!*name)
+			break;
+		/* convert from ascii octal (wtf) to FUCKING NUMBERS */
+		size_t len = strtol(uh->size, NULL, 8);
+		size_t reclen = (len + 511) & ~511;
+		char *data_start = (char *)uh + 512;
+		if(strncmp(uh->magic, "ustar", 5))
+			break;
+
+		//printk("   - loading '%s': %ld bytes...\n", uh->name, len);
+		switch(uh->typeflag[0]) {
+			int fd;
+			case '2':
+				printk("SYMLINK\n");
+				break;
+			case '5':
+				uh->name[strlen(uh->name) - 1] = 0;
+				err = sys_mkdir(uh->name, 0777);
+				if(err)
+					printk("     failed: %d\n", err);
+				break;
+			case '0': case '7':
+				fd = sys_open(uh->name, O_CREAT | O_EXCL | O_RDWR, S_IFREG | 0777);
+				if(fd >= 0) {
+					sys_pwrite(fd, data_start, len, 0);
+					sys_close(fd);
+				} else {
+					printk("     failed: %d\n", fd);
+				}
+				break;
+			default:
+				printk("initrd: unknown file type %c\n", uh->typeflag[0]);
+
+		}
+
+		uh = (struct ustar_header *)((char *)uh + 512 + reclen);
+	}
+}
+
 void initial_rootfs_init(void)
 {
 	current_thread->process->root = kobj_allocate(&kobj_filesystem);
@@ -314,7 +382,7 @@ void initial_rootfs_init(void)
 	struct dirent *dir = kobj_allocate(&kobj_dirent);
 	dir->name[0] = '/';
 	dir->namelen = 1;
-	dir->ino.inoid = 0;
+	dir->ino.inoid = 1;
 	dir->ino.fsid = current_thread->process->root->id;
 
 	struct inode *node = dirent_get_inode(dir);
@@ -329,19 +397,12 @@ void initial_rootfs_init(void)
 	int i=0;
 	struct boot_module *bm;
 	while((bm = machine_get_boot_module(i++))) {
-		const char *name = bm->name;
-		if(!(name = strrchrc(name, '/')))
-			name = bm->name;
-
-		printk(" * Loading %s, %ld KB.\n", name, bm->length / 1024);
-		int f = sys_open(name, O_RDWR | O_CREAT, S_IFREG | 0777);
-		ssize_t count = sys_pwrite(f, (void *)bm->start, bm->length, 0);
-		assert(count == (ssize_t)bm->length);
-		sys_close(f);
+		/* we assume all boot modules are tar files */
+		printk(" * Loading %s, %ld KB.\n", bm->name, bm->length / 1024);
+		parse_tar_file((void *)bm->start, bm->length);
 	}
 
-	int tmp = sys_open("/dev", O_CREAT | O_RDONLY, S_IFDIR | 0777);
-	sys_close(tmp);
-
+	sys_mkdir("/mnt", 0777);
+	sys_mkdir("/dev", 0777);
 }
 

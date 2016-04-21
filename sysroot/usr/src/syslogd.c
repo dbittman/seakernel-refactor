@@ -52,7 +52,7 @@ int main(int argc, char **argv)
 	while(true) {
 		read_fds = active_fds;
 		err_fds = active_fds;
-		int sels = select(FD_SETSIZE, &read_fds, NULL, &err_fds, NULL);
+		select(FD_SETSIZE, &read_fds, NULL, &err_fds, NULL);
 		for(int i=0;i<FD_SETSIZE;i++) {
 			if(FD_ISSET(i, &read_fds)) {
 				if(i == master) {
