@@ -154,26 +154,29 @@ uint32_t ahci_check_type(volatile struct hba_port *port)
 	return port->signature;
 }
 
-struct kobj kobj_hba_port = KOBJ_DEFAULT(hba_port);
-
-void ahci_probe_ports(struct hba_memory *abar)
+void ahci_create_device(struct ahci_device *dev)
 {
-	uint32_t pi = abar->port_implemented;
+	(void)dev;
+}
+
+void ahci_probe_ports(struct ahci_bus *bus)
+{
+	uint32_t pi = bus->abar->port_implemented;
 	printk("[ahci]: ports implemented: %x\n", pi);
 	int i=0;
 	while(i < 32)
 	{
 		if(pi & 1)
 		{
-			uint32_t type = ahci_check_type(&abar->ports[i]);
+			uint32_t type = ahci_check_type(&bus->abar->ports[i]);
 			if(type) {
 				printk("[ahci]: detected device on port %d\n", i);
-				ports[i] = kobj_allocate(&kobj_hba_port);
-				ports[i]->type = type;
-				ports[i]->idx = i;
-				mutex_create(&(ports[i]->lock));
-				if(ahci_initialize_device(abar, ports[i]))
-					ahci_create_device(ports[i]);
+				bus->ports[i].type = type;
+				bus->ports[i].idx = i;
+				bus->ports[i].bus = bus;
+				mutex_create(&(bus->ports[i].lock));
+				if(ahci_initialize_device(bus->abar, &bus->ports[i]))
+					ahci_create_device(&bus->ports[i]);
 				else
 					printk("[ahci]: failed to initialize device %d, disabling port\n", i);
 			}
@@ -183,25 +186,25 @@ void ahci_probe_ports(struct hba_memory *abar)
 	}
 }
 
-void ahci_init_hba(struct hba_memory *abar)
+void ahci_init_hba(struct ahci_bus *bus)
 {
-	if(abar->ext_capabilities & 1) {
+	if(bus->abar->ext_capabilities & 1) {
 		/* request BIOS/OS ownership handoff */
 		printk("[ahci]: requesting AHCI ownership change\n");
-		abar->bohc |= (1 << 1);
-		while((abar->bohc & 1) || !(abar->bohc & (1<<1))) cpu_pause();
+		bus->abar->bohc |= (1 << 1);
+		while((bus->abar->bohc & 1) || !(bus->abar->bohc & (1<<1))) cpu_pause();
 		printk("[ahci]: ownership change completed\n");
 	}
 	
 	/* enable the AHCI and reset it */
-	abar->global_host_control |= HBA_GHC_AHCI_ENABLE;
-	abar->global_host_control |= HBA_GHC_RESET;
+	bus->abar->global_host_control |= HBA_GHC_AHCI_ENABLE;
+	bus->abar->global_host_control |= HBA_GHC_RESET;
 	/* wait for reset to complete */
-	while(abar->global_host_control & HBA_GHC_RESET) cpu_pause();
+	while(bus->abar->global_host_control & HBA_GHC_RESET) cpu_pause();
 	/* enable the AHCI and interrupts */
-	abar->global_host_control |= HBA_GHC_AHCI_ENABLE;
-	abar->global_host_control |= HBA_GHC_INTERRUPT_ENABLE;
+	bus->abar->global_host_control |= HBA_GHC_AHCI_ENABLE;
+	bus->abar->global_host_control |= HBA_GHC_INTERRUPT_ENABLE;
 	struct timespec ts = {.tv_sec = 0, .tv_nsec = 20000000 };
 	sys_nanosleep(&ts, NULL);
-	printk("[ahci]: caps and ver: %x %x v %x, ctl: %x\n", abar->capability, abar->ext_capabilities, abar->version, abar->global_host_control);
+	printk("[ahci]: caps and ver: %x %x v %x, ctl: %x\n", bus->abar->capability, bus->abar->ext_capabilities, bus->abar->version, bus->abar->global_host_control);
 }

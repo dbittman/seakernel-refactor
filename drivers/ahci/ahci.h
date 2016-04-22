@@ -3,6 +3,7 @@
 
 #include <mutex.h>
 #include <lib/hash.h>
+#include <slab.h>
 
 typedef enum
 {
@@ -312,7 +313,9 @@ struct ata_identify {
 	/* ...and more */
 };
 
+struct ahci_bus;
 struct ahci_device {
+	struct kobj_header _header;
 	uint32_t type;
 	int idx, minor;
 	struct mutex lock;
@@ -323,8 +326,18 @@ struct ahci_device {
 	struct ata_identify identify;
 	uint32_t slots;
 	int created;
-	struct inode *node;
+	
+	struct ahci_bus *bus;
+
 	struct hashelem mapelem;
+};
+
+struct ahci_bus {
+	struct kobj_header _header;
+	struct pci_device *pcidev;
+	struct hba_memory *abar;
+	int interrupt;
+	struct ahci_device ports[32];
 };
 
 #define HBA_PxCMD_ST  (1 << 0)
@@ -332,7 +345,7 @@ struct ahci_device {
 #define HBA_PxCMD_FR  (1 << 14)
 #define HBA_PxCMD_FRE (1 << 4)
 
-#define HBA_GHC_AHCI_ENABLE (1 << 31)
+#define HBA_GHC_AHCI_ENABLE (1ul << 31)
 #define HBA_GHC_INTERRUPT_ENABLE (1 << 1)
 #define HBA_GHC_RESET (1 << 0)
 
@@ -370,15 +383,9 @@ void ahci_reset_device(struct hba_memory *abar, struct hba_port *port, struct ah
 uint32_t ahci_get_previous_byte_count(struct hba_memory *abar, struct hba_port *port, struct ahci_device *dev, int slot);
 int ahci_initialize_device(struct hba_memory *abar, struct ahci_device *dev);
 uint32_t ahci_check_type(volatile struct hba_port *port);
-void ahci_probe_ports(struct hba_memory *abar);
-void ahci_init_hba(struct hba_memory *abar);
 
-void ahci_create_device(struct ahci_device *dev);
-
-extern int ahci_int;
-extern struct hba_memory *hba_mem;
-extern struct ahci_device *ports[32];
-extern int ahci_major;
+void ahci_probe_ports(struct ahci_bus *);
+void ahci_init_hba(struct ahci_bus *);
 
 #define UPPER32(x) (x >> 32)
 #define LOWER32(x) (x & 0xFFFFFFFF)

@@ -12,6 +12,19 @@ static inline uint8_t x86_64_inb(uint16_t port)
 	return ret;
 }
 
+static inline void x86_64_outl(uint16_t port, uint32_t val)
+{
+	asm volatile ("outl %1, %0" : : "dN" (port), "a" (val));
+}
+
+static inline uint32_t x86_64_inl(uint16_t port)
+{
+	uint32_t ret;
+	asm volatile("inl %1, %0" : "=a" (ret) : "dN" (port));
+	return ret;
+}
+
+
 static inline unsigned char x86_64_cmos_read(unsigned char addr)
 {
 	unsigned char ret;

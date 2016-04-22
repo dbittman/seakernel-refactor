@@ -150,8 +150,14 @@ $(BUILDDIR)/initrd.tar: $(ALL_SYSROOT) $(USRPROGS) Makefile
 	@mkdir -p sysroot-install
 	@tar --format=ustar -C sysroot-install -r -f $(BUILDDIR)/initrd.tar .
 
+
+
+
+QEMU_AHCI=-device ahci,id=ahci0 -drive if=none,file=hd.img,format=raw,id=drive-sata0-0-0 -device ide-drive,bus=ahci0.0,drive=drive-sata0-0-0,id=sata0-0-0
+
+
 test: $(BUILDDIR)/kernel.elf $(USRPROGS) $(BUILDDIR)/initrd.tar
-	qemu-system-$(ARCH) -m 1024  -machine $(MACHINE) $(QEMU_FLAGS) -kernel $(BUILDDIR)/kernel.elf -serial stdio -initrd $(BUILDDIR)/initrd.tar
+	qemu-system-$(ARCH) -m 1024  -machine $(MACHINE) $(QEMU_FLAGS) -kernel $(BUILDDIR)/kernel.elf -serial stdio -initrd $(BUILDDIR)/initrd.tar $(QEMU_AHCI)
 
 clean: clean_progs
 	-rm -r $(BUILDDIR)

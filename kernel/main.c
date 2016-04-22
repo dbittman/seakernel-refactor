@@ -42,7 +42,7 @@ static void _init_entry(void *arg)
 
 	current_thread->process->pgroupid = 1;
 	current_thread->process->seshid = 1;
-	int ret = sys_execve("/bin/init", argv, env);
+	int ret = sys_execve("/bin/sinit", argv, env);
 	printk("failed to start init: %d\n", ret);
 	for(;;);
 }

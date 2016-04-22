@@ -42,7 +42,7 @@ void ahci_send_command(struct hba_port *port, int slot)
 	ahci_flush_commands(port);
 }
 
-int ahci_write_prdt(struct hba_memory *abar, struct hba_port *port, struct ahci_device *dev, int slot, int offset, int length, uintptr_t virt_buffer)
+int ahci_write_prdt(struct hba_memory *abar, struct hba_port *port, struct ahci_device *dev, int slot, int offset, int length, uintptr_t phys_buffer)
 {
 	(void)abar;
 	(void)port;
@@ -53,8 +53,6 @@ int ahci_write_prdt(struct hba_memory *abar, struct hba_port *port, struct ahci_
 	for(i=0;i<num_entries-1;i++)
 	{
 		/* TODO: do we need to do this? */
-		uintptr_t phys_buffer;
-		arch_mm_virtual_getmap(current_thread->ctx, virt_buffer, &phys_buffer, NULL);
 		prd = &tbl->prdt_entries[i+offset];
 		prd->byte_count = PRDT_MAX_COUNT-1;
 		prd->data_base_l = LOWER32(phys_buffer);
@@ -62,10 +60,8 @@ int ahci_write_prdt(struct hba_memory *abar, struct hba_port *port, struct ahci_
 		prd->interrupt_on_complete=0;
 		
 		length -= PRDT_MAX_COUNT;
-		virt_buffer += PRDT_MAX_COUNT;
+		phys_buffer += PRDT_MAX_COUNT;
 	}
-	uintptr_t phys_buffer;
-	arch_mm_virtual_getmap(current_thread->ctx, virt_buffer, &phys_buffer, NULL);
 	prd = &tbl->prdt_entries[i+offset];
 	prd->byte_count = length-1;
 	prd->data_base_l = LOWER32(phys_buffer);
@@ -148,7 +144,7 @@ int ahci_device_identify_ahci(struct hba_memory *abar,
 	int fis_len = sizeof(struct fis_reg_host_to_device) / 4;
 	uintptr_t dma;
 	dma = mm_physical_allocate(0x1000, false);
-	ahci_write_prdt(abar, port, dev, 0, 0, 512, dma + PHYS_MAP_START);
+	ahci_write_prdt(abar, port, dev, 0, 0, 512, dma);
 	struct hba_command_header *h = ahci_initialize_command_header(abar,
 			port, dev, 0, 0, 0, 1, fis_len);
 	struct fis_reg_host_to_device *fis = ahci_initialize_fis_host_to_device(abar,
@@ -173,6 +169,7 @@ int ahci_device_identify_ahci(struct hba_memory *abar,
 	{
 		if(!((port->sata_active | port->command_issue) & 1))
 			break;
+		cpu_pause();
 	}
 	if(!timeout)
 	{
