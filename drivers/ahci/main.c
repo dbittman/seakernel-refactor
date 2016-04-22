@@ -121,17 +121,18 @@ int _ahci_write(struct blockdev *bdev, unsigned long blk, int count, uintptr_t p
 	return num_read_blocks * ATA_SECTOR_SIZE;
 }
 
-static struct blockdriver driver = {
+struct blockdriver ahci_driver = {
 	.blksz = ATA_SECTOR_SIZE,
 	.read_blocks = _ahci_read,
 	.write_blocks = _ahci_write,
 	.name = "ahci",
+	.kobj_block = KOBJ_DEFAULT(block),
 };
 
 __orderedinitializer(__orderedafter(PCI_INITIALIZER_ORDER + DEVICE_INITIALIZER_ORDER))
 static void _init_ahci(void)
 {
 	pci_register_driver(&pcidriver);
-	blockdev_register(&driver);
+	blockdriver_register(&ahci_driver);
 }
 

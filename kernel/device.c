@@ -14,18 +14,18 @@ __orderedinitializer(DEVICE_INITIALIZER_ORDER) static void _init_devs(void)
 	hash_create(&chars, 0, 32);
 }
 
-static struct device *__get_device(struct inode *node)
+struct device *dev_get(int type, int major)
 {
-	if(S_ISCHR(node->mode))
-		return hash_lookup(&chars, &node->major, sizeof(int));
-	else if(S_ISBLK(node->mode))
-		return hash_lookup(&blocks, &node->major, sizeof(int));
+	if(S_ISCHR(type))
+		return hash_lookup(&chars, &major, sizeof(int));
+	else if(S_ISBLK(type))
+		return hash_lookup(&blocks, &major, sizeof(int));
 	assert(0);
 }
 
 struct file_calls *dev_get_fops(struct inode *node)
 {
-	struct device *dev = __get_device(node);
+	struct device *dev = dev_get(node->mode, node->major);
 	if(dev == NULL)
 		return NULL;
 	return dev->calls;
@@ -43,5 +43,18 @@ int dev_register(struct device *dev, struct file_calls *calls, int type)
 	else
 		assert(0);
 	return dev->devnr;
+}
+
+void dev_attach(struct device *dev, struct attachment *at, int id, void *obj)
+{
+	at->id = id;
+	at->obj = obj;
+	hash_insert(&dev->attached, &at->id, sizeof(int), &at->elem, at);
+}
+
+void *dev_get_attached(struct device *dev, int id)
+{
+	struct attachment *at = hash_lookup(&dev->attached, &id, sizeof(int));
+	return at ? at->obj : NULL;
 }
 

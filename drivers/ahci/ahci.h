@@ -390,4 +390,5 @@ void ahci_init_hba(struct ahci_bus *);
 #define UPPER32(x) (x >> 32)
 #define LOWER32(x) (x & 0xFFFFFFFF)
 #define cpu_pause() asm volatile("pause")
+extern struct blockdriver ahci_driver;
 #endif

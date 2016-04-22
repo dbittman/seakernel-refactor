@@ -154,9 +154,16 @@ uint32_t ahci_check_type(volatile struct hba_port *port)
 	return port->signature;
 }
 
+#include <block.h>
+#include <fs/sys.h>
 void ahci_create_device(struct ahci_device *dev)
 {
-	(void)dev;
+	struct blockdev *bd = kobj_allocate(&kobj_blockdev);
+	bd->devdata = dev;
+	blockdev_register(bd, &ahci_driver);
+	char name[128];
+	snprintf(name, 128, "/dev/ada%d", bd->devid);
+	sys_mknod(name, S_IFBLK | 0644, makedev(ahci_driver.device.devnr, bd->devid));
 }
 
 void ahci_probe_ports(struct ahci_bus *bus)
