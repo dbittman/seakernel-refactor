@@ -12,11 +12,15 @@ static ssize_t _char_read(struct file *file, size_t off, size_t len, char *b)
 {
 	(void)file;
 	(void)off;
+	size_t ret = 0;
 	struct inode *node = file_get_inode(file);
-	if(node->minor == 1)
+	if(node->minor == 1) {
 		memset(b, 0, len);
+		ret = len;
+	}
+	inode_put(node);
 
-	return 0;
+	return ret;
 }
 
 static ssize_t _char_write(struct file *file, size_t off, size_t len, const char *b)
@@ -24,9 +28,17 @@ static ssize_t _char_write(struct file *file, size_t off, size_t len, const char
 	(void)b;
 	(void)len;
 	(void)off;
-	(void)file;
+	
+	size_t ret;
+	struct inode *node = file_get_inode(file);
+	if(node->minor == 1)
+		ret = 0;
+	else
+		ret = len;
+	inode_put(node);
 
-	return 0;
+
+	return ret;
 }
 
 static struct file_calls char_calls = {

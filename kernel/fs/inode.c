@@ -67,6 +67,7 @@ static bool _inode_initialize(void *obj, void *id, void *data)
 {
 	(void)data;
 	struct inode *node = obj;
+	node->mount = NULL;
 	memcpy(&node->id, id, sizeof(node->id));
 	if(fs_load_inode(node->id.fsid, node->id.inoid, node) < 0) {
 		kobj_lru_mark_error(&inode_lru, obj, &node->id);

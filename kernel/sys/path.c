@@ -5,7 +5,9 @@
 #include <device.h>
 #include <file.h>
 #include <errno.h>
+#include <block.h>
 #include <fs/filesystem.h>
+#include <printk.h>
 
 /* TODO: all the file_get_inode calls can return NULL! */
 
@@ -151,5 +153,45 @@ out:
 	inode_put(node);
 	kobj_putref(file);
 	return ret;
+}
+
+sysret_t sys_mount(const char *source, const char *target, const char *fstype, unsigned long flags, const void *data)
+{
+	(void)data;
+	struct inode *snode, *tnode;
+	int err = fs_path_resolve(source, NULL, 0, 0, NULL, &snode);
+	if(err < 0)
+		return err;
+
+	err = fs_path_resolve(target, NULL, 0, 0, NULL, &tnode);
+	if(err < 0) {
+		inode_put(snode);
+		return err;
+	}
+
+	struct blockdev *bd = blockdev_get(snode->major, snode->minor);
+	if(!bd) {
+		inode_put(snode);
+		inode_put(tnode);
+		return -ENOTBLK;
+	}
+
+	struct filesystem *fs = fs_load_filesystem(bd, fstype, flags, &err);
+	kobj_putref(bd);
+	if(!fs) {
+		inode_put(snode);
+		inode_put(tnode);
+		return err;
+	}
+
+	err = fs_mount(tnode, fs);
+	if(err) {
+		fs_unload_filesystem(fs);
+		inode_put(tnode);
+		inode_put(snode);
+		return err;
+	}
+
+	return 0;
 }
 

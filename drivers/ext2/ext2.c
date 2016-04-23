@@ -31,6 +31,7 @@ static size_t ext2_read_data(struct ext2 *fs, size_t off, size_t len, void *buf)
 	int count = al / ext2_sb_blocksize(&fs->superblock);
 	uint32_t fsblock = off / ext2_sb_blocksize(&fs->superblock);
 
+	printk("***\n\n %ld %ld READ %d %d :: %d\n", off, len, fsblock, count, offset);
 	ext2_read_blockdev(fs, fsblock, count, phys, true);
 
 	memcpy(buf, (void *)(phys + PHYS_MAP_START + offset), len);
@@ -99,11 +100,11 @@ int ext2_inode_get(struct ext2 *ext2, uint64_t extid, struct ext2_inode *eno)
 	int groupnr = intid / ext2->superblock.inodes_per_group;
 	
 	struct ext2_blockgroup group;
-	ext2_read_data(ext2, ext2->superblock.first_data_block + 1 + 
-			(groupnr * sizeof(struct ext2_blockgroup)) / ext2_sb_blocksize(&ext2->superblock), sizeof(group), &group);
+	ext2_read_data(ext2, (ext2->superblock.first_data_block + 1) * ext2_sb_blocksize(&ext2->superblock) + 
+			(groupnr * sizeof(struct ext2_blockgroup)), sizeof(group), &group);
 
 	int inosz = ext2_sb_inodesize(&ext2->superblock);
-	ext2_read_data(ext2, group.inode_table + inosz * (intid % ext2->superblock.inodes_per_group),
+	ext2_read_data(ext2, group.inode_table * ext2_sb_blocksize(&ext2->superblock) + inosz * (intid % ext2->superblock.inodes_per_group),
 			sizeof(struct ext2_inode), eno);
 
 	return 0;
@@ -145,7 +146,7 @@ static int _lookup(struct inode *node, const char *name, size_t namelen, struct 
 	//struct ext2 *ext = node->fs->fsdata;
 	uintptr_t phys = mm_physical_allocate(arch_mm_page_size(0), false);
 
-	for(unsigned int page = 0;page < node->length / arch_mm_page_size(0);page++) {
+	for(unsigned int page = 0;page < (node->length-1) / arch_mm_page_size(0) + 1;page++) {
 		_read_page(node, page, phys);
 		struct ext2_dirent *dir = (void *)(phys + PHYS_MAP_START);
 		while((uintptr_t)dir < phys + PHYS_MAP_START + arch_mm_page_size(0)) {
@@ -169,27 +170,34 @@ static int _lookup(struct inode *node, const char *name, size_t namelen, struct 
 static size_t _getdents(struct inode *node, _Atomic size_t *start, struct gd_dirent *gd, size_t count)
 {
 	//struct ext2 *ext = node->fs->fsdata;
+	if(*start >= node->length)
+		return 0;
 	uintptr_t phys = mm_physical_allocate(arch_mm_page_size(0), false);
 
 	char *rec = (char *)gd;
 	size_t read = 0, dirread = 0;
 	size_t offset = *start % arch_mm_page_size(0);
+	printk("getdents: %ld, %ld\n", *start, count);
 	for(unsigned int page = *start / arch_mm_page_size(0);page < (node->length-1) / arch_mm_page_size(0) + 1;page++) {
+		printk("page %d, offset %ld\n", page, offset);
 		_read_page(node, page, phys);
 		struct ext2_dirent *dir = (void *)(phys + PHYS_MAP_START + offset);
-		while((uintptr_t)dir < phys + PHYS_MAP_START + arch_mm_page_size(0)) {
+		//printk(":: %d: %d %s %d\n", dir->inode, dir->name, dir->record_len);
+		while((uintptr_t)dir < phys + PHYS_MAP_START + arch_mm_page_size(0) && dirread < node->length) {
 			if(dir->inode > 0) {
 				int reclen = dir->name_len + sizeof(struct gd_dirent) + 1;
 				reclen = (reclen & ~15) + 16;
 				if(read + reclen >= count)
 					goto out;
-				struct gd_dirent *out = (void *)rec;
+				struct gd_dirent *out = (void *)(rec + read);
 				out->d_type = dir->type;
 				out->d_off = *start + reclen + read;
 				out->d_ino = dir->inode;
 				memcpy(out->d_name, dir->name, dir->name_len);
 				out->d_name[dir->name_len] = 0;
+				printk("read name %s\n", out->d_name);
 				out->d_reclen = reclen;
+				printk("read: %ld\n", read);
 				read += reclen;
 			}
 			dirread += dir->record_len;
@@ -225,6 +233,7 @@ static int _load_inode(struct filesystem *fs, uint64_t inoid, struct inode *node
 	struct ext2_inode eno;
 	ext2_inode_get(ext2, inoid, &eno);
 
+	printk("LOADING INODE %ld, %o\n", inoid, eno.mode);
 	node->uid = eno.uid;
 	node->mode = eno.mode;
 	node->links = eno.link_count;
@@ -255,6 +264,19 @@ static int _alloc_inode(struct filesystem *fs, uint64_t *out_id)
 	return 0;
 }
 
+static int _mount(struct filesystem *fs, struct blockdev *bd, unsigned long flags)
+{
+	(void)flags;
+	struct ext2 *ext2 = fs->fsdata = kobj_allocate(&kobj_ext2);
+	ext2->bdev = kobj_getref(bd);
+	if(block_read(bd, 2, 1, (uintptr_t)&ext2->superblock - PHYS_MAP_START, sizeof(ext2->superblock)) != 1) {
+		kobj_putref(bd);
+		kobj_putref(ext2);
+		return -EIO;
+	}
+	return 0;
+}
+
 static struct inode_ops ext2_inode_ops = {
 	.read_page = _read_page,
 	.write_page = _write_page,
@@ -268,6 +290,9 @@ static struct inode_ops ext2_inode_ops = {
 static struct fs_ops ext2_fs_ops = {
 	.load_inode = _load_inode,
 	.alloc_inode = _alloc_inode,
+	.update_inode = 0,
+	.unmount = 0,
+	.mount = _mount,
 };
 
 struct fsdriver ext2fs = {

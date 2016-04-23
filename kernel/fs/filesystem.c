@@ -76,6 +76,57 @@ struct file_calls fs_fops = {
 	.unmap = _fs_inode_unmap,
 };
 
+int fs_mount(struct inode *point, struct filesystem *fs)
+{
+	struct filesystem *exp = NULL;
+	fs->up_mount.fsid = point->id.fsid;
+	fs->up_mount.inoid = point->id.inoid;
+	return atomic_compare_exchange_strong(&point->mount, &exp, fs) ? 0 : -EBUSY;
+}
+
+void fs_unload_filesystem(struct filesystem *fs)
+{
+	fs->driver->fs_ops->unmount(fs);
+	kobj_putref(fs);
+}
+
+struct filesystem *fs_load_filesystem(struct blockdev *bd, const char *type, unsigned long flags, int *err)
+{
+	if(type) {
+		struct fsdriver *driver = hash_lookup(&drivers, type, strlen(type));
+		if(!driver) {
+			*err = -ENODEV;
+			return NULL;
+		}
+		struct filesystem *fs = kobj_allocate(&kobj_filesystem);
+		fs->driver = driver;
+		if((*err = driver->fs_ops->mount(fs, bd, flags) < 0)) {
+			kobj_putref(fs);
+			return NULL;
+		}
+		return fs;
+	} else {
+		struct filesystem *fs = kobj_allocate(&kobj_filesystem);
+		__hash_lock(&drivers);
+		struct hashiter iter;
+		for(hash_iter_init(&iter, &drivers);
+				!hash_iter_done(&iter); hash_iter_next(&iter)) {
+			struct fsdriver *driver = hash_iter_get(&iter);
+
+			fs->driver = driver;
+			int e = driver->fs_ops->mount(fs, bd, flags);
+			if(e == 0) {
+				*err = 0;
+				return fs;
+			}
+		}
+		__hash_unlock(&drivers);
+		*err = -ENODEV;
+		kobj_putref(fs);
+		return NULL;
+	}
+}
+
 int fs_load_inode(uint64_t fsid, uint64_t inoid, struct inode *node)
 {
 	if(fsid == 0)

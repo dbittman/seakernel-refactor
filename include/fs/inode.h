@@ -28,7 +28,7 @@ struct inode {
 	struct inode_id id;
 
 	struct filesystem *fs;
-	struct filesystem *mount;
+	struct filesystem * _Atomic mount;
 
 	_Atomic uint16_t mode;
 	_Atomic uint16_t links;

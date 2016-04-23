@@ -42,7 +42,7 @@ static void _init_entry(void *arg)
 
 	current_thread->process->pgroupid = 1;
 	current_thread->process->seshid = 1;
-	int ret = sys_execve("/bin/sinit", argv, env);
+	int ret = sys_execve("/bin/init", argv, env);
 	printk("failed to start init: %d\n", ret);
 	for(;;);
 }
@@ -71,6 +71,9 @@ static void init_worker(struct worker *worker)
 	test_late();
 #endif
 	
+	int e = sys_mount("/dev/ada0", "/mnt", NULL, 0, NULL);
+	printk(":: %d\n", e);
+
 	sys_fork(&_init_entry, 0);
 	
 	worker_exit(worker, 0);

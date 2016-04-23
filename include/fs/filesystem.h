@@ -10,6 +10,7 @@
 
 struct inode;
 struct dirent;
+struct blockdev;
 
 struct inode_ops {
 	int (*read_page)(struct inode *, int pagenr, uintptr_t phys);
@@ -23,6 +24,8 @@ struct inode_ops {
 
 struct filesystem;
 struct fs_ops {
+	int (*mount)(struct filesystem *fs, struct blockdev *bd, unsigned long flags);
+	int (*unmount)(struct filesystem *fs);
 	int (*load_inode)(struct filesystem *fs, uint64_t inoid, struct inode *node);
 	int (*alloc_inode)(struct filesystem *fs, uint64_t *inoid);
 	int (*update_inode)(struct filesystem *fs, struct inode *node);
@@ -42,6 +45,7 @@ struct filesystem {
 	struct fsdriver *driver;
 	void *fsdata;
 	struct mutex lock;
+	struct inode_id up_mount;
 };
 
 #define FILESYSTEM_INIT_ORDER 100
@@ -49,7 +53,10 @@ struct filesystem {
 int fs_load_inode(uint64_t fsid, uint64_t inoid, struct inode *node);
 void fs_update_inode(struct inode *node);
 int filesystem_register(struct fsdriver *driver);
+struct filesystem *fs_load_filesystem(struct blockdev *bd, const char *type, unsigned long flags, int *err);
+void fs_unload_filesystem(struct filesystem *fs);
 void filesystem_deregister(struct fsdriver *driver);
+int fs_mount(struct inode *point, struct filesystem *fs);
 
 extern struct fsdriver ramfs;
 
