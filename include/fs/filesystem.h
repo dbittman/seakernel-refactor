@@ -18,7 +18,7 @@ struct inode_ops {
 	int (*update)(struct inode *);
 	int (*lookup)(struct inode *, const char *name, size_t namelen, struct dirent *);
 	int (*link)(struct inode *, const char *name, size_t namelen, struct inode *);
-	size_t (*getdents)(struct inode *node, size_t, struct gd_dirent *, size_t);
+	size_t (*getdents)(struct inode *node, _Atomic size_t *, struct gd_dirent *, size_t);
 };
 
 struct filesystem;
@@ -48,6 +48,8 @@ struct filesystem {
 
 int fs_load_inode(uint64_t fsid, uint64_t inoid, struct inode *node);
 void fs_update_inode(struct inode *node);
+int filesystem_register(struct fsdriver *driver);
+void filesystem_deregister(struct fsdriver *driver);
 
 extern struct fsdriver ramfs;
 

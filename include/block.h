@@ -46,3 +46,4 @@ void blockdriver_register(struct blockdriver *driver);
 void blockdev_register(struct blockdev *bd, struct blockdriver *drv);
 struct blockdev *blockdev_get(int major, int minor);
 int block_read(struct blockdev *bd, unsigned long start, int count, uintptr_t phys, bool cache);
+int block_write(struct blockdev *bd, unsigned long start, int count, uintptr_t phys);

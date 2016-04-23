@@ -146,9 +146,7 @@ sysret_t sys_getdents(int fd, struct gd_dirent *dp, int count)
 		ret = -EACCES;
 		goto out;
 	}
-	ret = node->fs->driver->inode_ops->getdents(node, file->pos, dp, count);
-	if(ret > 0)
-		file->pos += ret;
+	ret = node->fs->driver->inode_ops->getdents(node, &file->pos, dp, count);
 out:
 	inode_put(node);
 	kobj_putref(file);

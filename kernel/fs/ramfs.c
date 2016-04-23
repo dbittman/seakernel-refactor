@@ -171,7 +171,7 @@ static int _lookup(struct inode *node, const char *name, size_t namelen, struct 
 	return 0;
 }
 
-static size_t _getdents(struct inode *node, size_t start, struct gd_dirent *gd, size_t count)
+static size_t _getdents(struct inode *node, _Atomic size_t *start, struct gd_dirent *gd, size_t count)
 {
 	struct ramfs_data *rfs = node->fs->fsdata;
 	assert(rfs != NULL);
@@ -189,14 +189,14 @@ static size_t _getdents(struct inode *node, size_t start, struct gd_dirent *gd, 
 		int reclen = rd->namelen + sizeof(struct gd_dirent) + 1;
 		reclen = (reclen & ~15) + 16;
 
-		if(read >= start) {
-			if(reclen + (read - start) > count)
+		if(read >= *start) {
+			if(reclen + (read - *start) > count)
 				break;
 			struct gd_dirent *dp = (void *)rec;
 			dp->d_reclen = reclen;
 			memcpy(dp->d_name, rd->name, rd->namelen);
 			dp->d_name[rd->namelen] = 0;
-			dp->d_off = read + reclen + start;
+			dp->d_off = read + reclen + *start;
 			dp->d_type = 0;
 			dp->d_ino = rd->ino;
 
@@ -206,6 +206,7 @@ static size_t _getdents(struct inode *node, size_t start, struct gd_dirent *gd, 
 	}
 
 	__hash_unlock(&ri->dirents);
+	*start += (uintptr_t)rec - (uintptr_t)gd;
 	return (uintptr_t)rec - (uintptr_t)gd;
 }
 

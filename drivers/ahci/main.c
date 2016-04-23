@@ -126,7 +126,12 @@ struct blockdriver ahci_driver = {
 	.read_blocks = _ahci_read,
 	.write_blocks = _ahci_write,
 	.name = "ahci",
-	.kobj_block = KOBJ_DEFAULT(block),
+	.kobj_block = {
+		.initialized = false,
+		.name = "kobj_block_ahci",
+		.size = sizeof(struct block) + 512,
+		.put = NULL, .init = NULL, .create = NULL, .destroy = NULL,
+	},
 };
 
 __orderedinitializer(__orderedafter(PCI_INITIALIZER_ORDER + DEVICE_INITIALIZER_ORDER))

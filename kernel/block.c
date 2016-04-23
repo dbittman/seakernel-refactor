@@ -169,6 +169,14 @@ int block_read(struct blockdev *bd, unsigned long start, int count, uintptr_t ph
 	return count;
 }
 
+int block_write(struct blockdev *bd, unsigned long start, int count, uintptr_t phys)
+{
+	for(int i=0;i<count;i++) {
+		block_cache_write(bd, start + i, phys + bd->drv->blksz * i);
+	}
+	return count;
+}
+
 struct blockdev *blockdev_get(int major, int minor)
 {
 	struct device *dev = dev_get(S_IFBLK, major);
