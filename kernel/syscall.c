@@ -82,6 +82,8 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_getitimer] = SC sys_getitimer,
 	[SYS_setitimer] = SC sys_setitimer,
 	[SYS_fadvise64] = SC sys_fadvise,
+	[SYS_clock_gettime] = SC sys_clock_gettime,
+	[SYS_clock_getres] = SC sys_clock_getres,
 
 	[SYS_arch_prctl] = SC sys_arch_prctl,
 

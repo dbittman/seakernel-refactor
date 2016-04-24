@@ -92,3 +92,28 @@ sysret_t sys_setitimer(int which, const struct itimerval *_new, struct itimerval
 	return 0;
 }
 
+#define CLOCK_REALTIME           0
+sysret_t sys_clock_getres(int id, struct timespec *res)
+{
+	(void)id;
+	res->tv_sec = 1;
+	res->tv_nsec = 0;
+	return 0;
+}
+
+sysret_t sys_clock_gettime(int id, struct timespec *res)
+{
+	switch(id) {
+		case CLOCK_REALTIME:
+#if FEATURE_SUPPORTED_GETTIME
+			res->tv_sec = arch_time_getepoch();
+			res->tv_nsec = 0;
+#else
+			return -ENOTSUP;
+#endif
+		default:
+			return -ENOTSUP;
+	}
+	return 0;
+}
+

@@ -149,7 +149,9 @@ void *kobj_getref(void *obj)
 {
 	struct kobj_header *header = obj;
 	int x = atomic_fetch_add(&header->_koh_refs, 1);
-	assert(x > 0);
+	if(x == 0) {
+		panic(0, "getting dangling pointer: %p, %s\n", obj, header->_koh_kobj->name);
+	}
 	return obj;
 }
 

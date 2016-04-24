@@ -27,7 +27,7 @@ struct pty {
 	struct termios term;
 };
 
-static _Atomic long _next_pty_id = 0;
+static _Atomic long _next_pty_id = 1;
 static struct kobj_idmap pty_idmap;
 
 struct pty_file {
@@ -73,14 +73,6 @@ static struct kobj kobj_pty = {
 };
 
 static struct kobj kobj_pty_file = KOBJ_DEFAULT(pty_file);
-
-
-
-
-
-
-
-
 
 static size_t pty_read_master(struct pty *pty, char *buffer, size_t length, bool block)
 {
@@ -194,11 +186,9 @@ static size_t pty_write_slave(struct pty *pty, const char *buffer, size_t length
 
 static ssize_t _pty_fops_read(struct file *file, size_t off, size_t len, char *buffer)
 {
-	if(!file->devdata)
-		return -EINVAL;
 	(void)off;
 	bool block = !(file->flags & O_NONBLOCK);
-	struct pty_file *pf = file->devdata;
+	struct pty_file *pf = file->devdata ? file->devdata : current_thread->process->pty;
 	if(pf->master)
 		return pty_read_master(pf->pty, buffer, len, block);
 	else
@@ -207,11 +197,9 @@ static ssize_t _pty_fops_read(struct file *file, size_t off, size_t len, char *b
 
 static ssize_t _pty_fops_write(struct file *file, size_t off, size_t len, const char *buffer)
 {
-	if(!file->devdata)
-		return -EINVAL;
 	(void)off;
 	bool block = !(file->flags & O_NONBLOCK);
-	struct pty_file *pf = file->devdata;
+	struct pty_file *pf = file->devdata ? file->devdata : current_thread->process->pty;
 	if(pf->master)
 		return pty_write_master(pf->pty, buffer, len, block);
 	else
@@ -233,21 +221,22 @@ static void _pty_fops_open(struct file *file)
 static void _pty_fops_create(struct file *file)
 {
 	struct inode *node = file_get_inode(file);
-	struct pty_file *pf = file->devdata = kobj_allocate(&kobj_pty_file);
-	if(node->minor != 0) {
+	struct pty_file *pf = kobj_allocate(&kobj_pty_file);
+	if(node->minor != 0 && node->minor != 1) {
 		long id = node->minor;
 		pf->pty = kobj_idmap_lookup(&pty_idmap, &id);
 		pf->master = false;
-	} else {
+		file->devdata = pf;
+	} else if(node->minor == 0) {
 		pf->master = true;
 		struct pty *np = kobj_allocate(&kobj_pty);
 		char str[128];
 		snprintf(str, 128, "/dev/pts/%ld", np->id);
 		sys_mknod(str, S_IFCHR | 0666, makedev(dev.devnr, np->id));
 		pf->pty = np;
+		file->devdata = pf;
 	}
 	inode_put(node);
-	assert(pf->pty != NULL);
 }
 
 static void _pty_fops_destroy(struct file *file)
@@ -261,7 +250,7 @@ static void _pty_fops_destroy(struct file *file)
 static int _pty_fops_ioctl(struct file *file, long cmd, long arg)
 {
 	int ret = 0;
-	struct pty_file *pf = file->devdata;
+	struct pty_file *pf = file->devdata ? file->devdata : current_thread->process->pty;
 	switch(cmd) {
 		case TIOCGPTN:
 			if(pf->master) {
@@ -299,7 +288,7 @@ static int _pty_fops_ioctl(struct file *file, long cmd, long arg)
 
 static int _pty_fops_select(struct file *file, int flags, struct blockpoint *bp)
 {
-	struct pty_file *pf = file->devdata;
+	struct pty_file *pf = file->devdata ? file->devdata : current_thread->process->pty;
 	struct pty *pty = pf->pty;
 	if(flags & SEL_ERROR)
 		return -1;
@@ -348,6 +337,7 @@ static void _late_init(void)
 {
 	int r = sys_mknod("/dev/ptmx", S_IFCHR | 0666, makedev(dev.devnr, 0));
 	assert(r == 0);
+	sys_mknod("/dev/tty", S_IFCHR | 0666, makedev(dev.devnr, 1));
 	r = sys_open("/dev/pts", O_RDWR | O_CREAT, S_IFDIR | 0777);
 	sys_close(r);
 }

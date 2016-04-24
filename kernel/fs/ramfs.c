@@ -261,6 +261,9 @@ static void _ramfs_create(void *obj)
 	root->id = 1;
 	root->mode = S_IFDIR | 0755;
 	hash_insert(&ramfs_data->inodes, &root->id, sizeof(root->id), &root->elem, root);
+
+	__ramfs_do_link(root, ".", 1, root);
+	__ramfs_do_link(root, "..", 2, root);
 }
 
 static void _ramfs_destroy(void *obj)
@@ -396,8 +399,6 @@ void initial_rootfs_init(void)
 	struct inode *node = inode_lookup(&id);
 	assert(node != NULL);
 
-	_link(node, ".", 1, node);
-	_link(node, "..", 2, node);
 
 	current_thread->process->cwd = kobj_getref(node);
 	current_thread->process->root = node;

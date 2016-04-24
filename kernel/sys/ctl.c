@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <thread.h>
 #include <process.h>
+#include <printk.h>
 sysret_t sys_fcntl(int fd, int cmd, long arg)
 {
 	struct file *file = process_get_file(fd);
@@ -23,7 +24,9 @@ sysret_t sys_fcntl(int fd, int cmd, long arg)
 		case F_GETFL:
 			ret = file->flags;
 			break;
-
+		case F_DUPFD:
+			ret = process_allocate_fd(file, (int)arg);
+			break;
 		default:
 			ret = -EINVAL;
 	}

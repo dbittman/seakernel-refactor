@@ -115,7 +115,7 @@ static int _read_page(struct inode *node, int pagenr, uintptr_t phys)
 	int blocknr = pagenr * arch_mm_page_size(0) / ext2_sb_blocksize(&ext2->superblock);
 	int count = arch_mm_page_size(0) / ext2_sb_blocksize(&ext2->superblock);
 
-	printk("read page %ld %d\n", node->id.inoid, pagenr);
+	//printk("read page %ld %d\n", node->id.inoid, pagenr);
 	struct ext2_inode eno;
 	ext2_inode_get(ext2, node->id.inoid, &eno);
 

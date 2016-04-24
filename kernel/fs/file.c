@@ -23,6 +23,7 @@ static void _file_init(void *obj)
 	file->dirent = NULL;
 	file->ops = NULL;
 	file->devtype = FDT_UNKNOWN;
+	file->devdata = NULL;
 }
 
 static void _file_create(void *obj)
@@ -89,7 +90,7 @@ struct file *file_create(struct dirent *dir, enum file_device_type type)
 
 struct file *process_exchange_fd(struct file *file, int i)
 {
-	if(i >= MAX_FD)
+	if(i >= MAX_FD || i < 0)
 		return NULL;
 	spinlock_acquire(&current_thread->process->files_lock);
 	struct process *proc = current_thread->process;
@@ -101,11 +102,13 @@ struct file *process_exchange_fd(struct file *file, int i)
 	return of;
 }
 
-int process_allocate_fd(struct file *file)
+int process_allocate_fd(struct file *file, int start)
 {
+	if(start < 0)
+		return -EINVAL;
 	spinlock_acquire(&current_thread->process->files_lock);
 	struct process *proc = current_thread->process;
-	for(int i=0;i<MAX_FD;i++) {
+	for(int i=start;i<MAX_FD;i++) {
 		if(proc->files[i].file == NULL) {
 			proc->files[i].file = kobj_getref(file);
 			proc->files[i].flags = 0;
@@ -116,7 +119,7 @@ int process_allocate_fd(struct file *file)
 		}
 	}
 	spinlock_release(&current_thread->process->files_lock);
-	return -1;
+	return -EMFILE;
 }
 
 void process_release_fd(int fd)
@@ -157,8 +160,6 @@ void process_copy_files(struct process *from, struct process *to)
 			struct file *f = to->files[i].file;
 			if(f->ops && f->ops->open)
 				f->ops->open(f);
-			if(f->devdata)
-				kobj_getref(f->devdata); //TODO: should we...actually do this?
 		}
 	}
 	spinlock_release(&from->files_lock);

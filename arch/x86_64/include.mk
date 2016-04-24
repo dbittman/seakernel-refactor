@@ -5,7 +5,7 @@ LDFLAGS+=-mcmodel=kernel -Wl,-z,max-page-size=4096
 # these are defined by machine's include.mk
 CFLAGS+=-DKERNEL_LOAD_OFFSET=$(KERNEL_LOAD_OFFSET) -DKERNEL_PHYS_BASE=$(KERNEL_PHYS_BASE) -DKERNEL_VIRT_BASE=$(KERNEL_VIRT_BASE) $(addprefix -D,$(ARCH_SUPPORTED))
 
-ARCH_SUPPORTED=FEATURE_SUPPORTED_UNWIND FEATURE_SUPPORTED_CYCLE_COUNT
+ARCH_SUPPORTED=FEATURE_SUPPORTED_UNWIND FEATURE_SUPPORTED_CYCLE_COUNT FEATURE_SUPPORTED_GETTIME
 
 CRTIOBJ=arch/x86_64/kernel/crti.o
 CRTNOBJ=arch/x86_64/kernel/crtn.o
@@ -20,6 +20,7 @@ C_SOURCES+=arch/x86_64/kernel/init.c \
 		   arch/x86_64/kernel/mmu.c \
 		   arch/x86_64/kernel/processor.c \
 		   arch/x86_64/kernel/timer.c \
+		   arch/x86_64/kernel/time.c \
 		   arch/x86_64/kernel/idt.c \
 		   arch/x86_64/kernel/tss.c \
 		   arch/x86_64/kernel/gdt.c \

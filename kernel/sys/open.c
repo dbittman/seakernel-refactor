@@ -43,7 +43,7 @@ sysret_t sys_open(const char *path, int flags, int mode)
 	file->pos = 0;
 	file->flags = flags;
 
-	int fd = process_allocate_fd(file);
+	int fd = process_allocate_fd(file, 0);
 	if(fd < 0) {
 		inode_put(node);
 		kobj_putref(file);
@@ -68,7 +68,7 @@ sysret_t sys_dup(int old)
 	if(!file)
 		return -EBADF;
 
-	int nf = process_allocate_fd(file);
+	int nf = process_allocate_fd(file, 0);
 	kobj_putref(file);
 	return nf;
 }
@@ -156,7 +156,7 @@ sysret_t sys_lseek(int fd, ssize_t off, int whence)
 			} break;
 	}
 	kobj_putref(file);
-	return ret;
+	return ret ? ret : file->pos;
 }
 
 sysret_t sys_mkdir(const char *path, int mode)

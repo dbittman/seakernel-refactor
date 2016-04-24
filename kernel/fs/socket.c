@@ -55,7 +55,7 @@ sysret_t sys_socket(int domain, int type, int protocol)
 		return -EINVAL;
 	struct file *file = file_create(NULL, FDT_SOCK);
 	file->flags |= F_READ | F_WRITE;
-	int fd = process_allocate_fd(file);
+	int fd = process_allocate_fd(file, 0);
 	if(fd < 0) {
 		kobj_putref(file);
 		return -EMFILE;
@@ -77,13 +77,13 @@ sysret_t sys_socketpair(int domain, int type, int protocol, int *sv)
 
 	f1->flags |= F_READ | F_WRITE;
 	f2->flags |= F_READ | F_WRITE;
-	int fd1 = process_allocate_fd(f1);
+	int fd1 = process_allocate_fd(f1, 0);
 	if(fd1 < 0) {
 		kobj_putref(f1);
 		kobj_putref(f2);
 		return -EMFILE;
 	}
-	int fd2 = process_allocate_fd(f2);
+	int fd2 = process_allocate_fd(f2, 0);
 	if(fd2 < 0) {
 		kobj_putref(f1);
 		kobj_putref(f2);

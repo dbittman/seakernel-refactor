@@ -230,6 +230,10 @@ ssize_t sys_readlink(const char *path, char *buf, size_t bufsz)
 	if(err < 0)
 		return -err;
 
+	if(!S_ISLNK(node->mode)) {
+		inode_put(node);
+		return -EINVAL;
+	}
 	err = node->fs->driver->inode_ops->readlink(node, buf, bufsz);
 	inode_put(node);
 	return err ? err : strlen(buf);
