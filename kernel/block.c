@@ -91,10 +91,19 @@ static void _handle_request(void *_req)
 static void __elevator(struct worker *worker)
 {
 	struct blockdev *bd = worker_arg(worker);
+	int timeout = 0;
 	while(worker_notjoining(worker)) {
 		/* TODO: sleeeeeep */
 		workqueue_execute(&bd->requests);
-		schedule();
+		if(workqueue_empty(&bd->requests) && !timeout--) {
+			struct blockpoint bp;
+			blockpoint_create(&bp, 0, 0);
+			blockpoint_startblock(&bd->wait, &bp);
+			if(workqueue_empty(&bd->requests))
+				schedule();
+			blockpoint_cleanup(&bp);
+			timeout = 10000;
+		}
 	}
 	worker_exit(worker, 0);
 }
@@ -117,6 +126,7 @@ static void _blockdev_create(void *obj)
 	workqueue_create(&bd->requests);
 	hash_create(&bd->cache, HASH_LOCKLESS, 4096);
 	spinlock_create(&bd->cache_lock);
+	blocklist_create(&bd->wait);
 	_blockdev_init(obj);
 }
 
@@ -148,6 +158,7 @@ static int __do_request(struct blockdev *bd, unsigned long start, int count, uin
 
 	struct workitem wi = { .fn = _handle_request, .arg = kobj_getref(req) };
 	workqueue_insert(&bd->requests, &wi);
+	blocklist_unblock_all(&bd->wait);
 	schedule();
 
 	enum block_result res = blockpoint_cleanup(&bp);

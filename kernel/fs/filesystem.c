@@ -5,6 +5,7 @@
 #include <string.h>
 #include <errno.h>
 #include <file.h>
+#include <printk.h>
 static struct kobj_idmap active_filesystems;
 
 static struct hash drivers;
@@ -117,6 +118,7 @@ struct filesystem *fs_load_filesystem(struct blockdev *bd, const char *type, uns
 			int e = driver->fs_ops->mount(fs, bd, flags);
 			if(e == 0) {
 				*err = 0;
+				__hash_unlock(&drivers);
 				return fs;
 			}
 		}

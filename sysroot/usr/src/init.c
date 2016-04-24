@@ -1,119 +1,74 @@
-#include <stdio.h>
+#include <signal.h>
 #include <unistd.h>
+#include <sys/wait.h>
+#include <stdlib.h>
+#include <sys/mount.h>
+#include <sys/stat.h>
 #include <fcntl.h>
+#include <syslog.h>
 #include <string.h>
 #include <errno.h>
-#include <syslog.h>
 
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <sys/select.h>
-#include <signal.h>
-#include <sys/mman.h>
-#include <pty.h>
-
-void handler(int sig)
+int main()
 {
-	fprintf(stderr, "SIGNAL HANDLER! %d\n", sig);
-}
+    sigset_t set;
+    int status;
 
-int main(int argc, char **argv)
-{
-/*
-	int f = open("/dev/vga", O_RDWR);
-	
-	void *addr = mmap(NULL, 0x1000, PROT_WRITE | PROT_READ, MAP_SHARED, f, 0);
-	printf("%p\n", addr);
-	unsigned char *screen = addr;
+    if (getpid() != 1) return 1;
 
-	*screen = 'H';
-	*(screen+1) = 0x07;
+    sigfillset(&set);
+    sigprocmask(SIG_BLOCK, &set, 0);
 
-	printf("done\n");
+    if (fork()) for (;;) wait(&status);
 
-	int master, slave;
+    sigprocmask(SIG_UNBLOCK, &set, 0);
 
-	char name[128];
-	int r = openpty(&master, &slave, name, NULL, NULL);
-	fprintf(stderr, ":: %d %d %d : %s\n", r, master, slave, name);
+    setsid();
+    setpgid(0, 0);
 
-	write(master, "Hello wm\n", 9);
-	write(slave, "Hello ws\n", 9);
-
-	fprintf(stderr, "okay\n");
-
-	char buf[128];
-	r = read(master, buf, 128);
-	fprintf(stderr, "m: %d : %s\n", r, buf);
-	r = read(slave, buf, 128);
-	fprintf(stderr, "s: %d : %s\n", r, buf);
-
-	for(;;);
-	//signal(SIGALRM, handler);
-	alarm(1);
-	for(;;);
-	fprintf(stderr, "Hello world from init!\n");
-
-	/*while(1) {
-		fprintf(stderr, "ONE SECOND\n");
-		sleep(1);
+	switch(fork()) {
+		int logfd;
+		case 0:
+			logfd = open("/dev/com0", O_RDWR);
+			if(logfd == -1)
+				exit(1);
+			dup2(logfd, 0);
+			dup2(logfd, 1);
+			dup2(logfd, 2);
+			execl("/bin/syslogd", "syslogd", (char *)NULL);
+			exit(1);
+		case -1:
+			return 1;
 	}
 
-	for(;;);*/
-	if(!fork()) {
-		close(2);
-		close(1);
-		close(0);
-		open("/dev/com0", O_RDWR);
-		open("/dev/com0", O_RDWR);
-		open("/dev/com0", O_RDWR);
-		execvp("/bin/syslogd", NULL);
-		perror("execvp");
+	int fd;
+	while((fd = open("/dev/log", O_WRONLY)) == -1)
+		;
+	close(fd);
+
+	openlog("init", 0, LOG_DAEMON);
+
+	syslog(LOG_NOTICE, "mounting root");
+
+	if(mount("/dev/ada0", "/mnt", NULL, 0, NULL) == -1) {
+		syslog(LOG_EMERG, "failed to mount root device: %s", strerror(errno));
+		exit(1);
+	}
+	mkdir("/mnt/dev", 0777);
+	if(mount("/dev", "/mnt/dev", NULL, MS_BIND, NULL) == -1) {
+		syslog(LOG_EMERG, "failed to remount devfs: %s", strerror(errno));
 		exit(1);
 	}
 
-	while(1) {
-		int f = open("/dev/log", O_RDONLY);
-		if(f >= 0) {
-			close(f);
-			break;
-		}
-	}
-
-	if(!fork()) {
-		execlp("/bin/cond", "cond",
-				//"-a", "login",
-				//"-1", "sh /etc/rc/boot",
-				"-1", "bash --login", (char *)NULL,
-				"-a", "bash --login", (char *)NULL);
-		perror("execvp cond");
+	syslog(LOG_NOTICE, "chrooting");
+	if(chdir("/mnt") == -1) {
+		syslog(LOG_EMERG, "failed to chdir: %s", strerror(errno));
 		exit(1);
 	}
-
-	for(;;) sleep(100);
-
-	fprintf(stderr, "START LOG\n");
-	int pid;
-	if(!(pid=fork()))  {
-		signal(SIGINT, handler);
-		sleep(1);
-		openlog("init2", 0, LOG_USER);
-		while(1) {
-		//fprintf(stderr, "init2\n");
-			syslog(LOG_WARNING, "Test log message\n");
-			sleep(3);
-		}
-		closelog();
+	if(chroot("/mnt") == -1) {
+		syslog(LOG_EMERG, "failed to chroot: %s", strerror(errno));
+		exit(1);
 	}
-	fprintf(stderr, "child process pid = %d\n", pid);
-	openlog("init", 0, LOG_USER);
-	while(1) {
-		syslog(LOG_WARNING, "Test log message\n");
-			sleep(1);
-		fprintf(stderr, "init: SENDING SIGNAL\n");
-			kill(pid, SIGINT);
-	}
-	closelog();
-	return 0;
+	return execl("/bin/cond", "cond", "-a", "bash --login", "-1", "bash --login", (char *)NULL);
 }
 

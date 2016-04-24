@@ -1,4 +1,7 @@
 toolchain
 toolchain-4.9
 build
-
+initrd
+sysroot-install
+sysroot
+!sysroot/usr/src

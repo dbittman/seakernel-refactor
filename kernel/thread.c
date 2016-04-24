@@ -93,7 +93,8 @@ int thread_current_priority(struct thread *thr)
 		proc->time = time;
 		return 0;
 	}
-	return (-(MAX_THREAD_PRIORITY * time) / proc->time) + MAX_THREAD_PRIORITY;
+	int p = (-(MAX_THREAD_PRIORITY * time) / proc->time) + MAX_THREAD_PRIORITY;
+	return p;
 }
 
 _Noreturn void thread_exit(struct thread *thread)

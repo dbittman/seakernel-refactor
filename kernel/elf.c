@@ -133,7 +133,6 @@ intptr_t elf_check_interp(struct elf_header *header, int fd, uintptr_t *entry)
 			char interp_string[256];
 			sys_pread(fd, interp_string, sizeof(interp_string), ph->p_offset);
 			interp_string[ph->p_filesz - 1] = 0;
-			printk("interpreter: %s\n", interp_string);
 			return elf_load_interp(interp_string, entry);
 		}
 	}

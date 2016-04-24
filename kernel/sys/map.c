@@ -10,7 +10,6 @@
 
 intptr_t sys_mmap(uintptr_t addr, size_t len, int prot, int flags, int fd, size_t off)
 {
-	printk("mmap %lx %lx, %x %x, %d %lx\n", addr, len, prot, flags, fd, off);
 	if(len == 0
 			|| (!(flags & MMAP_MAP_PRIVATE) && !(flags & MMAP_MAP_SHARED))
 			|| ((flags & MMAP_MAP_PRIVATE) && (flags & MMAP_MAP_SHARED)))
@@ -52,7 +51,6 @@ intptr_t sys_mmap(uintptr_t addr, size_t len, int prot, int flags, int fd, size_
 	} else {
 		virt = process_allocate_mmap_region(current_thread->process, len);
 	}
-	printk("--> %lx - %lx\n", virt, virt + len);
 	map_mmap(virt, file, prot, flags, len, off);
 
 	if(file)

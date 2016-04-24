@@ -6,7 +6,7 @@
 #include <fs/sys.h>
 #include <errno.h>
 #include <process.h>
-
+#include <processor.h>
 #define MAX_SYSCALL 1024
 
 typedef long (*syscall_t)(long, long, long, long, long, long);
@@ -46,6 +46,8 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_chdir]     = SC sys_chdir,
 	[SYS_fchdir]    = SC sys_fchdir,
 	[SYS_mount]     = SC sys_mount,
+	[SYS_chroot]    = SC sys_chroot,
+	[SYS_readlink]  = SC sys_readlink,
 
 	[SYS_socket]   = SC sys_socket,
 	[SYS_socketpair]   = SC sys_socketpair,
@@ -101,6 +103,7 @@ long syscall_entry(long num,
 		long arg5,
 		long arg6)
 {
+	assert(current_thread->processor->preempt_disable == 0);
 	arch_interrupt_set(1);
 
 	long ret;
@@ -113,6 +116,9 @@ long syscall_entry(long num,
 	}
 
 	arch_interrupt_set(0);
+	if(current_thread->processor->preempt_disable != 0)
+		panic(0, "returning to userspace with preempt_disable=%d (#%ld)\n", current_thread->processor->preempt_disable, num);
+	assert(current_thread->processor->preempt_disable == 0);
 	if(current_thread->flags & THREAD_RESCHEDULE)
 		schedule();
 	return ret;

@@ -37,8 +37,8 @@ struct process {
 	int pid;
 	_Atomic uintptr_t next_user_tls, next_mmap_reg;
 
-	struct filesystem *root;
-	struct dirent * _Atomic cwd;
+	struct inode * _Atomic root;
+	struct inode * _Atomic cwd;
 	int cmask;
 	_Atomic int uid, gid, euid, egid, sgid, suid;
 	_Atomic int seshid, pgroupid;
@@ -69,7 +69,7 @@ static inline int process_make_status(int code, int sig, bool exited, bool cored
 {
 	int st = 0;
 	if(exited) {
-		st |= code << 8;
+		st |= (unsigned)code << 8;
 	} else {
 		st |= sig;
 		if(coredump) st |= 0x80;

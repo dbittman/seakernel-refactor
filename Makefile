@@ -142,21 +142,25 @@ autotest:
 
 -include $(OBJECTS:.o=.d)
 
-ALL_SYSROOT=$(shell find sysroot)
-$(BUILDDIR)/initrd.tar: $(ALL_SYSROOT) $(USRPROGS) Makefile
+$(BUILDDIR)/initrd.tar: $(USRPROGS)
 	@echo -e "[TAR]\t$(BUILDDIR)/initrd.tar"
 	@-rm $(BUILDDIR)/initrd.tar 2>/dev/null
-	@tar --format=ustar -C sysroot -c -f $(BUILDDIR)/initrd.tar .
-	@mkdir -p sysroot-install
-	@tar --format=ustar -C sysroot-install -r -f $(BUILDDIR)/initrd.tar .
+	@tar --format=ustar -C initrd -c -f $(BUILDDIR)/initrd.tar .
 
+$(BUILDDIR)/hd.img: $(USRPROGS)
+	truncate -s 1GB $(BUILDDIR)/hd.img
+	mke2fs -F $(BUILDDIR)/hd.img
+	mkdir -p $(BUILDDIR)/mnt
+	sudo mount $(BUILDDIR)/hd.img $(BUILDDIR)/mnt
+	sudo cp -r sysroot/* sysroot-install/* $(BUILDDIR)/mnt/
+	sudo mkdir -p $(BUILDDIR)/mnt/bin
+	sudo mkdir -p $(BUILDDIR)/mnt/dev
+	sudo cp $(USRPROGS) $(BUILDDIR)/mnt/bin
+	sudo umount $(BUILDDIR)/mnt
 
+QEMU_AHCI=-device ahci,id=ahci0 -drive if=none,file=$(BUILDDIR)/hd.img,format=raw,id=drive-sata0-0-0 -device ide-drive,bus=ahci0.0,drive=drive-sata0-0-0,id=sata0-0-0
 
-
-QEMU_AHCI=-device ahci,id=ahci0 -drive if=none,file=hd.img,format=raw,id=drive-sata0-0-0 -device ide-drive,bus=ahci0.0,drive=drive-sata0-0-0,id=sata0-0-0
-
-
-test: $(BUILDDIR)/kernel.elf $(USRPROGS) $(BUILDDIR)/initrd.tar
+test: $(BUILDDIR)/kernel.elf $(USRPROGS) $(BUILDDIR)/initrd.tar $(BUILDDIR)/hd.img
 	qemu-system-$(ARCH) -m 1024  -machine $(MACHINE) $(QEMU_FLAGS) -kernel $(BUILDDIR)/kernel.elf -serial stdio -initrd $(BUILDDIR)/initrd.tar $(QEMU_AHCI)
 
 clean: clean_progs

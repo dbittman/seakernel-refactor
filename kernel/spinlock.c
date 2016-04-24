@@ -12,9 +12,10 @@ void spinlock_create(struct spinlock *lock)
 void spinlock_acquire(struct spinlock *lock)
 {
 	int interrupt = arch_interrupt_set(0);
-	processor_disable_preempt();
+	if(current_thread)
+		current_thread->processor->preempt_disable++;
 	while(atomic_exchange(&lock->lock, true))
-		;
+		asm("pause"); //TODO: arch-dep
 	lock->interrupt = interrupt;
 }
 
@@ -22,7 +23,8 @@ void spinlock_release(struct spinlock *lock)
 {
 	int interrupt = lock->interrupt;
 	atomic_store(&lock->lock, false);
-	processor_enable_preempt();
+	if(current_thread)
+		current_thread->processor->preempt_disable--;
 	arch_interrupt_set(interrupt);
 }
 

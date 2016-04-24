@@ -14,6 +14,7 @@ struct blockdev {
 	struct spinlock cache_lock;
 	struct worker kio;
 	struct attachment attach;
+	struct blocklist wait;
 };
 
 struct blockdriver {

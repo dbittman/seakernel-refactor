@@ -46,7 +46,7 @@ static inline struct processor *processor_get_id(int id)
 static inline struct processor *processor_get_current(void)
 {
 	int old = arch_interrupt_set(0);
-	struct processor *proc = processor_get_id(arch_processor_current_id());
+	struct processor *proc = current_thread ? current_thread->processor : processor_get_id(arch_processor_current_id());
 	atomic_fetch_add(&proc->preempt_disable, 1);
 	arch_interrupt_set(old);
 	return proc;

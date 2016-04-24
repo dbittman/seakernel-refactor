@@ -11,24 +11,25 @@
 #include <errno.h>
 TRACE_DEFINE(path_trace, "path");
 
-struct dirent *follow_symlink(struct inode *node, int *err)
+int __resolve_symlink(struct inode *node, struct inode *parent, int depth, struct dirent **dir_out, struct inode **ino_out)
 {
+	assert(S_ISLNK(node->mode));
 	char path[256];
-	struct dirent *dir = NULL;
-	if(S_ISLNK(node->mode)) {
-		memset(path, 0, 256);
-		inode_do_read_data(node, 0, 255, path);
-		/* TODO: follow by default? */
-		*err = fs_path_resolve(path, node, PATH_SYMLINK, 0, &dir, NULL);
-		if(*err < 0)
-			return NULL;
-	}
-	return dir;
+	int err;
+	if((err=node->fs->driver->inode_ops->readlink(node, path, 255) != 0))
+		return err;
+	if((err=fs_path_resolve(path, parent, (depth + 1) << 16, 0, dir_out, ino_out) != 0))
+		return err;
+	return 0;
 }
 
 static struct dirent *inode_lookup_dirent(struct inode *node, const char *name, size_t namelen, int *err)
 {
 	TRACE(&path_trace, "lookup dirent: %ld, %s %d", node->id.inoid, name, namelen);
+	if(!S_ISDIR(node->mode)) {
+		*err = -ENOTDIR;
+		return NULL;
+	}
 	struct dirent *dir = kobj_allocate(&kobj_dirent);
 	mutex_acquire(&node->lock);
 	if((*err = node->fs->driver->inode_ops->lookup(node, name, namelen, dir)) == 0) {
@@ -90,14 +91,26 @@ int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode,
 	if(_start) {
 		start = kobj_getref(_start);
 	} else {
-		dir = kobj_getref(current_thread->process->cwd);
-		start = dirent_get_inode(dir);
+		start = kobj_getref(current_thread->process->cwd);
 	}
 	if(*path == '/') {
 		path++;
 		inode_put(start);
-		if(!(start = fs_inode_lookup(current_thread->process->root, current_thread->process->root->driver->rootid))) {
-			return -ENOENT;
+		start = kobj_getref(current_thread->process->root);
+		if(!*path) {
+			if(dir_out) {
+				dir = kobj_allocate(&kobj_dirent);
+				dir->name[0] = '/';
+				dir->namelen = 1;
+				dir->ino.fsid = start->fs->id;
+				dir->ino.inoid = start->id.inoid;
+				*dir_out = dir;
+			}
+			if(ino_out)
+				*ino_out = start;
+			else
+				kobj_putref(start);
+			return 0;
 		}
 	}
 
@@ -136,6 +149,28 @@ int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode,
 				}
 			}
 			struct inode *next = dirent_get_inode(dir);
+
+			if(S_ISLNK(next->mode) && (*sep || !(flags & PATH_NOFOLLOW))) {
+				if(flags >> 16 >= 64) {
+					inode_put(node);
+					kobj_putref(dir);
+					inode_put(next);
+					return -ELOOP;
+				}
+				struct inode *lnk;
+				struct dirent *dirlnk;
+
+				err = __resolve_symlink(next, node, flags >> 16, &dirlnk, &lnk);
+				inode_put(next);
+				kobj_putref(dir);
+				if(err) {
+					inode_put(node);
+					return err;
+				}
+				dir = dirlnk;
+				next = lnk;
+			}
+
 			inode_put(node);
 			node = next;
 		}

@@ -162,6 +162,8 @@ void kobj_lru_put(struct kobj_lru *lru, void *obj)
 	kobj_putref(obj);
 
 	struct kobj_header *header = obj;
+	if(header->_koh_refs < 2)
+		panic(0, "double free");
 	if(header->_koh_refs == 2) {
 		linkedlist_remove(&lru->active, &header->lruentry);
 		linkedlist_insert(&lru->lru, &header->lruentry, obj);

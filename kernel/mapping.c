@@ -327,8 +327,8 @@ int mmu_mappings_handle_fault(uintptr_t addr, int flags)
 				if(frame->count > 1) {
 					uintptr_t newframe = frame_allocate();
 					memcpy((void *)(newframe + PHYS_MAP_START), (void *)(map->frame + PHYS_MAP_START), arch_mm_page_size(0));
-					int r = arch_mm_virtual_unmap(proc->ctx, addr & page_mask(0));
-					assert(r > 0);
+					uintptr_t r = arch_mm_virtual_unmap(proc->ctx, addr & page_mask(0));
+					assert(r != 0);
 					r = arch_mm_virtual_map(proc->ctx, addr & page_mask(0), newframe, arch_mm_page_size(0), setflags);
 					assert(r);
 					frame_release(map->frame);

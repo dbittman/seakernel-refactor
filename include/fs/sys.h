@@ -52,7 +52,10 @@ sysret_t sys_lstat(const char *path, struct stat *buf);
 sysret_t sys_chdir(const char *path);
 sysret_t sys_fchdir(int fd);
 sysret_t sys_fadvise(int fd, ssize_t offset, size_t len, int advice);
+ssize_t sys_readlink(const char *, char *, size_t);
+#define MS_BIND 4096
 sysret_t sys_mount(const char *source, const char *target, const char *fstype, unsigned long flags, const void *data);
+sysret_t sys_chroot(const char *path);
 
 struct stat;
 sysret_t sys_stat(const char *path, struct stat *buf);

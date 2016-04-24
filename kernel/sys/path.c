@@ -8,6 +8,7 @@
 #include <block.h>
 #include <fs/filesystem.h>
 #include <printk.h>
+#include <fs/sys.h>
 
 /* TODO: all the file_get_inode calls can return NULL! */
 
@@ -42,20 +43,17 @@ sysret_t sys_stat(const char *path, struct stat *buf)
 sysret_t sys_chdir(const char *path)
 {
 	struct inode *node;
-	struct dirent *dir;
-	int err = fs_path_resolve(path, NULL, 0, 0, &dir, &node);
+	int err = fs_path_resolve(path, NULL, 0, 0, NULL, &node);
 	if(err < 0)
 		return err;
 
 	if(!S_ISDIR(node->mode)) {
 		inode_put(node);
-		kobj_putref(dir);
 		return -ENOTDIR;
 	}
 
-	inode_put(node);
-	struct dirent *old = atomic_exchange(&current_thread->process->cwd, dir);
-	kobj_putref(old);
+	struct inode *old = atomic_exchange(&current_thread->process->cwd, node);
+	inode_put(old);
 
 	return 0;
 }
@@ -74,11 +72,25 @@ sysret_t sys_fchdir(int fd)
 		return -ENOTDIR;
 	}
 
-	inode_put(node);
-	struct dirent *dir = atomic_exchange(&current_thread->process->cwd, kobj_getref(file->dirent));
-	kobj_putref(dir);
+	struct inode *old = atomic_exchange(&current_thread->process->cwd, node);
+	inode_put(old);
 
 	kobj_putref(file);
+	return 0;
+}
+
+/* TODO: store root as dirent, like in cwd */
+sysret_t sys_chroot(const char *path)
+{
+	if(current_thread->process->euid != 0)
+		return -EPERM;
+	struct inode *node;
+	int err = fs_path_resolve(path, NULL, 0, 0, NULL, &node);
+	if(err < 0)
+		return err;
+
+	struct inode *old = atomic_exchange(&current_thread->process->root, node);
+	inode_put(old);
 	return 0;
 }
 
@@ -104,7 +116,7 @@ sysret_t sys_access(const char *path, int mode)
 sysret_t sys_lstat(const char *path, struct stat *buf)
 {
 	struct inode *node;
-	int ret = fs_path_resolve(path, NULL, PATH_SYMLINK, 0, NULL, &node);
+	int ret = fs_path_resolve(path, NULL, PATH_NOFOLLOW, 0, NULL, &node);
 	if(ret < 0)
 		return ret;
 	_stat(node, buf);
@@ -155,43 +167,71 @@ out:
 	return ret;
 }
 
+#include <processor.h>
 sysret_t sys_mount(const char *source, const char *target, const char *fstype, unsigned long flags, const void *data)
 {
 	(void)data;
-	struct inode *snode, *tnode;
-	int err = fs_path_resolve(source, NULL, 0, 0, NULL, &snode);
+	struct inode *snode = NULL, *tnode;
+	int err = 0;
+	err = source ? fs_path_resolve(source, NULL, 0, 0, NULL, &snode) : 0;
 	if(err < 0)
 		return err;
 
 	err = fs_path_resolve(target, NULL, 0, 0, NULL, &tnode);
 	if(err < 0) {
-		inode_put(snode);
+		if(snode)
+			inode_put(snode);
 		return err;
 	}
 
-	struct blockdev *bd = blockdev_get(snode->major, snode->minor);
-	if(!bd) {
-		inode_put(snode);
-		inode_put(tnode);
-		return -ENOTBLK;
-	}
+	struct filesystem *fs = NULL;
+	if(!(flags & MS_BIND)) {
+		struct blockdev *bd = NULL;
+		if(snode) {
+			bd = blockdev_get(snode->major, snode->minor);
+			if(!bd && !(flags & MS_BIND)) {
+				if(snode)
+					inode_put(snode);
+				inode_put(tnode);
+				return -ENOTBLK;
+			}
+		}
 
-	struct filesystem *fs = fs_load_filesystem(bd, fstype, flags, &err);
-	kobj_putref(bd);
-	if(!fs) {
-		inode_put(snode);
-		inode_put(tnode);
-		return err;
+		fs = fs_load_filesystem(bd, fstype, flags, &err);
+		if(bd)
+			kobj_putref(bd);
+		if(!fs) {
+			if(snode)
+				inode_put(snode);
+			inode_put(tnode);
+			return err;
+		}
+	} else if(snode != NULL) {
+		fs = kobj_getref(snode->fs);
 	}
-
-	err = fs_mount(tnode, fs);
+	err = -EINVAL;
+	if(fs)
+		err = fs_mount(tnode, fs);
 	if(err) {
 		fs_unload_filesystem(fs);
 		inode_put(tnode);
-		inode_put(snode);
+		if(snode)
+			inode_put(snode);
 		return err;
 	}
 
 	return 0;
+}
+
+ssize_t sys_readlink(const char *path, char *buf, size_t bufsz)
+{
+	struct inode *node;
+	int err = fs_path_resolve(path, NULL, PATH_NOFOLLOW, 0, NULL, &node);
+	if(err < 0)
+		return -err;
+
+	err = node->fs->driver->inode_ops->readlink(node, buf, bufsz);
+	inode_put(node);
+	return err ? err : strlen(buf);
 }
 

@@ -252,18 +252,6 @@ static struct inode_ops ramfs_inode_ops = {
 	.getdents = _getdents,
 };
 
-static struct fs_ops ramfs_fs_ops = {
-	.load_inode = _load_inode,
-	.alloc_inode = _alloc_inode,
-};
-
-struct fsdriver ramfs = {
-	.inode_ops = &ramfs_inode_ops,
-	.fs_ops = &ramfs_fs_ops,
-	.name = "ramfs",
-	.rootid = 1,
-};
-
 static void _ramfs_create(void *obj)
 {
 	struct ramfs_data *ramfs_data = obj;
@@ -288,13 +276,22 @@ static void _ramfs_destroy(void *obj)
 	hash_destroy(&ramfs_data->inodes);
 }
 
-struct kobj kobj_ramfs = {
+static struct kobj kobj_ramfs = {
 	KOBJ_DEFAULT_ELEM(ramfs_data),
 	.create = _ramfs_create,
 	.destroy = _ramfs_destroy,
 	.init = NULL,
 	.put = NULL,
 };
+static int _mount(struct filesystem *fs, struct blockdev *bd, unsigned long flags)
+{
+	(void)flags;
+	if(bd)
+		return -EINVAL;
+	fs->fsdata = kobj_allocate(&kobj_ramfs);
+	return 0;
+}
+
 
 static struct ramfs *initial_ramfs;
 
@@ -303,6 +300,19 @@ static void _init_ramfs(void)
 {
 	initial_ramfs = kobj_allocate(&kobj_ramfs);
 }
+static struct fs_ops ramfs_fs_ops = {
+	.load_inode = _load_inode,
+	.alloc_inode = _alloc_inode,
+	.mount = _mount,
+};
+
+struct fsdriver ramfs = {
+	.inode_ops = &ramfs_inode_ops,
+	.fs_ops = &ramfs_fs_ops,
+	.name = "ramfs",
+	.rootid = 1,
+};
+
 
 #include <fs/sys.h>
 #include <fs/stat.h>
@@ -344,7 +354,7 @@ static void parse_tar_file(char *start, size_t tarlen)
 		if(strncmp(uh->magic, "ustar", 5))
 			break;
 
-		//printk("   - loading '%s': %ld bytes...\n", uh->name, len);
+		printk("   - loading '%s': %ld bytes...\n", uh->name, len);
 		switch(uh->typeflag[0]) {
 			int fd;
 			case '2':
@@ -353,7 +363,7 @@ static void parse_tar_file(char *start, size_t tarlen)
 			case '5':
 				uh->name[strlen(uh->name) - 1] = 0;
 				err = sys_mkdir(uh->name, 0777);
-				if(err)
+				if(err && err != -EEXIST)
 					printk("     failed: %d\n", err);
 				break;
 			case '0': case '7':
@@ -376,24 +386,21 @@ static void parse_tar_file(char *start, size_t tarlen)
 
 void initial_rootfs_init(void)
 {
-	current_thread->process->root = kobj_allocate(&kobj_filesystem);
-	current_thread->process->root->driver = &ramfs;
-	current_thread->process->root->fsdata = initial_ramfs;
+	filesystem_register(&ramfs);
+	struct filesystem *fs = kobj_allocate(&kobj_filesystem);
+	fs->driver = &ramfs;
+	fs->fsdata = initial_ramfs;
 
-	struct dirent *dir = kobj_allocate(&kobj_dirent);
-	dir->name[0] = '/';
-	dir->namelen = 1;
-	dir->ino.inoid = 1;
-	dir->ino.fsid = current_thread->process->root->id;
+	struct inode_id id = { .fsid = fs->id, .inoid = 1 };
 
-	struct inode *node = dirent_get_inode(dir);
+	struct inode *node = inode_lookup(&id);
 	assert(node != NULL);
 
 	_link(node, ".", 1, node);
 	_link(node, "..", 2, node);
 
-	inode_put(node);
-	current_thread->process->cwd = dir;
+	current_thread->process->cwd = kobj_getref(node);
+	current_thread->process->root = node;
 
 	int i=0;
 	struct boot_module *bm;
@@ -405,5 +412,7 @@ void initial_rootfs_init(void)
 
 	sys_mkdir("/mnt", 0777);
 	sys_mkdir("/dev", 0777);
+
+	sys_mount(NULL, "/dev", "ramfs", 0, NULL);
 }
 
