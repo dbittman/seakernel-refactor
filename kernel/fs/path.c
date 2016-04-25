@@ -18,9 +18,7 @@ int __resolve_symlink(struct inode *node, struct inode *parent, int depth, struc
 	int err;
 	if((err=node->fs->driver->inode_ops->readlink(node, path, 255) != 0))
 		return err;
-	if((err=fs_path_resolve(path, parent, (depth + 1) << 16, 0, dir_out, ino_out) != 0))
-		return err;
-	return 0;
+	return fs_path_resolve(path, parent, (depth + 1) << 16, 0, dir_out, ino_out);
 }
 
 static struct dirent *inode_lookup_dirent(struct inode *node, const char *name, size_t namelen, int *err)
@@ -65,6 +63,10 @@ struct dirent *__create_last(struct inode *node, const char *name, size_t namele
 	target->mode = mode;
 	target->uid = current_thread->process->euid;
 	target->gid = current_thread->process->egid;
+	target->ctime = arch_time_getepoch();
+	target->atime = arch_time_getepoch();
+	target->mtime = arch_time_getepoch();
+	target->length = 0;
 	inode_mark_dirty(target);
 
 	if((*err = fs_link(node, name, namelen, target)) < 0) {
@@ -161,6 +163,7 @@ int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode,
 				struct dirent *dirlnk;
 
 				err = __resolve_symlink(next, node, flags >> 16, &dirlnk, &lnk);
+				TRACE(&path_trace, "resolve sym ret: %d\n", err);
 				inode_put(next);
 				kobj_putref(dir);
 				if(err) {

@@ -19,8 +19,10 @@ struct inode_ops {
 	int (*update)(struct inode *);
 	int (*lookup)(struct inode *, const char *name, size_t namelen, struct dirent *);
 	int (*link)(struct inode *, const char *name, size_t namelen, struct inode *);
+	int (*unlink)(struct inode *, const char *name, size_t namelen);
 	size_t (*getdents)(struct inode *node, _Atomic size_t *, struct gd_dirent *, size_t);
 	int (*readlink)(struct inode *node, char *path, size_t);
+	int (*writelink)(struct inode *node, const char *path);
 };
 
 struct filesystem;
@@ -30,6 +32,7 @@ struct fs_ops {
 	int (*load_inode)(struct filesystem *fs, uint64_t inoid, struct inode *node);
 	int (*alloc_inode)(struct filesystem *fs, uint64_t *inoid);
 	int (*update_inode)(struct filesystem *fs, struct inode *node);
+	void (*release_inode)(struct filesystem *fs, struct inode *node);
 };
 
 struct fsdriver {

@@ -16,10 +16,21 @@ sysret_t sys_open(const char *path, int flags, int mode)
 	mode = (mode & ~0xFFF) | ((mode & 0xFFF) & (~(current_thread->process->cmask & 0xFFF)));
 	struct dirent *dir;
 	struct inode *node;
-	int res = fs_path_resolve(path, 0, (flags & O_CREAT) ? PATH_CREATE : 0, mode, &dir, &node);
+	int pathfl = 0;
+	if(flags & O_CREAT)
+		pathfl |= PATH_CREATE;
+	if(((flags & O_CREAT) && (flags & O_EXCL)) || (flags & O_NOFOLLOW))
+		pathfl |= PATH_NOFOLLOW;
+	int res = fs_path_resolve(path, 0, pathfl, mode, &dir, &node);
 
 	if(res < 0)
 		return res;
+
+	if((flags & O_NOFOLLOW) && (S_ISLNK(node->mode))) {
+		kobj_putref(dir);
+		inode_put(node);
+		return -ELOOP;
+	}
 
 	if((flags & O_EXCL) && (flags & O_CREAT) && !(res & PATH_DID_CREATE)) {
 		kobj_putref(dir);
@@ -156,7 +167,7 @@ sysret_t sys_lseek(int fd, ssize_t off, int whence)
 			} break;
 	}
 	kobj_putref(file);
-	return ret ? ret : file->pos;
+	return ret ? ret : (ssize_t)file->pos;
 }
 
 sysret_t sys_mkdir(const char *path, int mode)

@@ -39,6 +39,7 @@ sysret_t sys_nanosleep(const struct timespec *req, struct timespec *rem);
 
 struct timespec;
 struct timeval;
+sysret_t sys_utimes(const char *filename, const struct timeval times[2]);
 sysret_t sys_pselect(int nfds, fd_set *readfds, fd_set *writefds,
 		fd_set *errfds, const struct timespec *timeout, const sigset_t *sigmask);
 sysret_t sys_select(int nfds, fd_set *readfds, fd_set *writefds,

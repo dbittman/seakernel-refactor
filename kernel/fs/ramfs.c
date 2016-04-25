@@ -132,6 +132,7 @@ static int _load_inode(struct filesystem *fs, uint64_t ino, struct inode *node)
 	node->atime = ri->atime;
 	node->mtime = ri->mtime;
 	node->ctime = ri->ctime;
+	node->links = ri->links;
 	node->length = ri->length;
 	node->uid = ri->uid;
 	node->gid = ri->gid;
@@ -163,10 +164,12 @@ static int _lookup(struct inode *node, const char *name, size_t namelen, struct 
 		mutex_release(&ri->lock);
 		return -ENOENT;
 	}
-	strncpy(dir->name, name, namelen);
-	dir->namelen = namelen;
-	dir->ino.fsid = node->fs->id;
-	dir->ino.inoid = rd->ino;
+	if(dir) {
+		strncpy(dir->name, name, namelen);
+		dir->namelen = namelen;
+		dir->ino.fsid = node->fs->id;
+		dir->ino.inoid = rd->ino;
+	}
 	mutex_release(&ri->lock);
 	return 0;
 }
@@ -250,6 +253,9 @@ static struct inode_ops ramfs_inode_ops = {
 	.lookup = _lookup,
 	.link = _link,
 	.getdents = _getdents,
+	.unlink = NULL,
+	.readlink = NULL,
+	.writelink = NULL,
 };
 
 static void _ramfs_create(void *obj)
@@ -260,6 +266,8 @@ static void _ramfs_create(void *obj)
 	struct ramfs_inode *root = kobj_allocate(&kobj_ramfs_inode);
 	root->id = 1;
 	root->mode = S_IFDIR | 0755;
+	root->uid = root->gid = 0;
+	root->atime = root->mtime = root->ctime = arch_time_getepoch();
 	hash_insert(&ramfs_data->inodes, &root->id, sizeof(root->id), &root->elem, root);
 
 	__ramfs_do_link(root, ".", 1, root);

@@ -9,7 +9,7 @@
 #include <fs/filesystem.h>
 #include <printk.h>
 #include <fs/sys.h>
-
+#include <string.h>
 /* TODO: all the file_get_inode calls can return NULL! */
 
 static void _stat(struct inode *node, struct stat *buf)
@@ -160,7 +160,9 @@ sysret_t sys_getdents(int fd, struct gd_dirent *dp, int count)
 		ret = -EACCES;
 		goto out;
 	}
+	mutex_acquire(&node->lock);
 	ret = node->fs->driver->inode_ops->getdents(node, &file->pos, dp, count);
+	mutex_release(&node->lock);
 out:
 	inode_put(node);
 	kobj_putref(file);
@@ -228,7 +230,7 @@ ssize_t sys_readlink(const char *path, char *buf, size_t bufsz)
 	struct inode *node;
 	int err = fs_path_resolve(path, NULL, PATH_NOFOLLOW, 0, NULL, &node);
 	if(err < 0)
-		return -err;
+		return err;
 
 	if(!S_ISLNK(node->mode)) {
 		inode_put(node);
@@ -236,6 +238,106 @@ ssize_t sys_readlink(const char *path, char *buf, size_t bufsz)
 	}
 	err = node->fs->driver->inode_ops->readlink(node, buf, bufsz);
 	inode_put(node);
-	return err ? err : strlen(buf);
+	return err ? err : (ssize_t)strlen(buf);
+}
+
+sysret_t sys_unlinkat(int dirfd, const char *_path, int flags)
+{
+	if(strlen(_path) > 255)
+		return -ENAMETOOLONG;
+	char path[256];
+	memset(path, 0, sizeof(path));
+	memcpy(path, _path, strlen(_path));
+
+	struct inode *start = __get_at_start(dirfd);
+
+	char *sep = strrchrm(path, '/');
+	char *name;
+	if(sep) {
+		*sep = 0;
+		name = sep + 1;
+		struct inode *parent;
+		int err = fs_path_resolve(path, start, 0, 0, NULL, &parent);
+		inode_put(start);
+		if(err < 0) {
+			return err;
+		}
+		start = parent;
+	} else {
+		name = path;
+	}
+
+	int err;
+	if((flags & AT_REMOVEDIR))
+		err = fs_rmdir(start, name, strlen(name));
+	else
+		err = fs_unlink(start, name, strlen(name));
+	inode_put(start);
+	return err;
+}
+
+sysret_t sys_unlink(const char *path)
+{
+	return sys_unlinkat(AT_FDCWD, path, 0);
+}
+
+sysret_t sys_rmdir(const char *path)
+{
+	return sys_unlinkat(AT_FDCWD, path, AT_REMOVEDIR);
+}
+
+sysret_t sys_link(const char *targ, const char *_path)
+{
+	if(strlen(_path) > 255)
+		return -ENAMETOOLONG;
+	char path[256];
+	memset(path, 0, sizeof(path));
+	memcpy(path, _path, strlen(_path));
+	char *sep = strrchrm(path, '/');
+	struct inode *parent;
+	char *name;
+	if(sep) {
+		*sep = 0;
+		int err = fs_path_resolve(path, NULL, 0, 0, NULL, &parent);
+		if(err < 0)
+			return err;
+		name = sep + 1;
+	} else {
+		parent = kobj_getref(current_thread->process->cwd);
+		name = path;
+	}
+
+	struct inode *targetnode;
+	int err = fs_path_resolve(targ, NULL, 0, 0, NULL, &targetnode);
+	if(err < 0) {
+		inode_put(parent);
+		return err;
+	}
+	if(S_ISDIR(targetnode->mode)) {
+		inode_put(targetnode);
+		inode_put(parent);
+		return -EPERM;
+	}
+	err = fs_link(parent, name, strlen(name), targetnode);
+	inode_put(targetnode);
+	inode_put(parent);
+
+	return err;
+}
+
+sysret_t sys_symlink(const char *target, const char *linkpath)
+{
+	struct inode *link;
+	int err = fs_path_resolve(linkpath, NULL, PATH_CREATE | PATH_NOFOLLOW, S_IFLNK | 0777, NULL, &link);
+	if(err < 0)
+		return err;
+	if(!(err & PATH_DID_CREATE)) {
+		inode_put(link);
+		return -EEXIST;
+	}
+
+	err = link->fs->driver->inode_ops->writelink(link, target);
+	inode_put(link);
+	return err;
 }
 

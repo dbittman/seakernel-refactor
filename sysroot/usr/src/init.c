@@ -69,6 +69,8 @@ int main()
 		syslog(LOG_EMERG, "failed to chroot: %s", strerror(errno));
 		exit(1);
 	}
+
+	//mount(NULL, "/tmp", "ramfs", 0, NULL);
 	return execl("/bin/cond", "cond", "-a", "bash --login", "-1", "bash --login", (char *)NULL);
 }
 

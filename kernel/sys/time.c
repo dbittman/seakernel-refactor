@@ -2,6 +2,8 @@
 #include <timer.h>
 #include <errno.h>
 #include <printk.h>
+#include <fs/path.h>
+#include <fs/inode.h>
 static void __timeout(void *data)
 {
 	struct thread *thread = data;
@@ -115,5 +117,33 @@ sysret_t sys_clock_gettime(int id, struct timespec *res)
 			return -ENOTSUP;
 	}
 	return 0;
+}
+
+#include <process.h>
+sysret_t sys_utimes(const char *filename, const struct timeval times[2])
+{
+	struct inode *node;
+	int err = fs_path_resolve(filename, NULL, 0, 0, NULL, &node);
+	if(err < 0)
+		return err;
+
+	err = 0;
+	if(times == NULL) {
+		if(inode_check_perm(node, PERM_WRITE)) {
+			node->atime = arch_time_getepoch();
+			node->mtime = arch_time_getepoch();
+		} else {
+			err = -EPERM;
+		}
+	} else {
+		if(node->uid == current_thread->process->euid || current_thread->process->euid == 0) {
+			node->atime = times[0].tv_sec;
+			node->mtime = times[1].tv_sec;
+		} else {
+			err = -EPERM;
+		}
+	}
+	inode_put(node);
+	return err;
 }
 

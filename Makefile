@@ -155,6 +155,7 @@ $(BUILDDIR)/hd.img: $(USRPROGS)
 	sudo cp -r sysroot/* sysroot-install/* $(BUILDDIR)/mnt/
 	sudo mkdir -p $(BUILDDIR)/mnt/bin
 	sudo mkdir -p $(BUILDDIR)/mnt/dev
+	sudo mkdir -p $(BUILDDIR)/mnt/tmp
 	sudo cp $(USRPROGS) $(BUILDDIR)/mnt/bin
 	sudo umount $(BUILDDIR)/mnt
 

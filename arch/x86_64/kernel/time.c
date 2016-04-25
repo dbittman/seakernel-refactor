@@ -109,16 +109,12 @@ static int dpm[12] = {
 	31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31,
 };
 
-#include <printk.h>
 int64_t arch_time_getepoch(void)
 {
 	read_rtc();
-	printk("%d %d %d %d %d %d\n", second, minute, hour, month, day, year);
 	int yday = day;
 	for(int i=0;i<month-1;i++)
 		yday += dpm[i];
-
-	printk("%d\n", yday);
 
 	int yr = year - 1900;
 	return second + minute*60 + hour*3600 + yday*86400 +

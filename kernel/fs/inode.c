@@ -19,12 +19,16 @@ static bool _inode_page_initialize(void *obj, void *_id, void *data)
 	page->page = id;
 	page->node = data;
 
+	ssize_t thispagelen = page->node->length - id * arch_mm_page_size(0);
+	if(thispagelen < 0) thispagelen = 0;
+	if((size_t)thispagelen > arch_mm_page_size(0)) thispagelen = arch_mm_page_size(0);
 	page->frame = frame_allocate();
 	assert(page->node->fs != NULL);
-	if(page->node->fs->driver->inode_ops->read_page(page->node, id, page->frame) < 0) {
+	if(thispagelen && page->node->fs->driver->inode_ops->read_page(page->node, id, page->frame) < 0) {
 		kobj_lru_mark_error(&page->node->pages, obj, &page->page);
 		return false;
 	} else {
+		memset((void *)(page->frame + PHYS_MAP_START + thispagelen), 0, arch_mm_page_size(0) - thispagelen);
 		kobj_lru_mark_ready(&page->node->pages, obj, &page->page);
 		return true;
 	}
@@ -53,11 +57,19 @@ static void _inode_destroy(void *obj)
 	kobj_lru_destroy(&node->pages);
 }
 
+static void _inode_put(void *obj)
+{
+	struct inode *node = obj;
+	(void)node;
+	//if(node->links == 0)
+	//	node->fs->driver->fs_ops->release_inode(node->fs, node);
+}
+
 static struct kobj kobj_inode = {
 	KOBJ_DEFAULT_ELEM(inode),
 	.init = NULL,
 	.create = _inode_create,
-	.put = NULL,
+	.put = _inode_put,
 	.destroy = _inode_destroy,
 };
 

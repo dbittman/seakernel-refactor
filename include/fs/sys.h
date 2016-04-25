@@ -17,8 +17,8 @@ int fs_link(struct inode *, const char *, size_t, struct inode *);
 #define O_TRUNC  01000
 #define O_APPEND 02000
 #define O_NONBLOCK 04000
-#define O_CLOEXEC 02000000
-
+#define O_NOFOLLOW   0400000
+#define O_CLOEXEC   02000000
 #define F_DUPFD 0
 #define F_GETFD 1
 #define F_SETFD 2
@@ -56,6 +56,8 @@ ssize_t sys_readlink(const char *, char *, size_t);
 #define MS_BIND 4096
 sysret_t sys_mount(const char *source, const char *target, const char *fstype, unsigned long flags, const void *data);
 sysret_t sys_chroot(const char *path);
+sysret_t sys_link(const char *, const char *);
+sysret_t sys_unlink(const char *_path);
 
 struct stat;
 sysret_t sys_stat(const char *path, struct stat *buf);
@@ -72,3 +74,26 @@ sysret_t sys_sendto(int sockfd, const char *buf, size_t len, int flags, const st
 
 struct gd_dirent;
 sysret_t sys_getdents(int fd, struct gd_dirent *dp, int count);
+sysret_t sys_rmdir(const char *path);
+sysret_t sys_symlink(const char *target, const char *linkpath);
+
+
+
+#define AT_FDCWD (-100)
+#include <thread.h>
+#include <process.h>
+#include <file.h>
+static inline struct inode *__get_at_start(int fd)
+{
+	if(fd == AT_FDCWD)
+		return kobj_getref(current_thread->process->cwd);
+	struct file *file = process_get_file(fd);
+	if(!file)
+		return NULL;
+	struct inode *node = file_get_inode(file);
+	kobj_putref(file);
+	return node;
+}
+
+#define AT_REMOVEDIR 0x200
+sysret_t sys_unlinkat(int dirfd, const char *_path, int flags);

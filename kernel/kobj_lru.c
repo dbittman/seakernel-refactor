@@ -148,7 +148,7 @@ void *kobj_lru_get(struct kobj_lru *lru, void *id)
 		header->_koh_refs = 3;
 		spinlock_release(&lru->lock);
 		if(!lru->init(obj, id, lru->data)) {
-			kobj_lru_put(lru, obj);
+			kobj_putref(obj);
 			return NULL;
 		}
 	}
@@ -167,6 +167,8 @@ void kobj_lru_put(struct kobj_lru *lru, void *obj)
 	if(header->_koh_refs == 2) {
 		linkedlist_remove(&lru->active, &header->lruentry);
 		linkedlist_insert(&lru->lru, &header->lruentry, obj);
+		if(header->_koh_kobj->put)
+			header->_koh_kobj->put(obj);
 	}
 
 	spinlock_release(&lru->lock);
