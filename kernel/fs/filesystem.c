@@ -9,11 +9,13 @@
 static struct kobj_idmap active_filesystems;
 
 static struct hash drivers;
+static struct mutex drivers_mutex;
 
 __initializer static void _init_fs(void)
 {
 	kobj_idmap_create(&active_filesystems, sizeof(uint64_t));
-	hash_create(&drivers, 0, 32);
+	hash_create(&drivers, HASH_LOCKLESS, 32);
+	mutex_create(&drivers_mutex);
 }
 
 static _Atomic uint64_t __next_id = 0;
@@ -94,7 +96,9 @@ void fs_unload_filesystem(struct filesystem *fs)
 struct filesystem *fs_load_filesystem(struct blockdev *bd, const char *type, unsigned long flags, int *err)
 {
 	if(type) {
+		mutex_acquire(&drivers_mutex);
 		struct fsdriver *driver = hash_lookup(&drivers, type, strlen(type));
+		mutex_release(&drivers_mutex);
 		if(!driver) {
 			*err = -ENODEV;
 			return NULL;
@@ -108,7 +112,7 @@ struct filesystem *fs_load_filesystem(struct blockdev *bd, const char *type, uns
 		return fs;
 	} else {
 		struct filesystem *fs = kobj_allocate(&kobj_filesystem);
-		__hash_lock(&drivers);
+		mutex_acquire(&drivers_mutex);
 		struct hashiter iter;
 		for(hash_iter_init(&iter, &drivers);
 				!hash_iter_done(&iter); hash_iter_next(&iter)) {
@@ -118,11 +122,11 @@ struct filesystem *fs_load_filesystem(struct blockdev *bd, const char *type, uns
 			int e = driver->fs_ops->mount(fs, bd, flags);
 			if(e == 0) {
 				*err = 0;
-				__hash_unlock(&drivers);
+				mutex_release(&drivers_mutex);
 				return fs;
 			}
 		}
-		__hash_unlock(&drivers);
+		mutex_release(&drivers_mutex);
 		*err = -ENODEV;
 		kobj_putref(fs);
 		return NULL;
@@ -151,11 +155,16 @@ void fs_update_inode(struct inode *node)
 
 int filesystem_register(struct fsdriver *driver)
 {
-	return hash_insert(&drivers, driver->name, strlen(driver->name), &driver->elem, driver);
+	mutex_acquire(&drivers_mutex);
+	int r = hash_insert(&drivers, driver->name, strlen(driver->name), &driver->elem, driver);
+	mutex_release(&drivers_mutex);
+	return r;
 }
 
 void filesystem_deregister(struct fsdriver *driver)
 {
+	mutex_acquire(&drivers_mutex);
 	hash_delete(&drivers, driver->name, strlen(driver->name));
+	mutex_release(&drivers_mutex);
 }
 

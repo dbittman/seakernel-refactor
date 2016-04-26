@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <string.h>
 #include <printk.h>
+#include <errno.h>
 void charbuffer_create(struct charbuffer *cb, size_t cap)
 {
 	assert(cap == 0x1000); /* NOTE: for now, lets fix this */
@@ -22,7 +23,7 @@ void charbuffer_destroy(struct charbuffer *cb)
 	mm_virtual_deallocate((uintptr_t)cb->buffer);
 }
 
-size_t charbuffer_write(struct charbuffer *cb, const char *buf, size_t len, int flags)
+ssize_t charbuffer_write(struct charbuffer *cb, const char *buf, size_t len, int flags)
 {
 	spinlock_acquire(&cb->write);
 	if(cb->term) {
@@ -66,13 +67,14 @@ size_t charbuffer_write(struct charbuffer *cb, const char *buf, size_t len, int 
 			
 			atomic_fetch_add(&cb->head, amount);
 			spinlock_release(&cb->write);
-			/* TODO: handle signals here */
 			blocklist_unblock_one(&cb->wait_read);
 
 			int rem = cb->capacity - (atomic_load(&cb->head) - atomic_load(&cb->tail));
 			if(rem == 0)
 				schedule();
-			blockpoint_cleanup(&bp);
+			if(blockpoint_cleanup(&bp) == BLOCK_RESULT_INTERRUPTED) {
+				return amount_written == 0 ? -EINTR : (ssize_t)amount_written;
+			}
 			spinlock_acquire(&cb->write);
 			if(cb->term) {
 				spinlock_release(&cb->write);
@@ -81,14 +83,16 @@ size_t charbuffer_write(struct charbuffer *cb, const char *buf, size_t len, int 
 			buf += amount;
 		} else {
 			atomic_fetch_add(&cb->head, amount);
+			spinlock_release(&cb->write);
 			blocklist_unblock_one(&cb->wait_read);
+			spinlock_acquire(&cb->write);
 		}
 	}
 	spinlock_release(&cb->write);
 	return amount_written;
 }
 
-size_t charbuffer_read(struct charbuffer *cb, char *buf, size_t len, int flags)
+ssize_t charbuffer_read(struct charbuffer *cb, char *buf, size_t len, int flags)
 {
 	spinlock_acquire(&cb->read);
 	if(cb->term && charbuffer_pending(cb) == 0) {
@@ -144,7 +148,9 @@ size_t charbuffer_read(struct charbuffer *cb, char *buf, size_t len, int flags)
 			int rem = (atomic_load(&cb->head) - atomic_load(&cb->tail));
 			if(rem == 0 && !cb->term)
 				schedule();
-			blockpoint_cleanup(&bp);
+			if(blockpoint_cleanup(&bp) == BLOCK_RESULT_INTERRUPTED) {
+				return amount_read == 0 ? -EINTR : (ssize_t)amount_read;
+			}
 			spinlock_acquire(&cb->read);
 			if(cb->term && charbuffer_pending(cb) == 0) {
 				spinlock_release(&cb->read);

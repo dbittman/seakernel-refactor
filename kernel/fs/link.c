@@ -23,6 +23,7 @@ int fs_link(struct inode *node, const char *name, size_t namelen, struct inode *
 	int ret = node->fs->driver->inode_ops->link(node, name, namelen, target);
 	if(ret == 0)
 		target->links++;
+	inode_mark_dirty(target);
 	if(node != target)
 		mutex_release(&target->lock);
 	mutex_release(&node->lock);
@@ -55,6 +56,7 @@ int fs_unlink(struct inode *node, const char *name, size_t namelen)
 		ret = node->fs->driver->inode_ops->unlink(node, name, namelen);
 	if(ret == 0)
 		target->links--;
+	inode_mark_dirty(target);
 	if(target != node)
 		mutex_release(&target->lock);
 	inode_put(target);
@@ -113,9 +115,10 @@ int fs_rmdir(struct inode *node, const char *name, size_t namelen)
 		mutex_release(&node->lock);
 		return ret;
 	}
+	target->links--;
+	inode_mark_dirty(target);
 	if(target->fs->driver->inode_ops->unlink)
 		ret = target->fs->driver->inode_ops->unlink(target, "..", 2);
-
 	if(ret != 0) {
 		if(target != node)
 			mutex_release(&target->lock);
@@ -123,11 +126,14 @@ int fs_rmdir(struct inode *node, const char *name, size_t namelen)
 		mutex_release(&node->lock);
 		return ret;
 	}
+	node->links--;
 
 	if(node->fs->driver->inode_ops->unlink)
 		ret = node->fs->driver->inode_ops->unlink(node, name, namelen);
 	if(ret == 0)
 		target->links--;
+	inode_mark_dirty(target);
+	inode_mark_dirty(node);
 	if(target != node)
 		mutex_release(&target->lock);
 	inode_put(target);

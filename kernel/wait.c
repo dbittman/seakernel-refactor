@@ -105,9 +105,12 @@ static int __cleanup_waiters(struct waiter *root, int options, int *status)
 {
 	int ret = 0;
 	for(struct waiter *w = root;w != NULL;w = w->next) {
-		blockpoint_cleanup(&w->bp);
+		enum block_result res = blockpoint_cleanup(&w->bp);
 		if(ret == 0) {
-			ret = __read_status(w->proc, options, status);
+			if(res == BLOCK_RESULT_INTERRUPTED)
+				ret = -EINTR;
+			else
+				ret = __read_status(w->proc, options, status);
 		}
 		kobj_putref(w->proc);
 	}

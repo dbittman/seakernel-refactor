@@ -74,7 +74,7 @@ static void _process_create(void *obj)
 	_process_init(obj);
 	linkedlist_create(&proc->threads, 0);
 	hash_create(&proc->mappings, HASH_LOCKLESS, 4096);
-	spinlock_create(&proc->map_lock);
+	mutex_create(&proc->map_lock);
 	spinlock_create(&proc->files_lock);
 	spinlock_create(&proc->signal_lock);
 	blocklist_create(&proc->wait);

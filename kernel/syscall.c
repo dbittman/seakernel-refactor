@@ -124,6 +124,9 @@ long syscall_entry(long num,
 	}
 
 	arch_interrupt_set(0);
+#if CONFIG_DEBUG
+	assert(current_thread->held_spinlocks == 0);
+#endif
 	if(current_thread->processor->preempt_disable != 0)
 		panic(0, "returning to userspace with preempt_disable=%d (#%ld)\n", current_thread->processor->preempt_disable, num);
 	assert(current_thread->processor->preempt_disable == 0);

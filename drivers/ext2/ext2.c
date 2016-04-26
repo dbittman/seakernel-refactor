@@ -171,7 +171,7 @@ static int _readlink(struct inode *node, char *path, size_t len)
 		memcpy(path, &eno.blocks, eno.size);
 	} else {
 		struct inodepage *inopage = inode_get_page(node, 0);
-		memcpy(path, (void *)(inopage->frame = PHYS_MAP_START), eno.size);
+		memcpy(path, (void *)(inopage->frame + PHYS_MAP_START), eno.size);
 		inode_release_page(node, inopage);
 	}
 	path[eno.size] = 0;
@@ -187,7 +187,8 @@ static int _writelink(struct inode *node, const char *path)
 		memcpy(&eno.blocks, path, strlen(path));
 	} else {
 		struct inodepage *inopage = inode_get_page(node, 0);
-		memcpy((void *)(inopage->frame = PHYS_MAP_START), path, strlen(path));
+		memcpy((void *)(inopage->frame + PHYS_MAP_START), path, strlen(path));
+		inopage->flags |= INODEPAGE_DIRTY;
 		inode_release_page(node, inopage);
 	}
 	node->length = eno.size = strlen(path);
@@ -261,6 +262,7 @@ static size_t _getdents(struct inode *node, _Atomic size_t *start, struct gd_dir
 				out->d_name[dir->name_len] = 0;
 				out->d_reclen = reclen;
 				read += reclen;
+				inopage->flags |= INODEPAGE_DIRTY;
 			}
 			dirread += dir->record_len;
 			dir = (void *)((unsigned char *)dir + dir->record_len);
@@ -331,7 +333,6 @@ static int _get_dirent_type(struct inode *node)
 static int _link(struct inode *node, const char *name, size_t namelen, struct inode *target)
 {
 	struct ext2 *ext2 = node->fs->fsdata;
-	printk("LINK %ld, %s\n", node->id.inoid, name);
 	size_t dirread = 0;
 	for(unsigned int page = 0;;page++) {
 		struct inodepage *inopage = inode_get_page(node, page);
@@ -345,6 +346,7 @@ static int _link(struct inode *node, const char *name, size_t namelen, struct in
 					dir->name_len = namelen;
 					dir->inode = target->id.inoid;
 					dir->type = _get_dirent_type(target);
+					inopage->flags |= INODEPAGE_DIRTY;
 					inode_release_page(node, inopage);
 					return 0;
 				}
@@ -355,6 +357,7 @@ static int _link(struct inode *node, const char *name, size_t namelen, struct in
 					memcpy(dir->name, name, namelen);
 					dir->inode = target->id.inoid;
 					dir->type = _get_dirent_type(target);
+					inopage->flags |= INODEPAGE_DIRTY;
 					inode_release_page(node, inopage);
 					if(node->length < dir->record_len + dirread)
 						node->length = dir->record_len + dirread;
@@ -370,6 +373,7 @@ static int _link(struct inode *node, const char *name, size_t namelen, struct in
 				nd->name_len = namelen;
 				nd->record_len = oldlen - dir->record_len;
 				nd->inode = target->id.inoid;
+				inopage->flags |= INODEPAGE_DIRTY;
 				inode_release_page(node, inopage);
 				return 0;
 			}
@@ -397,6 +401,7 @@ static int _unlink(struct inode *node, const char *name, size_t namelen)
 					&& !strncmp(name, (char *)dir->name, namelen > dir->name_len ? dir->name_len : namelen)
 					&& dir->name_len == namelen) {
 				dir->inode = 0;
+				inopage->flags |= INODEPAGE_DIRTY;
 				inode_release_page(node, inopage);
 				return 0;
 			}

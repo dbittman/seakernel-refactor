@@ -12,7 +12,7 @@
 
 struct select_blockpoint {
 	struct blockpoint bp;
-	bool blocked, active, ready;
+	bool blocked, active, ready, interrupted;
 	int type;
 };
 
@@ -72,6 +72,7 @@ bool _select_start_blocking(struct file **files, int nfds, struct select_blockpo
 			continue;
 
 		int sel = 1;
+		bp->interrupted = false;
 		blockpoint_create(&bp->bp, do_timeout ? BLOCK_TIMEOUT : 0, timeout_nsec / 1000);
 		bp->blocked = !(do_timeout && timeout_nsec == 0);
 		if(files[fd / 3]->ops->select)
@@ -105,7 +106,7 @@ bool _select_cleanup_blocking(int nfds, struct select_blockpoint *blocks)
 			case BLOCK_RESULT_TIMEOUT:
 				break;
 			case BLOCK_RESULT_INTERRUPTED:
-
+				bp->interrupted = true;
 				break;
 			case BLOCK_RESULT_UNBLOCKED:
 				bp->ready = true;
@@ -130,7 +131,10 @@ int _select_update_fds(struct select_blockpoint *blocks, int nfds, fd_set *read,
 		FD_CLR(fd / 3, sets[fd % 3]);
 		if(bp->ready) {
 			FD_SET(fd / 3, sets[fd % 3]);
-			ret++;
+			if(ret >= 0)
+				ret++;
+		} else if(bp->interrupted) {
+			ret = -EINTR;
 		}
 	}
 	return ret;

@@ -128,6 +128,8 @@ enum block_result blockpoint_cleanup(struct blockpoint *bp)
 		bp->result = BLOCK_RESULT_UNBLOCKED;
 	if(bp->flags & BLOCK_TIMEOUT)
 		timer_remove(&bp->timer);
+	if(current_thread->signal && !(bp->flags & BLOCK_UNINTERRUPT))
+		bp->result = BLOCK_RESULT_INTERRUPTED;
 	return bp->result;
 }
 

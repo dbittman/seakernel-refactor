@@ -37,10 +37,10 @@ static struct mapping *_do_mapping_establish(struct process *proc, uintptr_t vir
 {
 	uintptr_t vpage = virtual / arch_mm_page_size(0);
 	if(!locked)
-		spinlock_acquire(&proc->map_lock);
+		mutex_acquire(&proc->map_lock);
 	struct mapping *map = hash_lookup(&proc->mappings, &vpage, sizeof(vpage));
 	if(map) {
-		spinlock_release(&proc->map_lock);
+		mutex_release(&proc->map_lock);
 		return NULL;
 	}
 
@@ -55,7 +55,7 @@ static struct mapping *_do_mapping_establish(struct process *proc, uintptr_t vir
 	map->nodepage = nodepage;
 	hash_insert(&proc->mappings, &map->vpage, sizeof(map->vpage), &map->elem, map);
 	if(!locked)
-		spinlock_release(&proc->map_lock);
+		mutex_release(&proc->map_lock);
 	return map;
 }
 
@@ -69,11 +69,11 @@ static bool _do_mapping_remove(struct process *proc, uintptr_t virtual, bool loc
 {
 	uintptr_t vpage = virtual / arch_mm_page_size(0);
 	if(!locked)
-		spinlock_acquire(&proc->map_lock);
+		mutex_acquire(&proc->map_lock);
 
 	struct mapping *map = hash_lookup(&proc->mappings, &vpage, sizeof(vpage));
 	if(!map) {
-		spinlock_release(&proc->map_lock);
+		mutex_release(&proc->map_lock);
 		return false;
 	}
 	hash_delete(&proc->mappings, &vpage, sizeof(vpage));
@@ -92,20 +92,20 @@ static bool _do_mapping_remove(struct process *proc, uintptr_t virtual, bool loc
 	map->file = NULL;
 	kobj_putref(map);
 	if(!locked)
-		spinlock_release(&proc->map_lock);
+		mutex_release(&proc->map_lock);
 	return true;
 }
 
 int mapping_move(uintptr_t virt, size_t oldsz, size_t newsz, uintptr_t new)
 {
 	struct process *proc = current_thread->process;
-	spinlock_acquire(&proc->map_lock);
+	mutex_acquire(&proc->map_lock);
 	struct mapping *base = NULL;
 	for(uintptr_t off = 0;off < oldsz;off += arch_mm_page_size(0)) {
 		uintptr_t vpage = (off + virt) / arch_mm_page_size(0);
 		struct mapping *map = hash_lookup(&proc->mappings, &vpage, sizeof(vpage));
 		if(!map) {
-			spinlock_release(&proc->map_lock);
+			mutex_release(&proc->map_lock);
 			return -EFAULT;
 		}
 		if(!base)
@@ -113,7 +113,7 @@ int mapping_move(uintptr_t virt, size_t oldsz, size_t newsz, uintptr_t new)
 		int cpage = base->nodepage + vpage - virt / arch_mm_page_size(0);
 		if(map->prot != base->prot || (map->flags & (MMAP_MAP_SHARED | MMAP_MAP_ANON | MMAP_MAP_PRIVATE)) != (base->flags & (MMAP_MAP_SHARED | MMAP_MAP_ANON | MMAP_MAP_PRIVATE))
 				|| (map->file != base->file) || (map->nodepage != cpage)) {
-			spinlock_release(&proc->map_lock);
+			mutex_release(&proc->map_lock);
 			return -EFAULT;
 		}
 	}
@@ -145,14 +145,14 @@ int mapping_move(uintptr_t virt, size_t oldsz, size_t newsz, uintptr_t new)
 			_do_mapping_remove(proc, virt + off, true);
 		}
 	}
-	spinlock_release(&proc->map_lock);
+	mutex_release(&proc->map_lock);
 	return 0;
 }
 
 int mapping_try_expand(uintptr_t virt, size_t oldsz, size_t newsz)
 {
 	struct process *proc = current_thread->process;
-	spinlock_acquire(&proc->map_lock);
+	mutex_acquire(&proc->map_lock);
 	uintptr_t tmp = 0;
 	struct mapping *base = 0;
 	if(oldsz < newsz) {
@@ -162,7 +162,7 @@ int mapping_try_expand(uintptr_t virt, size_t oldsz, size_t newsz)
 			if(off == 0)
 				base = map;
 			if(!map && off < oldsz) {
-				spinlock_release(&proc->map_lock);
+				mutex_release(&proc->map_lock);
 				return -EFAULT;
 			}
 			if(off >= oldsz && tmp == 0)
@@ -186,7 +186,7 @@ int mapping_try_expand(uintptr_t virt, size_t oldsz, size_t newsz)
 			_do_mapping_remove(proc, virt, true);
 		}
 	}
-	spinlock_release(&proc->map_lock);
+	mutex_release(&proc->map_lock);
 	return 0;
 }
 
@@ -199,13 +199,13 @@ void map_mmap(uintptr_t virtual, struct file *file, int prot, int flags, size_t 
 {
 	int num = len / arch_mm_page_size(0);
 	int nodepage = off / arch_mm_page_size(0);
-	//spinlock_acquire(&current_thread->process->map_lock);
+	//mutex_acquire(&current_thread->process->map_lock);
 	for(int i=0;i<num;i++) {
 		_do_mapping_remove(current_thread->process, virtual + i * arch_mm_page_size(0), false);
 		_do_mapping_establish(current_thread->process, virtual + i * arch_mm_page_size(0),
 				prot, flags, file, nodepage + i, false);
 	}
-	//spinlock_release(&current_thread->process->map_lock);
+	//mutex_release(&current_thread->process->map_lock);
 }
 
 void map_unmap(uintptr_t virtual, size_t length)
@@ -216,7 +216,7 @@ void map_unmap(uintptr_t virtual, size_t length)
 
 void process_copy_mappings(struct process *from, struct process *to)
 {
-	spinlock_acquire(&from->map_lock);
+	mutex_acquire(&from->map_lock);
 
 	struct hashiter iter;
 	for(hash_iter_init(&iter, &from->mappings); !hash_iter_done(&iter); hash_iter_next(&iter)) {
@@ -244,12 +244,12 @@ void process_copy_mappings(struct process *from, struct process *to)
 		}
 		nm->flags &= ~MMAP_MAP_MAPPED;
 	}
-	spinlock_release(&from->map_lock);
+	mutex_release(&from->map_lock);
 }
 
 void process_remove_mappings(struct process *proc, bool user_tls_too)
 {
-	spinlock_acquire(&proc->map_lock);
+	mutex_acquire(&proc->map_lock);
 
 	struct hashiter iter;
 	for(hash_iter_init(&iter, &proc->mappings); !hash_iter_done(&iter); hash_iter_next(&iter)) {
@@ -261,7 +261,7 @@ void process_remove_mappings(struct process *proc, bool user_tls_too)
 			_do_mapping_remove(proc, map->vpage * arch_mm_page_size(0), true);
 		}
 	}
-	spinlock_release(&proc->map_lock);
+	mutex_release(&proc->map_lock);
 }
 
 int mmu_mappings_handle_fault(uintptr_t addr, int flags)
@@ -270,7 +270,7 @@ int mmu_mappings_handle_fault(uintptr_t addr, int flags)
 	struct process *proc = current_thread->process;
 	int success = false;
 	uintptr_t vpage = addr / arch_mm_page_size(0);
-	spinlock_acquire(&proc->map_lock);
+	mutex_acquire(&proc->map_lock);
 	struct mapping *map = hash_lookup(&proc->mappings, &vpage, sizeof(vpage));
 	
 	if(!map) {
@@ -292,7 +292,10 @@ int mmu_mappings_handle_fault(uintptr_t addr, int flags)
 	 * the FAULT_ERROR_PERM case */
 	if(flags & FAULT_ERROR_PRES) {
 		uintptr_t frame = 0;
-		assert(!(map->flags & MMAP_MAP_MAPPED));
+		if(map->flags & MMAP_MAP_MAPPED) {
+			/* possible another thread got here first */
+			goto done;
+		}
 		if(map->flags & MMAP_MAP_ANON) {
 			if(!map->frame)
 				map->frame = frame_allocate();
@@ -314,7 +317,6 @@ int mmu_mappings_handle_fault(uintptr_t addr, int flags)
 		arch_mm_virtual_map(proc->ctx, addr & page_mask(0),
 				frame, arch_mm_page_size(0), setflags);
 	} else {
-		assert(map->flags & MMAP_MAP_MAPPED);
 		if(flags & FAULT_EXEC)
 			goto out;
 
@@ -360,10 +362,11 @@ int mmu_mappings_handle_fault(uintptr_t addr, int flags)
 		}
 
 	}
+done:
 	success = true;
 
 out:
-	spinlock_release(&proc->map_lock);
+	mutex_release(&proc->map_lock);
 	return success;
 }
 

@@ -74,7 +74,7 @@ static struct kobj kobj_pty = {
 
 static struct kobj kobj_pty_file = KOBJ_DEFAULT(pty_file);
 
-static size_t pty_read_master(struct pty *pty, char *buffer, size_t length, bool block)
+static ssize_t pty_read_master(struct pty *pty, char *buffer, size_t length, bool block)
 {
 	return charbuffer_read(&pty->output, buffer, length, (block ? 0 : CHARBUFFER_DO_NONBLOCK) | CHARBUFFER_DO_ANY);
 }
@@ -152,7 +152,7 @@ static void process_input(struct pty *pty, char c)
 	}
 }
 
-static size_t pty_write_master(struct pty *pty, const char *buffer, size_t length, bool block)
+static ssize_t pty_write_master(struct pty *pty, const char *buffer, size_t length, bool block)
 {
 	if(pty->term.c_lflag & ICANON) {
 		mutex_acquire(&pty->cbuf_lock);
@@ -168,7 +168,7 @@ static size_t pty_write_master(struct pty *pty, const char *buffer, size_t lengt
 	}
 }
 
-static size_t pty_read_slave(struct pty *pty, char *buffer, size_t length, bool block)
+static ssize_t pty_read_slave(struct pty *pty, char *buffer, size_t length, bool block)
 {
 	return charbuffer_read(&pty->input, buffer, length, block | CHARBUFFER_DO_ANY);
 }

@@ -14,7 +14,7 @@ void spinlock_acquire(struct spinlock *lock)
 	if(current_thread)
 		current_thread->processor->preempt_disable++;
 #if CONFIG_DEBUG
-	int timeout = 10000000;
+	int timeout = 100000000;
 #endif
 	while(atomic_flag_test_and_set(&lock->lock)) {
 #if CONFIG_DEBUG

@@ -3,7 +3,7 @@
 #include <spinlock.h>
 #include <slab.h>
 #include <signal.h>
-
+#include <mutex.h>
 struct vm_context;
 struct thread;
 
@@ -29,7 +29,7 @@ struct process {
 	_Atomic int flags, status;
 
 	struct hash mappings;
-	struct spinlock map_lock;
+	struct mutex map_lock;
 
 	struct fildes files[MAX_FD];
 	struct spinlock files_lock;

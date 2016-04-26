@@ -59,6 +59,9 @@ static void __do_schedule(int save_preempt)
 		curproc->preempt_disable = 1;
 	}
 	
+#if CONFIG_DEBUG
+	assert(current_thread->held_spinlocks == 0);
+#endif
 	_check_signals(current_thread);
 
 	struct thread *next = __select_thread(curproc);
