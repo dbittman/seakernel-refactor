@@ -34,7 +34,6 @@ void blocklist_create(struct blocklist *bl);
 bool blocklist_unblock_one(struct blocklist *bl);
 void blockpoint_startblock(struct blocklist *bl, struct blockpoint *bp);
 enum block_result blockpoint_cleanup(struct blockpoint *bp);
-void blockpoint_unblock(struct blockpoint *bp);
 void thread_unblock(struct thread *thread);
 void blocklist_unblock_all(struct blocklist *bl);
 

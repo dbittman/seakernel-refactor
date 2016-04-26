@@ -15,7 +15,6 @@ void kobj_lru_create(struct kobj_lru *lru, size_t idlen, size_t max, struct kobj
 	hash_create(&lru->hash, HASH_LOCKLESS, 2048 / sizeof(struct linkedlist));
 	linkedlist_create(&lru->lru, LINKEDLIST_LOCKLESS);
 	linkedlist_create(&lru->active, LINKEDLIST_LOCKLESS);
-	blocklist_create(&lru->wait);
 	spinlock_create(&lru->lock);
 }
 
@@ -63,7 +62,7 @@ void kobj_lru_mark_ready(struct kobj_lru *lru, void *obj, void *id)
 	hash_insert(&lru->hash, id, lru->idlen, &header->idelem, obj);
 	header->flags |= KOBJ_LRU_INIT;
 	spinlock_release(&lru->lock);
-	blocklist_unblock_all(&lru->wait);
+	blocklist_unblock_all(&header->wait);
 }
 
 void kobj_lru_mark_error(struct kobj_lru *lru, void *obj, void *id)
@@ -79,7 +78,7 @@ void kobj_lru_mark_error(struct kobj_lru *lru, void *obj, void *id)
 	header->flags |= KOBJ_LRU_ERR;
 	header->flags |= KOBJ_LRU_INIT;
 	spinlock_release(&lru->lock);
-	blocklist_unblock_all(&lru->wait);
+	blocklist_unblock_all(&header->wait);
 	__kobj_putref(obj);
 	__kobj_putref(obj);
 }
@@ -123,16 +122,17 @@ void *kobj_lru_get(struct kobj_lru *lru, void *id)
 		if(!(header->flags & KOBJ_LRU_INIT)) {
 			struct blockpoint bp;
 			blockpoint_create(&bp, BLOCK_UNINTERRUPT, 0);
-			blockpoint_startblock(&lru->wait, &bp);
+			blockpoint_startblock(&header->wait, &bp);
 			if(!(header->flags & KOBJ_LRU_INIT)) {
 				spinlock_release(&lru->lock);
 				schedule();
 				spinlock_acquire(&lru->lock);
 			}
-			blockpoint_cleanup(&bp);
+			enum block_result res = blockpoint_cleanup(&bp);
+			assert(res == BLOCK_RESULT_UNBLOCKED);
 		}
 		if(!(header->flags & KOBJ_LRU_INIT)) {
-			panic(0, "failed to wait for init state: %x\n", header->flags);
+			panic(0, "failed to wait for init state on %p: %x\n", obj, header->flags);
 		}
 		if(header->flags & KOBJ_LRU_ERR) {
 			__kobj_putref(obj);
@@ -160,6 +160,7 @@ void *kobj_lru_get(struct kobj_lru *lru, void *id)
 		}
 		struct kobj_header *header = obj;
 		header->flags = KOBJ_LRU;
+		blocklist_create(&header->wait);
 		linkedlist_insert(&lru->active, &header->lruentry, kobj_getref(obj));
 		hash_insert(&lru->hash, id, lru->idlen, &header->idelem, kobj_getref(obj));
 		assert(header->_koh_refs == 3);

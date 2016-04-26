@@ -51,16 +51,17 @@ struct kobj {
 
 #define KOBJ_HEADER_MAGIC 0x66883322CAFEBEEFull
 struct kobj_header {
-	_Atomic uint64_t magic;
 	_Atomic ssize_t _koh_refs;
+	_Atomic uint64_t magic;
 	struct kobj *_koh_kobj;
 	struct stack_elem _koh_elem;
 	struct slab *_koh_slab;
 	bool _koh_initialized;
 	struct hashelem idelem;
 	struct linkedentry lruentry;
-	void * _Atomic id;
 	_Atomic int flags;
+	struct blocklist wait;
+	void * _Atomic id;
 };
 
 void *kobj_allocate(struct kobj *ko);
@@ -89,7 +90,6 @@ struct kobj_lru {
 	struct linkedlist lru, active;
 	struct hash hash;
 	struct spinlock lock;
-	struct blocklist wait;
 	void *data;
 	bool (*init)(void *, void *, void *);
 	void (*release)(void *, void *);

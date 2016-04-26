@@ -23,7 +23,7 @@ void thread_unblock(struct thread *thread)
 	}
 }
 
-void blockpoint_unblock(struct blockpoint *bp)
+static void blockpoint_unblock(struct blockpoint *bp)
 {
 	bp->flags |= BLOCK_UNBLOCKED;
 	bp->thread->flags &= ~THREAD_UNINTER;

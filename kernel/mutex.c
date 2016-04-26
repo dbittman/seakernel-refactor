@@ -41,7 +41,7 @@ void mutex_acquire(struct mutex *mutex)
 			schedule();
 		}
 		enum block_result res = blockpoint_cleanup(&bp);
-		assert(res == BLOCK_RESULT_UNBLOCKED);
+		assert(res == BLOCK_RESULT_UNBLOCKED || res == BLOCK_RESULT_BLOCKED);
 	}
 #if CONFIG_DEBUG
 	assert(mutex->owner == NULL);
