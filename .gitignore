@@ -4,4 +4,5 @@ build
 initrd
 sysroot-install
 sysroot
-!sysroot/usr/src
+!sysroot/usr/src/*
+!sysroot/usr/etc/*
