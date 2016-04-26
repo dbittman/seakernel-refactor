@@ -66,11 +66,14 @@ static void __fault(struct arch_exception_frame *frame)
 		if(frame->err_code & (1 << 4)) {
 			flags |= FAULT_EXEC;
 		}
-		//printk("pagefault (tid=%ld,pid=%d): %lx, %x, from %lx\n", current_thread->tid, current_thread->process->pid, cr2, flags, frame->rip);
+		//printk("pagefault (tid=%ld,pid=%d): %lx, %x, from %lx, %lx\n", current_thread->tid, current_thread->process->pid, cr2, flags, frame->rip, frame->rax);
 		mm_fault_entry(cr2, flags);
 	} else {
 		if(frame->int_no == 1) {
-			printk("trap %ld: %lx, %lx\n", current_thread->tid, frame->rip, frame->userrsp);
+			if(current_thread->tid == 5) {
+				//printk("trap %ld: %lx, %lx, %lx\n", current_thread->tid, frame->rip, frame->userrsp, frame->rax);
+				//for(;;);
+			}
 			return;
 		}
 		if(frame->cs == 0x8) {
@@ -105,8 +108,11 @@ void arch_thread_fork_entry(void *_frame)
 	x86_64_fork_return(_frame);
 }
 
+#include <processor.h>
 void x86_64_exception_entry(struct arch_exception_frame *frame)
 {
+	if(frame->int_no != 32 && frame->int_no != 14)
+		printk("EXC %ld\n", frame->int_no);
 	x86_64_signal_eoi();
 	if(frame->int_no < 32) {
 		__fault(frame);
@@ -117,7 +123,6 @@ void x86_64_exception_entry(struct arch_exception_frame *frame)
 		if(thread_check_status_retuser(current_thread))
 			x86_64_do_signal(frame);
 	}
-
 }
 
 #define DEBUG_SYS 0
@@ -127,7 +132,6 @@ void x86_64_syscall_entry(struct arch_exception_frame *frame)
 		frame->rax = SYS_fork; //HACK
 	if(frame->rax == SYS_fork) {
 		frame->rdi = (uintptr_t)frame;
-		frame->rsi = sizeof(*frame);
 	}
 	if(frame->rax == SYS_rt_sigreturn) {
 		x86_64_restore_frame(frame);
@@ -135,7 +139,7 @@ void x86_64_syscall_entry(struct arch_exception_frame *frame)
 	}
 #if DEBUG_SYS
 	if(current_thread->tid == 9 || 1)
-		printk("syscall %ld %3lu: %lx %lx %lx %lx %lx %lx\n", current_thread->tid, frame->rax, frame->rdi, frame->rsi, frame->rdx, frame->r10, frame->r8, frame->r9);
+		printk("syscall %ld(%2d) %3lu: %lx %lx %lx %lx %lx %lx\n", current_thread->tid, current_thread->processor->id, frame->rax, frame->rdi, frame->rsi, frame->rdx, frame->r10, frame->r8, frame->r9);
 	long num = frame->rax;
 #endif
 	frame->rax = syscall_entry(frame->rax, frame->rdi, frame->rsi, frame->rdx, frame->r10, frame->r8, frame->r9);
@@ -144,9 +148,9 @@ void x86_64_syscall_entry(struct arch_exception_frame *frame)
 
 	if(current_thread->tid == 9 || 1) {
 		if(ret < 0)
-			printk("syscall %ld %3lu: RET %ld\n", current_thread->tid, num, ret);
+			printk("syscall %ld     %3lu: RET %ld\n", current_thread->tid, num, ret);
 		else
-			printk("syscall %ld %3lu: RET %lx\n", current_thread->tid, num, ret);
+			printk("syscall %ld     %3lu: RET %lx\n", current_thread->tid, num, ret);
 	}
 #endif
 	if(thread_check_status_retuser(current_thread))

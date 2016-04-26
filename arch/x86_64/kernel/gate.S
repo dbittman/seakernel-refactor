@@ -43,10 +43,15 @@ x86_64_isr_syscall:
 
 # the syscall gate is named special
 .global x86_64_isr_shootdown
+.extern x86_64_signal_eoi
 x86_64_isr_shootdown:
+	pushq $0
+	pushq $0x80
+	pushq %rax
 	movq %cr3, %rax
 	movq %rax, %cr3
-	iretq
+	popq %rax
+	jmp ignore_handler
 
 .global x86_64_isr_halt
 x86_64_isr_halt:
@@ -54,10 +59,11 @@ x86_64_isr_halt:
 	.halt: hlt
 	jmp .halt
 
-# and finally, an ignore handler that just irets immediately
 .global x86_64_isr_ignore
 x86_64_isr_ignore:
-	iretq
+	pushq $0
+	pushq $0x80
+	jmp ignore_handler
 
 
 .macro handler name, entrypoint
@@ -108,9 +114,11 @@ x86_64_isr_ignore:
 .extern x86_64_syscall_entry
 handler isr_common, x86_64_exception_entry
 handler syscall_handler, x86_64_syscall_entry
+handler ignore_handler, x86_64_signal_eoi
 
 .global x86_64_fork_return
 x86_64_fork_return:
+	cli
 	movq %rdi, %rsp
 	# restore the frame
 	popq %r15
@@ -129,7 +137,7 @@ x86_64_fork_return:
 	popq %rsi
 	popq %rdi
 	
-	add $16, %rsp # cleanup error code and int number
-	mov $0, %rax # return value for child is zero
+	addq $16, %rsp # cleanup error code and int number
+	xorq %rax, %rax
 	iretq # and return from interrupt
 

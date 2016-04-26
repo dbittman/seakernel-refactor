@@ -73,7 +73,7 @@ static void init_worker(struct worker *worker)
 #if CONFIG_RUN_TESTS
 	test_late();
 #endif
-	sys_fork(&_init_entry, 0);
+	sys_fork(&_init_entry);
 	
 	worker_exit(worker, 0);
 }
@@ -113,6 +113,8 @@ void main(void)
 	kernel_idle_work();
 }
 
+#include <x86_64-ioport.h>
+#include <processor.h>
 void kernel_idle_work(void)
 {
 	struct workqueue *wq;

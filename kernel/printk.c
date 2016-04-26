@@ -175,18 +175,15 @@ done:
 	*b = 0;
 }
 
-#include <spinlock.h>
-static struct spinlock _lock;
-
+struct file;
+ssize_t serial_write(struct file *f,
+		size_t off, size_t len, const char *buf);
 int snprintf(char *buf, size_t len, const char *fmt, ...)
 {
 	(void)len; //TODO (minor) [dbittman]: we should actually care about this.
 	va_list args;
 	va_start(args, fmt);
 	vbufprintk(buf, fmt, args);
-	//spinlock_acquire(&_lock);
-	//serial_puts(buf);
-	//spinlock_release(&_lock);
 	va_end(args);
 	return 0;
 }
@@ -198,9 +195,7 @@ int printk(const char *fmt, ...)
 	char buf[1024];
 	for(int i=0;i<1024;i++) buf[i]=0;
 	vbufprintk(buf, fmt, args);
-	spinlock_acquire(&_lock);
-	serial_puts(buf);
-	spinlock_release(&_lock);
+	serial_write(NULL, 0, strlen(buf), buf);
 	va_end(args);
 	return 0;
 }
@@ -210,8 +205,6 @@ int vprintk(const char *fmt, va_list args)
 	char buf[1024];
 	for(int i=0;i<1024;i++) buf[i]=0;
 	vbufprintk(buf, fmt, args);
-	spinlock_acquire(&_lock);
-	serial_puts(buf);
-	spinlock_release(&_lock);
+	serial_write(NULL, 0, strlen(buf), buf);
 	return 0;
 }

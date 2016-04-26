@@ -164,8 +164,7 @@ static int __do_request(struct blockdev *bd, unsigned long start, int count, uin
 	if(req->ret_count == -1)
 		schedule();
 
-	enum block_result res = blockpoint_cleanup(&bp);
-	assert(res == BLOCK_RESULT_UNBLOCKED);
+	blockpoint_cleanup(&bp);
 	count = req->ret_count;
 	assert(count != -1);
 	kobj_putref(req);

@@ -17,7 +17,7 @@
 #define MEMORY_SIZE (MAX_SIZE)
 
 #define NOT_FREE (-1)
-struct mutex pm_buddy_mutex;
+struct spinlock pm_buddy_lock;
 uint8_t *bitmaps[MAX_ORDER + 1];
 
 struct stack freelists[MAX_ORDER+1];
@@ -105,10 +105,10 @@ static int deallocate(uintptr_t address, int order)
 
 uintptr_t pmm_buddy_allocate(size_t length)
 {
-	mutex_acquire(&pm_buddy_mutex);
+	spinlock_acquire(&pm_buddy_lock);
 	uintptr_t ret = __do_pmm_buddy_allocate(length);
 	free_memory -= length;
-	mutex_release(&pm_buddy_mutex);
+	spinlock_release(&pm_buddy_lock);
 	return ret;
 }
 
@@ -116,19 +116,19 @@ void pmm_buddy_deallocate(uintptr_t address)
 {
 	if(address >= MIN_PHYS_MEM + MEMORY_SIZE)
 		return;
-	mutex_acquire(&pm_buddy_mutex);
+	spinlock_acquire(&pm_buddy_lock);
 	int order = deallocate(address, 0);
 	if(order >= 0) {
 		free_memory += MIN_SIZE << order;
 		if(total_memory < free_memory)
 			total_memory = free_memory;
 	}
-	mutex_release(&pm_buddy_mutex);
+	spinlock_release(&pm_buddy_lock);
 }
 
 void pmm_buddy_init()
 {
-	mutex_create(&pm_buddy_mutex);
+	spinlock_create(&pm_buddy_lock);
 	uintptr_t start = (uintptr_t)static_bitmaps;
 	int length = ((MEMORY_SIZE / MIN_SIZE) / (8));
 	for(int i=0;i<=MAX_ORDER;i++) {

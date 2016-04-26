@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <process.h>
 #include <x86_64-msr.h>
+#include <processor.h>
 extern void x86_64_do_context_switch(void *oldsp, void *newsp);
 
 /* okay, so. We need to save and restore FPU+SSE registers during
@@ -73,13 +74,14 @@ void arch_thread_init(struct thread *us)
 	/* also use this to initialize the TSS for each CPU */
 	x86_64_gdt_init(us->processor);
 	x86_64_tss_init(us->processor);
+	us->arch.usedfpu = false;
 	*(struct thread **)(us->kernel_tls_base) = us;
 }
 
 void arch_thread_usermode_jump(uintptr_t entry, uintptr_t initial_stack)
 {
 	long trap = 0;
-	if(current_thread->tid == 6)
+	if(current_thread->tid == 4)
 		trap = 1 << 8;
 	
 	trap = 0;

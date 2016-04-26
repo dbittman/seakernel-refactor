@@ -32,6 +32,7 @@ void mutex_acquire(struct mutex *mutex)
 #endif
 	if(!current_thread)
 		return (void)atomic_fetch_add(&mutex->lock, 1);
+	assert(current_thread->held_spinlocks == 0);
 	if(!_spinlock_first(mutex)) {
 		struct blockpoint bp;
 		blockpoint_create(&bp, BLOCK_UNINTERRUPT, 0);
@@ -57,6 +58,7 @@ void mutex_release(struct mutex *mutex)
 #endif
 	if(!current_thread)
 		return (void)atomic_fetch_sub(&mutex->lock, 1);
+	assert(current_thread->held_spinlocks == 0);
 	if(atomic_fetch_sub(&mutex->lock, 1) != 1) {
 		blocklist_unblock_one(&mutex->wait);
 	}

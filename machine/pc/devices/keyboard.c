@@ -47,16 +47,16 @@ static struct file_calls keyboard_ops = {
 
 void flush_port(void)
 {
-        unsigned temp;
-        do
+    unsigned temp;
+    do
+    {
+        temp = x86_64_inb(0x64);
+        if((temp & 0x01) != 0)
         {
-                temp = x86_64_inb(0x64);
-                if((temp & 0x01) != 0)
-                {
-                        (void)x86_64_inb(0x60);
-                        continue;
-                }
-        } while((temp & 0x02) != 0);
+            (void)x86_64_inb(0x60);
+            continue;
+        }
+    } while((temp & 0x02) != 0);
 }
 
 static void _key_interrupt(int flags)
@@ -71,6 +71,7 @@ static void _late_init(void)
 	sys_mknod("/dev/keyboard", S_IFCHR | 0600, makedev(dev.devnr, 0));
 }
 
+#include <processor.h>
 __initializer static void _init_keyboard(void)
 {
 	interrupt_register(33, &_key_interrupt);

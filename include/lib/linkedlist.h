@@ -16,7 +16,7 @@ struct linkedentry {
 #include <stddef.h>
 
 struct linkedlist {
-	struct linkedentry *head;
+	struct linkedentry * _Atomic head;
 	struct linkedentry sentry;
 	struct spinlock lock;
 	_Atomic ssize_t count;

@@ -47,7 +47,7 @@ static struct slab *create_new_slab(struct cache *cache)
 	/* align start of object array to 16 bytes. */
 	size_t slabstruct_size = sizeof(struct slab);
 	slabstruct_size = ((slabstruct_size - 1) & ~0xF) + 16;
-	slab->max = (SLAB_SIZE - slabstruct_size) / total_size;
+	slab->max = (SLAB_SIZE - slabstruct_size) / total_size - 1;
 	/* in order to avoid lockiness in slabs, we use a locked stack */
 	stack_create(&slab->objects, 0);
 	/* push all the objects. This is a one-time upfront cost, which

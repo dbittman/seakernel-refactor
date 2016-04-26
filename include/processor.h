@@ -1,7 +1,7 @@
 #ifndef __PROCESSOR_H
 #define __PROCESSOR_H
 
-#define MAX_PROCESSORS 128
+#define MAX_PROCESSORS 64
 
 #define PROCESSOR_PRESENT 1
 #define PROCESSOR_UP      2
@@ -19,7 +19,7 @@ struct processor {
 	int id;
 	int flags;
 	struct thread idle_thread;
-	long long time;
+	_Atomic long long time;
 	_Atomic int preempt_disable;
 	void *idle_stack;
 	struct workqueue workqueue;

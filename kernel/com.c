@@ -19,20 +19,23 @@ static ssize_t _serial_read(struct file *f,
 	return len;
 }
 
-static ssize_t _serial_write(struct file *f,
+static struct spinlock serial_write_lock;
+ssize_t serial_write(struct file *f,
 		size_t off, size_t len, const char *buf)
 {
 	(void)off;
 	(void)f;
 	/* TODO: roll out nonblock to everything */
+	spinlock_acquire(&serial_write_lock);
 	for(size_t i = 0;i<len;i++)
 		serial_putc(*buf++);
+	spinlock_release(&serial_write_lock);
 	return len;
 }
 
 static struct file_calls serial_calls = {
 	.read = _serial_read,
-	.write = _serial_write,
+	.write = serial_write,
 
 	.create = 0, .destroy = 0, .ioctl = 0, .select = 0, .open = 0, .close = 0,
 	.map = 0, .unmap = 0,
@@ -48,6 +51,7 @@ static void _late_init(void)
 __orderedinitializer(__orderedafter(DEVICE_INITIALIZER_ORDER))
 static void _serial_init(void)
 {
+	spinlock_create(&serial_write_lock);
 	init_register_late_call(&_late_init, NULL);
 	dev_register(&dev, &serial_calls, S_IFCHR);
 }

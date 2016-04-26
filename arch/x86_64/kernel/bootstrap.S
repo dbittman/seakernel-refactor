@@ -134,6 +134,7 @@ second_start64_low:
 	jmpq *%rax
 
 .extern x86_64_cpu_secondary_entry
+.extern initial_pml4
 second_start64:
 	cli
 	movw $0x10, %ax
@@ -145,6 +146,8 @@ second_start64:
 
 	movq 0x7300, %rsp
 
+	movq $PHYS(initial_pml4), %rax
+	movq %rax, %cr3
 	xorq %rax, %rax
 	movq %rax, 0x7300
 	mfence

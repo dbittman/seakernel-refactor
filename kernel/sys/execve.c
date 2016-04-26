@@ -9,6 +9,7 @@
 #include <file.h>
 #include <arena.h>
 #include <fs/stat.h>
+#include <processor.h>
 
 static char *write_data(uintptr_t *end, void *data, size_t len)
 {
@@ -41,7 +42,7 @@ sysret_t sys_execve(const char *path, char **arg, char **env)
 		goto out_close;
 	}
 
-	printk("**** EXECVE: p%d t%ld - %s\n", current_thread->process->pid, current_thread->tid, path);
+	printk("**** EXECVE: p%d t%ld, c%d - %s\n", current_thread->process->pid, current_thread->tid, current_thread->processor->id, path);
 	/* set-id */
 	struct file *file = process_get_file(fd);
 	struct inode *node = file_get_inode(file);

@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <stdatomic.h>
 struct spinlock {
-	_Atomic bool lock;
+	atomic_flag lock;
 	int interrupt;
 };
 

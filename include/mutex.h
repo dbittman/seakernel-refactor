@@ -10,7 +10,7 @@ struct mutex {
 	_Atomic int lock;
 	struct blocklist wait;
 #if CONFIG_DEBUG
-	struct thread *owner;
+	struct thread * _Atomic owner;
 #endif
 };
 

@@ -34,6 +34,9 @@ static void _thread_init(void *obj)
 	sigemptyset(&thread->sigmask);
 	thread->flags = 0;
 	memset(thread->timers, 0, sizeof(thread->timers));
+#if CONFIG_DEBUG
+	thread->held_spinlocks = 0;
+#endif
 }
 
 static void _thread_create(void *obj)
@@ -132,10 +135,11 @@ __initializer static void thread_idmap_init(void)
 
 void thread_init(void)
 {
-	struct processor *proc = processor_get_current();
+	struct processor *proc = processor_get_id(arch_processor_current_id());
 	proc->idle_thread.kernel_tls_base = proc->idle_stack;
 	proc->idle_thread.ctx = &kernel_context;
 	proc->idle_thread.tid = threadid++;
+	printk("starting threading on CPU %d with tid %ld\n", proc->id, proc->idle_thread.tid);
 	proc->idle_thread.processor = proc;
 	proc->idle_thread.process = kernel_process;
 	arch_thread_init(&proc->idle_thread);

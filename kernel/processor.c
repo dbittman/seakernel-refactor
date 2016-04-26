@@ -59,16 +59,6 @@ void processor_start_secondaries(void)
 	}
 }
 
-void test_secondaries(void);
-
-static void secondary_test_worker(struct worker *w)
-{
-#if CONFIG_RUN_TESTS
-	test_secondaries();
-#endif
-	worker_exit(w, 0);
-}
-
 void processor_secondary_main(void)
 {
 	arch_timer_init();
@@ -79,9 +69,6 @@ void processor_secondary_main(void)
 
 	printk("Processor %d initialized, tid %lu\n", id, current_thread->tid);
 	arch_interrupt_set(1);
-
-	struct worker test_worker;
-	worker_start(&test_worker, &secondary_test_worker, NULL);
 
 	kernel_idle_work();
 }

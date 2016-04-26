@@ -188,10 +188,11 @@ void kobj_lru_put(struct kobj_lru *lru, void *obj)
 		}
 		linkedlist_remove(&lru->active, &header->lruentry);
 		linkedlist_insert(&lru->lru, &header->lruentry, obj);
+		spinlock_release(&lru->lock);
 		if(header->_koh_kobj->put)
 			header->_koh_kobj->put(obj);
+	} else {
+		spinlock_release(&lru->lock);
 	}
-
-	spinlock_release(&lru->lock);
 }
 

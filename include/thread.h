@@ -67,6 +67,11 @@ struct thread {
 
 	struct linkedlist saved_exception_frames;
 	struct thread_timer timers[3];
+
+
+#if CONFIG_DEBUG
+	ssize_t held_spinlocks;
+#endif
 };
 
 #define current_thread arch_thread_get_current()

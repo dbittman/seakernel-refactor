@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <signal.h>
 #include <file.h>
-sysret_t sys_fork(void *, size_t);
+sysret_t sys_fork(void *);
 intptr_t sys_mmap(uintptr_t addr, size_t len, int prot, int flags, int fd, size_t off);
 void *sys_mremap(void *old, size_t oldsz, size_t newsz, int flags, void *new);
 sysret_t sys_execve(const char *path, char **arg, char **env);

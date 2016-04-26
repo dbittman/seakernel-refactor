@@ -5,8 +5,7 @@
 #include <interrupt.h>
 void spinlock_create(struct spinlock *lock)
 {
-	lock->lock = ATOMIC_VAR_INIT(false);
-	lock->interrupt = 0;
+	memset(lock, 0, sizeof(*lock));
 }
 
 void spinlock_acquire(struct spinlock *lock)
@@ -14,15 +13,32 @@ void spinlock_acquire(struct spinlock *lock)
 	int interrupt = arch_interrupt_set(0);
 	if(current_thread)
 		current_thread->processor->preempt_disable++;
-	while(atomic_exchange(&lock->lock, true))
+#if CONFIG_DEBUG
+	int timeout = 10000000;
+#endif
+	while(atomic_flag_test_and_set(&lock->lock)) {
+#if CONFIG_DEBUG
+		if(--timeout == 0) {
+			panic(0, "possible deadlock");
+		}
+#endif
 		asm("pause"); //TODO: arch-dep
+	}
+#if CONFIG_DEBUG
+	if(current_thread)
+		current_thread->held_spinlocks++;
+#endif
 	lock->interrupt = interrupt;
 }
 
 void spinlock_release(struct spinlock *lock)
 {
 	int interrupt = lock->interrupt;
-	atomic_store(&lock->lock, false);
+#if CONFIG_DEBUG
+	if(current_thread)
+		current_thread->held_spinlocks--;
+#endif
+	atomic_flag_clear(&lock->lock);
 	if(current_thread)
 		current_thread->processor->preempt_disable--;
 	arch_interrupt_set(interrupt);

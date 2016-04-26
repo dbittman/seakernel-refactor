@@ -33,7 +33,20 @@ static void copy_thread(struct thread *parent, struct thread *child)
 	memcpy(&child->arch, &parent->arch, sizeof(child->arch));
 }
 
-sysret_t sys_fork(void *frame, size_t framelen)
+static _Atomic uint64_t next_cpu=0;
+static struct processor *select_processor(void)
+{
+	/* TODO: this is pretty stupid. */
+	while(true) {
+		struct processor *proc = processor_get_id(next_cpu++ % MAX_PROCESSORS);
+		if((proc->flags & PROCESSOR_UP) && (proc->flags & PROCESSOR_PRESENT)) {
+			printk("fork: cpu %ld\n", (next_cpu - 1) % MAX_PROCESSORS);
+			return proc;
+		}
+	}
+}
+
+sysret_t sys_fork(void *frame)
 {
 	struct thread *thread = kobj_allocate(&kobj_thread);
 	struct process *proc = kobj_allocate(&kobj_process);
@@ -46,13 +59,13 @@ sysret_t sys_fork(void *frame, size_t framelen)
 		thread->user_tls_base = (void *)process_allocate_user_tls(proc);
 		arch_thread_create(thread, (uintptr_t)&arch_thread_fork_entry, frame);
 	} else {
-		memcpy((void *)((uintptr_t)thread->kernel_tls_base + KERNEL_STACK_SIZE/2), frame, framelen);
+		memcpy((void *)((uintptr_t)thread->kernel_tls_base + KERNEL_STACK_SIZE/2), frame, sizeof(struct arch_exception_frame));
 		thread->user_tls_base = current_thread->user_tls_base;
 		arch_thread_create(thread, (uintptr_t)&arch_thread_fork_entry, (void *)((uintptr_t)thread->kernel_tls_base + KERNEL_STACK_SIZE/2));
 	}
 
 	thread->state = THREADSTATE_RUNNING;
-	processor_add_thread(current_thread->processor, thread);
+	processor_add_thread(select_processor(), thread);
 	sysret_t ret = proc->pid;
 	kobj_putref(proc);
 	return ret;

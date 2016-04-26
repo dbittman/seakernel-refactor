@@ -2,9 +2,12 @@
 #include <x86_64-ioport.h>
 #include <printk.h>
 #include <system.h>
+#include <mutex.h>
 static bool ready = false;
 static struct linkedlist drivers;
 static struct linkedlist devices;
+
+static struct mutex pci_mutex;
 
 static struct kobj kobj_pci_device = KOBJ_DEFAULT(pci_device);
 
@@ -81,8 +84,7 @@ static void pci_scan(void)
 {
 	if(!ready)
 		return;
-	__linkedlist_lock(&devices);
-	__linkedlist_lock(&drivers);
+	mutex_acquire(&pci_mutex);
 
 	struct linkedentry *entry, *drventry;
 	for(entry = linkedlist_iter_start(&devices);
@@ -107,8 +109,7 @@ static void pci_scan(void)
 		}
 	}
 
-	__linkedlist_unlock(&drivers);
-	__linkedlist_unlock(&devices);
+	mutex_release(&pci_mutex);
 }
 
 static void _late_init(void)
@@ -119,8 +120,11 @@ static void _late_init(void)
 
 __orderedinitializer(PCI_INITIALIZER_ORDER) static void _init_pci(void)
 {
-	linkedlist_create(&drivers, 0);
-	linkedlist_create(&devices, 0);
+	/* lockless because the init functions for devices
+	 * may want to use mutexes. */
+	linkedlist_create(&drivers, LINKEDLIST_LOCKLESS);
+	linkedlist_create(&devices, LINKEDLIST_LOCKLESS);
+	mutex_create(&pci_mutex);
 
 	for(int bus=0;bus<256;bus++)
 	{
@@ -147,6 +151,8 @@ __orderedinitializer(PCI_INITIALIZER_ORDER) static void _init_pci(void)
 
 void pci_register_driver(struct pci_driver *driver)
 {
+	mutex_acquire(&pci_mutex);
 	linkedlist_insert(&drivers, &driver->entry, driver);
+	mutex_release(&pci_mutex);
 	pci_scan();
 }

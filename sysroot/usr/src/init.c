@@ -8,7 +8,7 @@
 #include <syslog.h>
 #include <string.h>
 #include <errno.h>
-
+#include <stdio.h>
 int main()
 {
     sigset_t set;
@@ -19,7 +19,9 @@ int main()
     sigfillset(&set);
     sigprocmask(SIG_BLOCK, &set, 0);
 
-    if (fork()) for (;;) wait(&status);
+    if (fork()) {
+    	for (;;) wait(&status);
+    }
 
     sigprocmask(SIG_UNBLOCK, &set, 0);
 
