@@ -5,6 +5,7 @@
 #include <system.h>
 #include <map.h>
 #include <printk.h>
+#include <fs/inode.h>
 struct process *kernel_process;
 
 struct kobj_idmap processids;
@@ -87,8 +88,8 @@ static void _process_put(void *obj)
 	kobj_putref(proc->ctx);
 	process_close_files(proc, true);
 	process_remove_mappings(proc, true);
-	kobj_putref(proc->cwd);
-	kobj_putref(proc->root);
+	inode_put(proc->cwd);
+	inode_put(proc->root);
 	if(proc->pty)
 		kobj_putref(proc->pty);
 }

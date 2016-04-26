@@ -21,7 +21,7 @@ struct filesystem;
 struct dirent;
 struct pty_file;
 struct process {
-	struct kobj _header;
+	struct kobj_header _header;
 	struct vm_context *ctx;
 	struct linkedlist threads;
 	struct process * _Atomic parent;

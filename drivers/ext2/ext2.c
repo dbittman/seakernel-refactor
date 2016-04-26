@@ -242,13 +242,17 @@ static size_t _getdents(struct inode *node, _Atomic size_t *start, struct gd_dir
 		struct inodepage *inopage = inode_get_page(node, page);
 		struct ext2_dirent *dir = (void *)(inopage->frame + PHYS_MAP_START + offset);
 		while((uintptr_t)dir < inopage->frame + PHYS_MAP_START + arch_mm_page_size(0) && dirread < node->length) {
-			if(dir->record_len == 0)
+			if(dir->record_len == 0) {
+				inode_release_page(node, inopage);
 				goto out;
+			}
 			if(dir->inode > 0) {
 				int reclen = dir->name_len + sizeof(struct gd_dirent) + 1;
 				reclen = (reclen & ~15) + 16;
-				if(read + reclen >= count)
+				if(read + reclen >= count) {
+					inode_release_page(node, inopage);
 					goto out;
+				}
 				struct gd_dirent *out = (void *)(rec + read);
 				out->d_type = dir->type;
 				out->d_off = *start + reclen + read;
@@ -404,18 +408,64 @@ static int _unlink(struct inode *node, const char *name, size_t namelen)
 	return -ENOENT;
 }
 
-_Atomic int _next_id = 100000;
+static uint32_t __allocate_inode_from_group(struct ext2 *ext2, int gid, struct ext2_blockgroup *group)
+{
+	uintptr_t phys = mm_physical_allocate(ext2_sb_blocksize(&ext2->superblock), false);
+	ext2_read_blockdev(ext2, group->inode_bitmap, 1, phys, true);
+	char *bitmap = (char *)(phys + PHYS_MAP_START);
+	for(unsigned i=0;i<ext2->superblock.inodes_per_group;i++) {
+		int offset = i / 8;
+		int bit = i % 8;
+		if(!(bitmap[offset] & (1 << bit))) {
+			bitmap[offset] |= 1 << bit;
+			ext2_write_blockdev(ext2, group->inode_bitmap, 1, phys);
+			group->free_inodes--;
+			ext2_write_data(ext2, (ext2->superblock.first_data_block + 1) * ext2_sb_blocksize(&ext2->superblock) + 
+					(gid * sizeof(struct ext2_blockgroup)), sizeof(*group), group);
+			mm_physical_deallocate(phys);
+			return i;
+		}
+	}
+	mm_physical_deallocate(phys);
+	return 0;
+}
+
 static int _alloc_inode(struct filesystem *fs, uint64_t *out_id)
 {
-	(void)fs;
-	*out_id = _next_id++;
-	return 0;
+	struct ext2 *ext2 = fs->fsdata;
+	for(unsigned i=0;i<ext2_sb_bgcount(&ext2->superblock);i++) {
+		struct ext2_blockgroup group;
+		ext2_read_data(ext2, (ext2->superblock.first_data_block + 1) * ext2_sb_blocksize(&ext2->superblock) + 
+				(i * sizeof(struct ext2_blockgroup)), sizeof(group), &group);
+		if(group.free_inodes > 0) {
+			*out_id = (__allocate_inode_from_group(ext2, i, &group) + i * ext2->superblock.inodes_per_group) + 1;
+			return *out_id == 0 ? -EIO : 0;
+		}
+	}
+
+	return -ENOSPC;
 }
 
 static void _release_inode(struct filesystem *fs, struct inode *node)
 {
-	(void)fs;
-	(void)node;
+	struct ext2 *ext2 = fs->fsdata;
+	uint32_t id = node->id.inoid - 1;
+	int gid = id / ext2->superblock.inodes_per_group;
+	int inoentry = id % ext2->superblock.inodes_per_group;
+
+	struct ext2_blockgroup group;
+	ext2_read_data(ext2, (ext2->superblock.first_data_block + 1) * ext2_sb_blocksize(&ext2->superblock) + 
+			(gid * sizeof(struct ext2_blockgroup)), sizeof(group), &group);
+	group.free_inodes++;
+
+	uintptr_t phys = mm_physical_allocate(ext2_sb_blocksize(&ext2->superblock), false);
+	ext2_read_blockdev(ext2, group.inode_bitmap, 1, phys, true);
+	char *bitmap = (char *)(phys + PHYS_MAP_START);
+	bitmap[inoentry / 8] &= ~(1 << (inoentry % 8));
+	ext2_write_blockdev(ext2, group.inode_bitmap, 1, phys);
+	ext2_write_data(ext2, (ext2->superblock.first_data_block + 1) * ext2_sb_blocksize(&ext2->superblock) + 
+			(gid * sizeof(struct ext2_blockgroup)), sizeof(group), &group);
+	mm_physical_deallocate(phys);
 }
 
 static int _mount(struct filesystem *fs, struct blockdev *bd, unsigned long flags)
@@ -428,6 +478,7 @@ static int _mount(struct filesystem *fs, struct blockdev *bd, unsigned long flag
 		kobj_putref(ext2);
 		return -EIO;
 	}
+	printk("mounting ext2 fs: blksz %ld, ino/grp %d\n", ext2_sb_blocksize(&ext2->superblock), ext2->superblock.inodes_per_group);
 	return 0;
 }
 

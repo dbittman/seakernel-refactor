@@ -59,6 +59,7 @@ static struct slab *create_new_slab(struct cache *cache)
 		/* this is a useful pointer to have */
 		obj->_koh_kobj = cache->kobj;
 		obj->_koh_slab = slab;
+		obj->magic = KOBJ_HEADER_MAGIC;
 		stack_push(&slab->objects, &obj->_koh_elem, obj);
 	}
 	return slab;
@@ -128,6 +129,8 @@ void *kobj_allocate(struct kobj *ko)
 	void *obj = allocate_from_cache(&ko->cache);
 	struct kobj_header *header = obj;
 	header->_koh_refs = 1;
+	header->flags = 0;
+	assert(header->magic == KOBJ_HEADER_MAGIC);
 	/* so, here we maintain if this object has
 	 * been allocated before. If it has, we don't need
 	 * to create it. Instead, we just need to re-initialize
@@ -148,6 +151,7 @@ void *kobj_allocate(struct kobj *ko)
 void *kobj_getref(void *obj)
 {
 	struct kobj_header *header = obj;
+	assert(header->magic == KOBJ_HEADER_MAGIC);
 	int x = atomic_fetch_add(&header->_koh_refs, 1);
 	if(x == 0) {
 		panic(0, "getting dangling pointer: %p, %s\n", obj, header->_koh_kobj->name);
@@ -155,10 +159,11 @@ void *kobj_getref(void *obj)
 	return obj;
 }
 
-size_t kobj_putref(void *obj)
+size_t __kobj_putref(void *obj)
 {
 	assert(obj != NULL);
 	struct kobj_header *header = obj;
+	assert(header->magic == KOBJ_HEADER_MAGIC);
 	ssize_t count = atomic_fetch_sub(&header->_koh_refs, 1);
 	if(count <= 0) {
 		panic(0, "double-free of object %p, %s", obj, header->_koh_kobj->name);

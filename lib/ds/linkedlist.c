@@ -18,6 +18,17 @@ inline void __linkedlist_unlock(struct linkedlist *list)
 	}
 }
 
+static void linkedlist_do_remove(struct linkedlist *list, struct linkedentry *entry)
+{
+	assert(entry != &list->sentry);
+	assert(entry->list == list);
+	assert(list->count > 0);
+	list->count--;
+	entry->list = NULL;
+	entry->prev->next = entry->next;
+	entry->next->prev = entry->prev;
+}
+
 void *linkedlist_head(struct linkedlist *list)
 {
 	void *ret = NULL;
@@ -68,24 +79,17 @@ void linkedlist_insert(struct linkedlist *list, struct linkedentry *entry, void 
 {
 	assert(list->head == &list->sentry);
 	assert(list->head->next && list->head->prev);
+	assert(list->count >= 0);
 	__linkedlist_lock(list);
 	entry->next = list->head->next;
 	entry->prev = list->head;
 	entry->prev->next = entry;
 	entry->next->prev = entry;
 	entry->obj = obj;
+	entry->list = list;
 	list->count++;
 	assert(list->count > 0);
 	__linkedlist_unlock(list);
-}
-
-void linkedlist_do_remove(struct linkedlist *list, struct linkedentry *entry)
-{
-	assert(entry != &list->sentry);
-	assert(list->count > 0);
-	list->count--;
-	entry->prev->next = entry->next;
-	entry->next->prev = entry->prev;
 }
 
 void linkedlist_remove(struct linkedlist *list, struct linkedentry *entry)

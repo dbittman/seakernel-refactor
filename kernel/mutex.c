@@ -4,7 +4,8 @@
 #include <assert.h>
 #include <thread.h>
 #include <printk.h>
-
+#include <processor.h>
+#include <interrupt.h>
 static inline bool _spinlock_first(struct mutex *mutex)
 {
 	/* improve performance with an optimistic view that the mutex

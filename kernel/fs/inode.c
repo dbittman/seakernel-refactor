@@ -61,8 +61,10 @@ static void _inode_put(void *obj)
 {
 	struct inode *node = obj;
 	(void)node;
-	//if(node->links == 0)
-	//	node->fs->driver->fs_ops->release_inode(node->fs, node);
+	mutex_acquire(&node->fs->lock);
+	if(node->links == 0)
+		node->fs->driver->fs_ops->release_inode(node->fs, node);
+	mutex_release(&node->fs->lock);
 }
 
 static struct kobj kobj_inode = {
@@ -80,6 +82,7 @@ static bool _inode_initialize(void *obj, void *id, void *data)
 	(void)data;
 	struct inode *node = obj;
 	node->mount = NULL;
+	assert(node->pages.hash.count == 0);
 	memcpy(&node->id, id, sizeof(node->id));
 	if(fs_load_inode(node->id.fsid, node->id.inoid, node) < 0) {
 		kobj_lru_mark_error(&inode_lru, obj, &node->id);
@@ -122,6 +125,8 @@ struct inodepage *inode_get_page(struct inode *node, int nodepage)
 {
 	if(!node->fs)
 		return NULL;
+	assert(node->_header._koh_refs > 0);
+	assert(node->_header._koh_initialized);
 	return kobj_lru_get(&node->pages, &nodepage);
 }
 

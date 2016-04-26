@@ -138,9 +138,7 @@ int fs_load_inode(uint64_t fsid, uint64_t inoid, struct inode *node)
 		return -EIO;
 	}
 	node->fs = fs;
-	mutex_acquire(&fs->lock); //TODO: do we need this?
 	int ret = fs->driver->fs_ops->load_inode(fs, inoid, node);
-	mutex_release(&fs->lock);
 	return ret;
 }
 

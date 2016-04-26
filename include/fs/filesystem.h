@@ -44,7 +44,7 @@ struct fsdriver {
 };
 
 struct filesystem {
-	struct kobj _header;
+	struct kobj_header _header;
 	uint64_t id;
 	struct fsdriver *driver;
 	void *fsdata;

@@ -74,6 +74,7 @@ static bool block_cache_read(struct blockdev *bd, unsigned long block, uintptr_t
 	return true;
 }
 
+#include <processor.h>
 static void _handle_request(void *_req)
 {
 	struct request *req = _req;
@@ -151,6 +152,7 @@ static int __do_request(struct blockdev *bd, unsigned long start, int count, uin
 	req->phys = phys;
 	req->count = count;
 	req->cache = cache;
+	req->ret_count = -1;
 
 	struct blockpoint bp;
 	blockpoint_create(&bp, BLOCK_UNINTERRUPT, 0);
@@ -159,11 +161,13 @@ static int __do_request(struct blockdev *bd, unsigned long start, int count, uin
 	struct workitem wi = { .fn = _handle_request, .arg = kobj_getref(req) };
 	workqueue_insert(&bd->requests, &wi);
 	blocklist_unblock_all(&bd->wait);
-	schedule();
+	if(req->ret_count == -1)
+		schedule();
 
 	enum block_result res = blockpoint_cleanup(&bp);
 	assert(res == BLOCK_RESULT_UNBLOCKED);
 	count = req->ret_count;
+	assert(count != -1);
 	kobj_putref(req);
 	return count;
 }

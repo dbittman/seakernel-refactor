@@ -14,7 +14,7 @@
 #include <errno.h>
 
 struct ramfs_inode {
-	struct kobj _header;
+	struct kobj_header _header;
 	struct hash data;
 	struct hash dirents;
 	int mode, atime, mtime, ctime;
@@ -27,7 +27,7 @@ struct ramfs_inode {
 };
 
 struct ramfs_dirent {
-	struct kobj _header;
+	struct kobj_header _header;
 	char name[256];
 	size_t namelen;
 	uint64_t ino;
@@ -77,7 +77,7 @@ struct kobj kobj_ramfs_inode = {
 struct kobj kobj_ramfs_dirent = KOBJ_DEFAULT(ramfs_dirent);
 
 struct ramfs_data {
-	struct kobj _header;
+	struct kobj_header _header;
 	struct hash inodes;
 	_Atomic uint64_t next_id;
 };

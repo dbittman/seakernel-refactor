@@ -2,8 +2,10 @@
 #define __LIB_LINKEDLIST_H
 
 #define LINKEDLIST_LOCKLESS 1
+struct linkedlist;
 struct linkedentry {
 	void *obj;
+	struct linkedlist *list;
 	struct linkedentry *next, *prev;
 };
 
@@ -17,7 +19,7 @@ struct linkedlist {
 	struct linkedentry *head;
 	struct linkedentry sentry;
 	struct spinlock lock;
-	_Atomic size_t count;
+	_Atomic ssize_t count;
 	int flags;
 };
 
@@ -37,7 +39,6 @@ void *linkedlist_remove_tail(struct linkedlist *list);
 void linkedlist_create(struct linkedlist *list, int flags);
 void linkedlist_insert(struct linkedlist *list, struct linkedentry *entry, void *obj);
 void linkedlist_remove(struct linkedlist *list, struct linkedentry *entry);
-void linkedlist_do_remove(struct linkedlist *list, struct linkedentry *entry);
 struct linkedentry *linkedlist_find(struct linkedlist *list, bool (*fn)(struct linkedentry *, void *data), void *data);
 
 #endif

@@ -47,8 +47,11 @@ struct kobj {
 
 #define KOBJ_LRU_INIT 1
 #define KOBJ_LRU_ERR  2
+#define KOBJ_LRU 1024
 
+#define KOBJ_HEADER_MAGIC 0x66883322CAFEBEEFull
 struct kobj_header {
+	_Atomic uint64_t magic;
 	_Atomic ssize_t _koh_refs;
 	struct kobj *_koh_kobj;
 	struct stack_elem _koh_elem;
@@ -56,13 +59,23 @@ struct kobj_header {
 	bool _koh_initialized;
 	struct hashelem idelem;
 	struct linkedentry lruentry;
-	void *id;
+	void * _Atomic id;
 	_Atomic int flags;
 };
 
 void *kobj_allocate(struct kobj *ko);
 void *kobj_getref(void *obj);
-size_t kobj_putref(void *obj);
+size_t __kobj_putref(void *obj);
+
+static inline size_t kobj_putref(void *obj)
+{
+	struct kobj_header *header = obj;
+	assert(header->magic == KOBJ_HEADER_MAGIC);
+	if(header->flags)
+		panic(0, "called normal putref with flags non-zero %p: %s %x (%d)\n", obj, header->_koh_kobj->name, header->flags, *(int *)header->id);
+	assert(header->_koh_initialized);
+	return __kobj_putref(obj);
+}
 
 struct kobj_idmap {
 	size_t idlen;
