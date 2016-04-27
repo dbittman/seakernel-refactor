@@ -10,9 +10,10 @@
 #include <process.h>
 #include <device.h>
 
-sysret_t sys_open(const char *path, int flags, int mode)
+sysret_t sys_openat(int dirfd, const char *path, int flags, int mode)
 {
 	flags++;
+	struct inode *start = __get_at_start(dirfd);
 	mode = (mode & ~0xFFF) | ((mode & 0xFFF) & (~(current_thread->process->cmask & 0xFFF)));
 	struct dirent *dir;
 	struct inode *node;
@@ -21,8 +22,8 @@ sysret_t sys_open(const char *path, int flags, int mode)
 		pathfl |= PATH_CREATE;
 	if(((flags & O_CREAT) && (flags & O_EXCL)) || (flags & O_NOFOLLOW))
 		pathfl |= PATH_NOFOLLOW;
-	int res = fs_path_resolve(path, 0, pathfl, mode, &dir, &node);
-
+	int res = fs_path_resolve(path, start, pathfl, mode, &dir, &node);
+	inode_put(start);
 	if(res < 0)
 		return res;
 
@@ -71,6 +72,11 @@ sysret_t sys_open(const char *path, int flags, int mode)
 	inode_put(node);
 	kobj_putref(file);
 	return fd;
+}
+
+sysret_t sys_open(const char *path, int flags, int mode)
+{
+	return sys_openat(AT_FDCWD, path, flags, mode);
 }
 
 sysret_t sys_dup(int old)
@@ -347,5 +353,51 @@ sysret_t sys_fadvise(int fd, ssize_t offset, size_t len, int advice)
 	(void)len;
 	(void)advice;
 	return 0;
+}
+
+sysret_t sys_fchown(int fd, int owner, int group)
+{
+	struct file *file = process_get_file(fd);
+	if(!file)
+		return -EBADF;
+	struct inode *node = file_get_inode(file);
+	kobj_putref(file);
+	if(!node) {
+		return -EINVAL;
+	}
+	
+	if(current_thread->process->euid != 0) {
+		inode_put(node);
+		return -EPERM;
+	}
+
+	if(owner != -1)
+		node->uid = owner;
+	if(group != -1)
+		node->gid = group;
+	inode_mark_dirty(node);
+	inode_put(node);
+	return 0;
+}
+
+sysret_t sys_fchmod(int fd, int mode)
+{
+	struct file *file = process_get_file(fd);
+	if(!file)
+		return -EBADF;
+	struct inode *node = file_get_inode(file);
+	kobj_putref(file);
+	if(!node) {
+		return -EINVAL;
+	}
+	int ret = 0;
+	if(current_thread->process->euid == node->uid || current_thread->process->euid == 0) {
+		node->mode = (node->mode & ~0x7ff) | (mode & 0x7ff);
+		inode_mark_dirty(node);
+	} else {
+		ret = -EPERM;
+	}
+	inode_put(node);
+	return ret;
 }
 

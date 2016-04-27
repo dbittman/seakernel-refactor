@@ -51,4 +51,5 @@ sysret_t sys_setitimer(int which, const struct itimerval *new, struct itimerval 
 
 sysret_t sys_clock_gettime(int id, struct timespec *res);
 sysret_t sys_clock_getres(int id, struct timespec *res);
+sysret_t sys_utimensat(int dirfd, const char *filename, const struct timespec times[2]);
 

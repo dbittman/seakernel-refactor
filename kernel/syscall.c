@@ -54,6 +54,10 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_unlinkat]  = SC sys_unlinkat,
 	[SYS_rmdir]     = SC sys_rmdir,
 	[SYS_symlink]   = SC sys_symlink,
+	[SYS_openat]    = SC sys_openat,
+	[SYS_utimensat] = SC sys_utimensat,
+	[SYS_fchown]    = SC sys_fchown,
+	[SYS_fchmod]    = SC sys_fchmod,
 
 	[SYS_socket]   = SC sys_socket,
 	[SYS_socketpair]   = SC sys_socketpair,

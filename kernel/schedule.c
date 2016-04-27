@@ -60,7 +60,7 @@ static void __do_schedule(int save_preempt)
 	}
 	
 #if CONFIG_DEBUG
-	assert(current_thread->held_spinlocks == 0);
+	//assert(current_thread->held_spinlocks == 0);
 #endif
 	_check_signals(current_thread);
 

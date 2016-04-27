@@ -115,9 +115,8 @@ sysret_t sys_sigaction(int sig, const struct sigaction *act, struct sigaction *o
 	spinlock_acquire(&proc->signal_lock);
 	if(old)
 		memcpy(old, &proc->actions[sig], sizeof(*old));
-	memcpy(&proc->actions[sig], act, sizeof(*act));
-	(void)act;
-	(void)old;
+	if(act)
+		memcpy(&proc->actions[sig], act, sizeof(*act));
 	spinlock_release(&proc->signal_lock);
 	return 0;
 }

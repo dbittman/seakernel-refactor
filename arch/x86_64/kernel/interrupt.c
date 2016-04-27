@@ -138,20 +138,20 @@ void x86_64_syscall_entry(struct arch_exception_frame *frame)
 		return;
 	}
 #if DEBUG_SYS
-	if(current_thread->tid == 9 || 1)
-		printk("syscall %ld(%2d) %3lu: %lx %lx %lx %lx %lx %lx\n", current_thread->tid, current_thread->processor->id, frame->rax, frame->rdi, frame->rsi, frame->rdx, frame->r10, frame->r8, frame->r9);
+	//if(current_thread->tid == 9 || 1)
+		printk("syscall %ld(%2d) %3lu: %lx %lx %lx %lx %lx %lx (from %lx)\n", current_thread->tid, current_thread->processor->id, frame->rax, frame->rdi, frame->rsi, frame->rdx, frame->r10, frame->r8, frame->r9, frame->rip);
 	long num = frame->rax;
 #endif
 	frame->rax = syscall_entry(frame->rax, frame->rdi, frame->rsi, frame->rdx, frame->r10, frame->r8, frame->r9);
 #if DEBUG_SYS
 	long ret = frame->rax;
 
-	if(current_thread->tid == 9 || 1) {
+	//if(current_thread->tid == 9 || 1) {
 		if(ret < 0)
 			printk("syscall %ld     %3lu: RET %ld\n", current_thread->tid, num, ret);
 		else
 			printk("syscall %ld     %3lu: RET %lx\n", current_thread->tid, num, ret);
-	}
+	//}
 #endif
 	if(thread_check_status_retuser(current_thread))
 		x86_64_do_signal(frame);

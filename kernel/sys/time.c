@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <printk.h>
 #include <fs/path.h>
+#include <fs/sys.h>
 #include <fs/inode.h>
 static void __timeout(void *data)
 {
@@ -120,6 +121,49 @@ sysret_t sys_clock_gettime(int id, struct timespec *res)
 }
 
 #include <process.h>
+#define UTIME_NOW  0x3fffffff
+#define UTIME_OMIT 0x3ffffffe
+sysret_t sys_utimensat(int dirfd, const char *filename, const struct timespec times[2])
+{
+	struct inode *node;
+	struct inode *start = __get_at_start(dirfd);
+	int err;
+	if(filename != NULL) {
+		err = fs_path_resolve(filename, start, 0, 0, NULL, &node);
+		inode_put(start);
+		if(err < 0)
+			return err;
+	} else {
+		node = start;
+	}
+
+	err = 0;
+	if(times == NULL) {
+		if(inode_check_perm(node, PERM_WRITE) || node->uid == current_thread->process->euid) {
+			node->atime = arch_time_getepoch();
+			node->mtime = arch_time_getepoch();
+		} else {
+			err = -EPERM;
+		}
+	} else {
+		if(node->uid == current_thread->process->euid || current_thread->process->euid == 0) {
+			if(times[0].tv_nsec == UTIME_NOW)
+				node->atime = arch_time_getepoch();
+			else if(times[0].tv_nsec != UTIME_OMIT)
+				node->atime = times[0].tv_sec;
+			if(times[1].tv_nsec == UTIME_NOW)
+				node->mtime = arch_time_getepoch();
+			else if(times[1].tv_nsec != UTIME_OMIT)
+				node->mtime = times[1].tv_sec;
+		} else {
+			err = -EPERM;
+		}
+	}
+	inode_put(node);
+	return err;
+}
+
+
 sysret_t sys_utimes(const char *filename, const struct timeval times[2])
 {
 	struct inode *node;

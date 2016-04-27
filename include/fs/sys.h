@@ -76,6 +76,9 @@ struct gd_dirent;
 sysret_t sys_getdents(int fd, struct gd_dirent *dp, int count);
 sysret_t sys_rmdir(const char *path);
 sysret_t sys_symlink(const char *target, const char *linkpath);
+sysret_t sys_openat(int dirfd, const char *path, int flags, int mode);
+sysret_t sys_fchmod(int fd, int mode);
+sysret_t sys_fchown(int fd, int owner, int group);
 
 
 
