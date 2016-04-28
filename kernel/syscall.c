@@ -123,7 +123,7 @@ long syscall_entry(long num,
 	if(call) {
 		ret = call(arg1, arg2, arg3, arg4, arg5, arg6);
 	} else {
-		printk("[p%d, t%ld]: unimplemented syscall %ld\n", current_thread->process->pid, current_thread->tid, num);
+		//printk("[p%d, t%ld]: unimplemented syscall %ld\n", current_thread->process->pid, current_thread->tid, num);
 		ret = -ENOSYS;
 	}
 

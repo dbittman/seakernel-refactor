@@ -351,12 +351,13 @@ static int _link(struct inode *node, const char *name, size_t namelen, struct in
 					return 0;
 				}
 				else if(dir->record_len == 0) {
-					size_t rl = (sizeof(*dir) + namelen + 4) & ~3;
-					dir->record_len = ext2_sb_blocksize(&ext2->superblock) - (thispageread + rl) % ext2_sb_blocksize(&ext2->superblock);
+					assert(thispageread == 0);
+					dir->record_len = ext2_sb_blocksize(&ext2->superblock);
 					dir->name_len = namelen;
 					memcpy(dir->name, name, namelen);
 					dir->inode = target->id.inoid;
 					dir->type = _get_dirent_type(target);
+					assert(((uintptr_t)dir - (inopage->frame + PHYS_MAP_START)) + dir->record_len == ext2_sb_blocksize(&ext2->superblock));
 					inopage->flags |= INODEPAGE_DIRTY;
 					inode_release_page(node, inopage);
 					if(node->length < dir->record_len + dirread)
@@ -375,6 +376,7 @@ static int _link(struct inode *node, const char *name, size_t namelen, struct in
 				nd->inode = target->id.inoid;
 				inopage->flags |= INODEPAGE_DIRTY;
 				inode_release_page(node, inopage);
+				assert(((uintptr_t)nd - (inopage->frame + PHYS_MAP_START)) + nd->record_len == ext2_sb_blocksize(&ext2->superblock));
 				return 0;
 			}
 			dirread += dir->record_len;

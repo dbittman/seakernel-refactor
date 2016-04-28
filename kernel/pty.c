@@ -267,6 +267,9 @@ static int _pty_fops_ioctl(struct file *file, long cmd, long arg)
 			break;
 		case TCSETS: case TCSETSW:
 			memcpy(&pf->pty->term, (void *)arg, sizeof(pf->pty->term));
+			/* TODO: are we allowed to do this? */
+			if(pf->pty->term.c_lflag & ICANON)
+				pf->pty->cbuf_pos = 0;
 			break;
 		case TCGETS:
 			memcpy((void *)arg, &pf->pty->term, sizeof(pf->pty->term));

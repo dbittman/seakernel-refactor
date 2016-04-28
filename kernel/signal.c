@@ -36,10 +36,6 @@ void process_send_signal(struct process *target, int sig)
 
 bool thread_check_status_retuser(struct thread *thread)
 {
-	if(thread->flags & THREAD_EXIT) {
-		sys_do_exit(thread->exit_code);
-	}
-
 	bool ret = false;
 	if(current_thread && ((current_thread->flags & THREAD_RESCHEDULE) || thread->signal)) {
 		preempt();
@@ -77,7 +73,13 @@ bool thread_check_status_retuser(struct thread *thread)
 					break;
 			}
 			blocklist_unblock_all(&thread->process->wait);
+		} else if(process->actions[signal].handler == SIG_IGN) {
+			thread->signal = 0;
 		}
+	}
+	
+	if(thread->flags & THREAD_EXIT) {
+		sys_do_exit(thread->exit_code);
 	}
 
 	return ret;

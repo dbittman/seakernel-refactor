@@ -111,5 +111,25 @@ void process_exit(struct process *proc, int code)
 	}
 	proc->flags |= PROC_EXITED | PROC_STATUS_CHANGED;
 	blocklist_unblock_all(&proc->wait);
+
+	struct process *init = process_get_by_pid(1);
+	assert(init != NULL);
+	struct hashiter iter;
+	kobj_idmap_lock(&processids);
+	for(kobj_idmap_iter_init(&processids, &iter);
+			!kobj_idmap_iter_done(&iter);
+			kobj_idmap_iter_next(&iter)) {
+		struct process *p = kobj_idmap_iter_get(&iter);
+		if(p == proc->parent) {
+			process_send_signal(p, SIGCHLD);
+		}
+		if(p->parent == proc) {
+			kobj_putref(proc);
+			p->parent = kobj_getref(init);
+		}
+	}
+	kobj_idmap_unlock(&processids);
+
+	kobj_putref(init);
 }
 

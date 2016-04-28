@@ -107,7 +107,7 @@ static int __cleanup_waiters(struct waiter *root, int options, int *status)
 	for(struct waiter *w = root;w != NULL;w = w->next) {
 		enum block_result res = blockpoint_cleanup(&w->bp);
 		if(ret == 0) {
-			if(res == BLOCK_RESULT_INTERRUPTED)
+			if(res == BLOCK_RESULT_INTERRUPTED && current_thread->signal != SIGCHLD)
 				ret = -EINTR;
 			else
 				ret = __read_status(w->proc, options, status);
