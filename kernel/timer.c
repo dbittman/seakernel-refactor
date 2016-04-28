@@ -82,8 +82,9 @@ static void check_timers(void)
 	spinlock_release(&lock);
 }
 
-void timer_tick(int flags)
+void timer_tick(int v, int flags)
 {
+	(void)v;
 	counter++;
 	check_timers();
 	(void)flags;

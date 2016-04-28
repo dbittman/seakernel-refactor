@@ -13,6 +13,7 @@
 #include <thread.h>
 extern int initial_boot_stack;
 struct processor plist[MAX_PROCESSORS];
+#include <debug.h>
 
 void processor_add_thread(struct processor *proc, struct thread *thread)
 {
@@ -42,6 +43,7 @@ void processor_create(int id, int flags)
 	/* add one, since we're passing a count */
 	priqueue_create(&proc->runqueue, MAX_THREAD_PRIORITY + 1);
 	workqueue_create(&proc->workqueue);
+	spinlock_create(&proc->schedlock);
 	proc->running = &proc->idle_thread;
 	proc->idle_thread.state = THREADSTATE_RUNNING;
 	if(flags & PROCESSOR_UP)

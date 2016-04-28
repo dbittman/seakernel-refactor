@@ -11,8 +11,10 @@ void spinlock_create(struct spinlock *lock)
 void spinlock_acquire(struct spinlock *lock)
 {
 	int interrupt = arch_interrupt_set(0);
-	if(current_thread)
-		current_thread->processor->preempt_disable++;
+	if(current_thread) {
+		int r = current_thread->processor->preempt_disable++;
+		assert(r >= 0);
+	}
 #if CONFIG_DEBUG
 	int timeout = 100000000;
 #endif
@@ -29,18 +31,22 @@ void spinlock_acquire(struct spinlock *lock)
 		current_thread->held_spinlocks++;
 #endif
 	lock->interrupt = interrupt;
+	atomic_thread_fence(memory_order_seq_cst);
 }
 
 void spinlock_release(struct spinlock *lock)
 {
+	atomic_thread_fence(memory_order_seq_cst);
 	int interrupt = lock->interrupt;
 #if CONFIG_DEBUG
 	if(current_thread)
 		current_thread->held_spinlocks--;
 #endif
 	atomic_flag_clear(&lock->lock);
-	if(current_thread)
-		current_thread->processor->preempt_disable--;
+	if(current_thread) {
+		int r = current_thread->processor->preempt_disable--;
+		assert(r > 0);
+	}
 	arch_interrupt_set(interrupt);
 }
 

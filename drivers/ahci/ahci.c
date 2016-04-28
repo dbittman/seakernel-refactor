@@ -75,6 +75,7 @@ int ahci_initialize_device(struct hba_memory *abar, struct ahci_device *dev)
 {
 	printk("[ahci]: initializing device %d\n", dev->idx);
 	struct hba_port *port = (struct hba_port *)&abar->ports[dev->idx];
+	memset(dev->req_slots, 0, sizeof(dev->req_slots));
 	ahci_stop_port_command_engine(port);
 	port->sata_error = ~0;
 	/* power on, spin up */
@@ -181,7 +182,8 @@ void ahci_probe_ports(struct ahci_bus *bus)
 				bus->ports[i].type = type;
 				bus->ports[i].idx = i;
 				bus->ports[i].bus = bus;
-				mutex_create(&(bus->ports[i].lock));
+				spinlock_create(&bus->ports[i].lock);
+				blocklist_create(&bus->ports[i].wait);
 				if(ahci_initialize_device(bus->abar, &bus->ports[i]))
 					ahci_create_device(&bus->ports[i]);
 				else

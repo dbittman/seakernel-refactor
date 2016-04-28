@@ -53,7 +53,7 @@ __initializer static void _init_restore_page(void)
 			(uintptr_t)&signal_restore_code_end - (uintptr_t)&signal_restore_code_start);
 }
 
-void mm_fault_entry(uintptr_t address, int flags)
+void mm_fault_entry(uintptr_t address, int flags, uintptr_t from)
 {
 	if((address & page_mask(0)) == SIGNAL_RESTORE_PAGE && (flags & FAULT_USER) && (flags & FAULT_ERROR_PRES)) {
 		arch_mm_virtual_map(current_thread->process->ctx, SIGNAL_RESTORE_PAGE, restore_page_phys, arch_mm_page_size(0), MAP_EXECUTE | MAP_USER);
@@ -62,12 +62,12 @@ void mm_fault_entry(uintptr_t address, int flags)
 	if(current_thread->process && address >= USER_REGION_START && address < USER_REGION_END) {
 		if(mmu_mappings_handle_fault(address, flags))
 			return;
-		printk("SIGSEGV - process %d, addr %lx cause %x (tls %lx)\n", current_thread->process->pid, address, flags, current_thread->arch.fs);
+		printk("SIGSEGV - process %d, addr %lx cause %x (tls %lx) from %lx\n", current_thread->process->pid, address, flags, current_thread->arch.fs, from);
 		for(;;);
 		thread_send_signal(current_thread, SIGSEGV);
 		return;
 	}
-	panic(0, "PF [t%ld, p%d] - %lx %x", current_thread->tid, current_thread->process->pid, address, flags);
+	panic(0, "PF [t%ld, p%d] - %lx %x, from %lx", current_thread->tid, current_thread->process->pid, address, flags, from);
 }
 
 void mm_early_init(void)

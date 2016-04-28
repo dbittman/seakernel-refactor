@@ -59,8 +59,9 @@ void flush_port(void)
     } while((temp & 0x02) != 0);
 }
 
-static void _key_interrupt(int flags)
+static void _key_interrupt(int v, int flags)
 {
+	(void)v;
 	(void)flags;
 	unsigned char scan = x86_64_inb(0x60);
 	charbuffer_write(&keybuf, (char *)&scan, 1, CHARBUFFER_DO_NONBLOCK);

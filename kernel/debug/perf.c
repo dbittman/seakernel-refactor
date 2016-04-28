@@ -61,6 +61,7 @@ __attribute__((no_instrument_function))
 void perf_init(void)
 {
 	size_t len = ((uintptr_t)&kernel_text_end - (uintptr_t)&kernel_text_start) * sizeof(struct fcall);
+	len = __round_up_pow2(len);
 	if(len < 0x800000)
 		len = 0x800000;
 	calls = (void *)mm_virtual_allocate(len, true);

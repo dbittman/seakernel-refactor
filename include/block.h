@@ -17,6 +17,16 @@ struct blockdev {
 	struct blocklist wait;
 };
 
+struct request {
+	struct kobj_header _header;
+	struct blockdev *bd;
+	struct blocklist wait;
+	unsigned long start;
+	uintptr_t phys;
+	_Atomic int count, ret_count;
+	bool write;
+};
+
 struct blockdriver {
 	const char *name;
 	int blksz;
@@ -24,6 +34,7 @@ struct blockdriver {
 	_Atomic int _next_id;
 	int (*read_blocks)(struct blockdev *bd, unsigned long start, int count, uintptr_t phys);
 	int (*write_blocks)(struct blockdev *bd, unsigned long start, int count, uintptr_t phys);
+	int (*handle_req)(struct blockdev *bd, struct request *req);
 	struct device device;
 	struct kobj kobj_block;
 };

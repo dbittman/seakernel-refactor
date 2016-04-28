@@ -111,8 +111,8 @@ _Noreturn void thread_exit(struct thread *thread)
 		}
 	}
 	thread->flags |= THREAD_UNINTER;
-	thread->state = THREADSTATE_INIT;
 	thread->processor->running = &thread->processor->idle_thread;
+	thread->state = THREADSTATE_INIT;
 	workqueue_insert(&thread->processor->workqueue, &thread->wi_delete);
 	printk("thread %ld exited\n", thread->tid);
 	schedule();
@@ -143,6 +143,5 @@ void thread_init(void)
 	proc->idle_thread.processor = proc;
 	proc->idle_thread.process = kernel_process;
 	arch_thread_init(&proc->idle_thread);
-	processor_release(proc);
 }
 

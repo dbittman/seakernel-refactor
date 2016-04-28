@@ -16,7 +16,8 @@ struct workqueue {
 
 static inline bool workqueue_empty(struct workqueue *wq)
 {
-	return wq->list.count == 0;
+	bool r = wq->list.count == 0;
+	return r;
 }
 
 void workqueue_create(struct workqueue *wq);

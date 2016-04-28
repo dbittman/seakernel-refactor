@@ -19,7 +19,7 @@ struct exception_frame {
 
 void interrupt_init(void);
 void interrupt_entry(int vector, int flags);
-int interrupt_register(int vector, void (*f)(int flags));
+int interrupt_register(int vector, void (*f)(int, int flags));
 void arch_interrupt_mask(int vector);
 void arch_interrupt_unmask(int vector);
 struct exception_frame *interrupt_pop_frame(void);

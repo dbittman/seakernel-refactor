@@ -48,7 +48,7 @@ bool arch_mm_virtual_getmap(struct vm_context *, uintptr_t virt, uintptr_t *phys
 bool arch_mm_virtual_chattr(struct vm_context *ctx, uintptr_t virt, int flags);
 
 void pmm_buddy_init(void);
-void mm_fault_entry(uintptr_t address, int flags);
+void mm_fault_entry(uintptr_t address, int flags, uintptr_t);
 void mm_print_context(struct vm_context *ctx);
 
 static inline uintptr_t mm_virtual_allocate(size_t length,

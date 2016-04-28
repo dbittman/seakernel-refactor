@@ -318,18 +318,20 @@ struct ahci_device {
 	struct kobj_header _header;
 	uint32_t type;
 	int idx, minor;
-	struct mutex lock;
+	struct spinlock lock;
 	void *fis_virt, *clb_virt;
 	uintptr_t dma_clb, dma_fis;
 	void *ch[HBA_COMMAND_HEADER_NUM];
 	uintptr_t ch_dmas[HBA_COMMAND_HEADER_NUM];
 	struct ata_identify identify;
-	uint32_t slots;
+	_Atomic uint32_t slots;
 	int created;
 	
 	struct ahci_bus *bus;
 
 	struct hashelem mapelem;
+	struct request * _Atomic req_slots[32];
+	struct blocklist wait;
 };
 
 struct ahci_bus {
@@ -367,7 +369,7 @@ struct ahci_bus {
 
 #define ATA_SECTOR_SIZE 512
 
-#define AHCI_DEFAULT_INT 0
+#define AHCI_DEFAULT_INT 0xFFFFFFFF
 
 struct hba_command_header *ahci_initialize_command_header(struct hba_memory *abar, struct hba_port *port, struct ahci_device *dev, int slot, int write, int atapi, int prd_entries, int fis_len);
 struct fis_reg_host_to_device *ahci_initialize_fis_host_to_device(struct hba_memory *abar, struct hba_port *port, struct ahci_device *dev, int slot, int cmdctl, int ata_command);

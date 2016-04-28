@@ -13,20 +13,11 @@ static struct file_calls block_ops = {
 	.read = 0, .write = 0,
 };
 
-struct request {
-	struct kobj_header _header;
-	struct blockdev *bd;
-	struct blocklist wait;
-	unsigned long start;
-	uintptr_t phys;
-	int count, ret_count;
-	bool cache;
-};
-
 static void _req_init(void *obj)
 {
 	struct request *req = obj;
 	req->ret_count = 0;
+	assert(req->wait.waitlist.count == 0);
 }
 
 static void _req_create(void *obj)
@@ -36,11 +27,17 @@ static void _req_create(void *obj)
 	_req_init(obj);
 }
 
+static void _req_put(void *obj)
+{
+	struct request *req = obj;
+	kobj_putref(req->bd);
+}
+
 static struct kobj kobj_request = {
 	KOBJ_DEFAULT_ELEM(request),
 	.init = _req_init,
 	.create = _req_create,
-	.put = NULL, .destroy = NULL,
+	.put = _req_put, .destroy = NULL,
 };
 
 static void block_cache_write(struct blockdev *bd, unsigned long block, uintptr_t phys)
@@ -74,36 +71,26 @@ static bool block_cache_read(struct blockdev *bd, unsigned long block, uintptr_t
 	return true;
 }
 
-#include <processor.h>
 static void _handle_request(void *_req)
 {
 	struct request *req = _req;
-	int count = req->bd->drv->read_blocks(req->bd, req->start, req->count, req->phys);
-	if(req->cache) {
-		for(int i=0;i<req->count;i++) {
-			block_cache_write(req->bd, req->start + i, req->phys + req->bd->drv->blksz * i);
-		}
-	}
-	req->ret_count = count;
-	blocklist_unblock_all(&req->wait);
+	req->bd->drv->handle_req(req->bd, req);
 	kobj_putref(req);
 }
 
 static void __elevator(struct worker *worker)
 {
 	struct blockdev *bd = worker_arg(worker);
-	int timeout = 0;
+	struct blockpoint bp;
 	while(worker_notjoining(worker)) {
-		/* TODO: sleeeeeep */
 		workqueue_execute(&bd->requests);
-		if(workqueue_empty(&bd->requests) && !timeout--) {
-			struct blockpoint bp;
+		if(workqueue_empty(&bd->requests)) {
 			blockpoint_create(&bp, 0, 0);
 			blockpoint_startblock(&bd->wait, &bp);
-			if(workqueue_empty(&bd->requests))
+			if(workqueue_empty(&bd->requests)) {
 				schedule();
+			}
 			blockpoint_cleanup(&bp);
-			timeout = 10000;
 		}
 	}
 	worker_exit(worker, 0);
@@ -144,14 +131,14 @@ void blockdriver_register(struct blockdriver *driver)
 	dev_register(&driver->device, &block_ops, S_IFBLK);
 }
 
-static int __do_request(struct blockdev *bd, unsigned long start, int count, uintptr_t phys, bool cache)
+static int __do_request(struct blockdev *bd, unsigned long start, int count, uintptr_t phys)
 {
 	struct request *req = kobj_allocate(&kobj_request);
 	req->bd = kobj_getref(bd);
 	req->start = start;
 	req->phys = phys;
 	req->count = count;
-	req->cache = cache;
+	req->write = false;
 	req->ret_count = -1;
 
 	struct blockpoint bp;
@@ -161,12 +148,20 @@ static int __do_request(struct blockdev *bd, unsigned long start, int count, uin
 	struct workitem wi = { .fn = _handle_request, .arg = kobj_getref(req) };
 	workqueue_insert(&bd->requests, &wi);
 	blocklist_unblock_all(&bd->wait);
-	if(req->ret_count == -1)
+	int waited = 0;
+	if(req->ret_count == -1) {
+		waited = 1;
 		schedule();
+	}
 
-	blockpoint_cleanup(&bp);
+	enum block_result res = blockpoint_cleanup(&bp);
+	assert(res == BLOCK_RESULT_BLOCKED || res == BLOCK_RESULT_UNBLOCKED);
 	count = req->ret_count;
+	if(count == -1) {
+		panic(0, "failed to wait for request: %d, %d, %d", count, res, waited);
+	}
 	assert(count != -1);
+
 	kobj_putref(req);
 	return count;
 }
@@ -176,8 +171,11 @@ int block_read(struct blockdev *bd, unsigned long start, int count, uintptr_t ph
 	for(int i=0;i<count;i++) {
 		if(!block_cache_read(bd, start + i, phys + i * bd->drv->blksz)) {
 			/* TODO: multiple block points, waiting on multiple blocks? */
-			if(__do_request(bd, start + i, 1, phys + i * bd->drv->blksz, cache) == 0)
+			if(__do_request(bd, start + i, 1, phys + i * bd->drv->blksz) == 0)
 				return i;
+			if(cache) {
+				block_cache_write(bd, start + i, phys + bd->drv->blksz * i);
+			}
 		}
 	}
 	return count;

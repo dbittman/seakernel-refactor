@@ -25,8 +25,9 @@ static int serial_received()
 	return x86_64_inb(PORT + 5) & 1;
 }
 
-static void uart_interrupt(int flags)
+static void uart_interrupt(int v, int flags)
 {
+	(void)v;
 	(void)flags;
 	uint32_t isr = x86_64_inb(PORT + 2);
 	if(isr & (1 << 2)) {

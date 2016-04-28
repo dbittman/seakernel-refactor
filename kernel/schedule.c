@@ -8,6 +8,7 @@ _Atomic long long min_time = 0;
 static struct thread *__select_thread(struct processor *proc)
 {
 	/* throw the old process back on the queue */
+	spinlock_acquire(&proc->schedlock);
 	if(proc->running->state == THREADSTATE_RUNNING && proc->running != &proc->idle_thread) {
 		if(!(atomic_fetch_or(&proc->running->flags, THREAD_ONQUEUE) & THREAD_ONQUEUE)) {
 			priqueue_insert(&proc->runqueue, &proc->running->runqueue_node,
@@ -20,7 +21,11 @@ static struct thread *__select_thread(struct processor *proc)
 	else {
 		thread->flags &= ~THREAD_ONQUEUE;
 	}
+	if((thread->flags & THREAD_UNINTER) && thread->state != THREADSTATE_RUNNING) {
+		thread = &proc->idle_thread;
+	}
 	proc->running = thread;
+	spinlock_release(&proc->schedlock);
 	return thread;
 }
 
@@ -51,6 +56,7 @@ static void __do_schedule(int save_preempt)
 	struct processor *curproc = processor_get_current();
 	struct workqueue *wq = &curproc->workqueue;
 	int preempt_old = curproc->preempt_disable - 1 /* -1 for the handle of curproc we hold */;
+	assert(preempt_old >= 0);
 	if(!save_preempt && curproc->preempt_disable > 1) {
 		processor_release(curproc);
 		arch_interrupt_set(old);

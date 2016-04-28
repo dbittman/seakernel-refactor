@@ -66,8 +66,9 @@ static void __fault(struct arch_exception_frame *frame)
 		if(frame->err_code & (1 << 4)) {
 			flags |= FAULT_EXEC;
 		}
+		//if(frame->rip >= KERNEL_VIRT_BASE)
 		//printk("pagefault (tid=%ld,pid=%d): %lx, %x, from %lx, %lx\n", current_thread->tid, current_thread->process->pid, cr2, flags, frame->rip, frame->rax);
-		mm_fault_entry(cr2, flags);
+		mm_fault_entry(cr2, flags, frame->rip);
 	} else {
 		if(frame->int_no == 1) {
 			if(current_thread->tid == 5) {
@@ -111,8 +112,6 @@ void arch_thread_fork_entry(void *_frame)
 #include <processor.h>
 void x86_64_exception_entry(struct arch_exception_frame *frame)
 {
-	if(frame->int_no != 32 && frame->int_no != 14)
-		printk("EXC %ld\n", frame->int_no);
 	x86_64_signal_eoi();
 	if(frame->int_no < 32) {
 		__fault(frame);

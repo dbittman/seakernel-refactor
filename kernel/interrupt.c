@@ -37,14 +37,14 @@ void interrupt_init(void)
 void interrupt_entry(int vector, int flags)
 {
 	for(int i=0;i<MAX_HANDLERS;i++) {
-		void (*f)(int) = atomic_load(&hand[vector][i]);
+		void (*f)(int, int) = atomic_load(&hand[vector][i]);
 		if(f) {
-			f(flags);
+			f(vector, flags);
 		}
 	}
 }
 
-int interrupt_register(int vector, void (*f)(int flags))
+int interrupt_register(int vector, void (*f)(int vec, int flags))
 {
 	for(int i=0;i<MAX_HANDLERS;i++) {
 		void (*exp)() = NULL;

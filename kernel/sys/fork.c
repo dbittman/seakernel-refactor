@@ -40,7 +40,6 @@ static struct processor *select_processor(void)
 	while(true) {
 		struct processor *proc = processor_get_id(next_cpu++ % MAX_PROCESSORS);
 		if((proc->flags & PROCESSOR_UP) && (proc->flags & PROCESSOR_PRESENT)) {
-			printk("fork: cpu %ld\n", (next_cpu - 1) % MAX_PROCESSORS);
 			return proc;
 		}
 	}

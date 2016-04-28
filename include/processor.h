@@ -25,6 +25,7 @@ struct processor {
 	struct workqueue workqueue;
 	struct priqueue runqueue;
 	struct thread * _Atomic running;
+	struct spinlock schedlock;
 };
 
 void processor_create(int id, int flags);
@@ -47,27 +48,31 @@ static inline struct processor *processor_get_current(void)
 {
 	int old = arch_interrupt_set(0);
 	struct processor *proc = current_thread ? current_thread->processor : processor_get_id(arch_processor_current_id());
-	atomic_fetch_add(&proc->preempt_disable, 1);
+	int r = atomic_fetch_add(&proc->preempt_disable, 1);
+	assert(r >= 0);
 	arch_interrupt_set(old);
 	return proc;
 }
 
 static inline void processor_release(struct processor *proc)
 {
-	atomic_fetch_sub(&proc->preempt_disable, 1);
+	int r = atomic_fetch_sub(&proc->preempt_disable, 1);
+	assert(r > 0);
 }
 
 static inline void processor_disable_preempt(void)
 {
 	struct processor *proc = processor_get_current();
-	atomic_fetch_add(&proc->preempt_disable, 1);
+	int r = atomic_fetch_add(&proc->preempt_disable, 1);
+	assert(r >= 0);
 	processor_release(proc);
 }
 
 static inline void processor_enable_preempt(void)
 {
 	struct processor *proc = processor_get_current();
-	atomic_fetch_sub(&proc->preempt_disable, 1);
+	int r = atomic_fetch_sub(&proc->preempt_disable, 1);
+	assert(r > 0);
 	processor_release(proc);
 }
 
