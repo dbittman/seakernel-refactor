@@ -421,7 +421,9 @@ void initial_rootfs_init(void)
 
 	sys_mkdir("/mnt", 0777);
 	sys_mkdir("/dev", 0777);
+	sys_mkdir("/proc", 0777);
 
 	sys_mount(NULL, "/dev", "ramfs", 0, NULL);
+	sys_mount(NULL, "/proc", "ramfs", 0, NULL);
 }
 

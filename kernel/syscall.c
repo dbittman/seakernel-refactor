@@ -58,6 +58,7 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_utimensat] = SC sys_utimensat,
 	[SYS_fchown]    = SC sys_fchown,
 	[SYS_fchmod]    = SC sys_fchmod,
+	[SYS_newfstatat]   = SC sys_fstatat,
 
 	[SYS_socket]   = SC sys_socket,
 	[SYS_socketpair]   = SC sys_socketpair,
@@ -123,7 +124,7 @@ long syscall_entry(long num,
 	if(call) {
 		ret = call(arg1, arg2, arg3, arg4, arg5, arg6);
 	} else {
-		//printk("[p%d, t%ld]: unimplemented syscall %ld\n", current_thread->process->pid, current_thread->tid, num);
+		printk("[p%d, t%ld]: unimplemented syscall %ld\n", current_thread->process->pid, current_thread->tid, num);
 		ret = -ENOSYS;
 	}
 

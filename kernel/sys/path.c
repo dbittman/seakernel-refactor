@@ -113,32 +113,38 @@ sysret_t sys_access(const char *path, int mode)
 	return 0;
 }
 
-sysret_t sys_lstat(const char *path, struct stat *buf)
+#define AT_SYMLINK_NOFOLLOW 0x100
+sysret_t sys_fstatat(int dirfd, const char *path, struct stat *buf, int flags)
 {
-	struct inode *node;
-	int ret = fs_path_resolve(path, NULL, PATH_NOFOLLOW, 0, NULL, &node);
-	if(ret < 0)
-		return ret;
-	_stat(node, buf);
-	inode_put(node);
+	struct inode *start = __get_at_start(dirfd), *node;
+	int err;
+	if(path) {
+		err = fs_path_resolve(path, start, flags & AT_SYMLINK_NOFOLLOW ? PATH_NOFOLLOW : 0, 0, NULL, &node);
+		inode_put(start);
+		if(err < 0) {
+			return err;
+		}
+	} else {
+		node = start;
+	}
+
+	if(node) {
+		_stat(node, buf);
+		inode_put(node);
+	} else {
+		buf->st_mode = S_IFIFO;
+	}
 	return 0;
 }
 
 sysret_t sys_fstat(int fd, struct stat *buf)
 {
-	struct file *file = process_get_file(fd);
-	if(!file)
-		return -EBADF;
-	struct inode *node = file_get_inode(file);
-	if(node) {
-		_stat(node, buf);
-		inode_put(node);
-	} else {
-		/* TODO: what to do here? */
-		buf->st_mode = S_IFIFO;
-	}
-	kobj_putref(file);
-	return 0;
+	return sys_fstatat(fd, NULL, buf, 0);
+}
+
+sysret_t sys_lstat(const char *path, struct stat *buf)
+{
+	return sys_fstatat(AT_FDCWD, path, buf, AT_SYMLINK_NOFOLLOW);
 }
 
 sysret_t sys_getdents(int fd, struct gd_dirent *dp, int count)

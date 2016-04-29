@@ -13,7 +13,10 @@
 #include <processor.h>
 #include <klibc.h>
 #include <string.h>
-static bool enable = false;
+#include <fs/proc.h>
+#include <errno.h>
+
+static _Atomic bool enable = false;
 
 extern int kernel_text_start;
 extern int kernel_text_end;
@@ -119,6 +122,46 @@ void perf_print_report(void)
 	mm_virtual_deallocate((uintptr_t)sorted_calls);
 	enable = true;
 }
+
+static ssize_t _proc_perf(void *data, int rw, size_t off, size_t len, char *buf)
+{
+	if(rw != 0)
+		return -EINVAL;
+	(void)data;
+	size_t current = 0;
+	enable = false;
+	PROCFS_PRINTF(off, len, buf, current,
+			"                 FUNCTION NAME     #CALLS    MEAN TIME   TOTAL TIME\n");
+	struct fcall *sorted_calls = (void *)mm_virtual_allocate(length, true);
+	memcpy(sorted_calls, calls, length);
+	size_t total = 0;
+	for(int i=0;i<num_calls;i++) {
+		struct fcall *call = &sorted_calls[i];
+		if(call->count) {
+			memcpy(&sorted_calls[total++], call, sizeof(*call));
+		}
+	}
+	//qsort(sorted_calls, total, sizeof(struct fcall), __compar);
+	for(unsigned i=0;i<total;i++) {
+		struct fcall *call = &sorted_calls[i];
+		if(call->count) {
+			const struct ksymbol *ks = ksymbol_find_by_value((void *)call->base, false);
+			PROCFS_PRINTF(off, len, buf, current,
+					"%30.30s %10ld %12ld %12ld\n", ks ? ks->name : "???", call->count, call->mean, call->count * call->mean);
+		}
+	}
+	mm_virtual_deallocate((uintptr_t)sorted_calls);
+
+	enable = true;
+	return current;
+}
+
+static void _late_init(void)
+{
+	proc_create("/proc/perf", _proc_perf, NULL);
+}
+
+__initializer static void _init_perf_proc(void) { init_register_late_call(&_late_init, NULL); }
 
 #endif
 void sys_dump_perf(void)

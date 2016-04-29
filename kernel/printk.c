@@ -185,7 +185,7 @@ int snprintf(char *buf, size_t len, const char *fmt, ...)
 	va_start(args, fmt);
 	vbufprintk(buf, fmt, args);
 	va_end(args);
-	return 0;
+	return strlen(buf);
 }
 
 int printk(const char *fmt, ...)

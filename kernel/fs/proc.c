@@ -1,0 +1,104 @@
+#include <slab.h>
+#include <file.h>
+#include <device.h>
+#include <system.h>
+#include <errno.h>
+#include <fs/sys.h>
+#include <printk.h>
+#include <fs/path.h>
+struct proc_entry {
+	struct kobj_header _header;
+	uint32_t id;
+	void *data;
+	ssize_t (*call)(void *, int, size_t, size_t, char *);
+};
+
+static struct device dev;
+static struct kobj_idmap proc_entry_map;
+
+_Atomic uint32_t _next_id = 0;
+
+static void _init_proc_entry(void *obj)
+{
+	struct proc_entry *pe = obj;
+	pe->id = ++_next_id;
+	kobj_idmap_insert(&proc_entry_map, pe, &pe->id);
+	pe->data = NULL;
+}
+
+static void _create_proc_entry(void *obj)
+{
+	_init_proc_entry(obj);
+}
+
+static struct kobj kobj_proc_entry = {
+	KOBJ_DEFAULT_ELEM(proc_entry),
+	.create = _create_proc_entry,
+	.init = _init_proc_entry,
+	.put = NULL, .destroy = NULL,
+};
+
+static ssize_t _proc_read(struct file *file, size_t off, size_t len, char *b)
+{
+	struct inode *node = file_get_inode(file);
+	if(!node)
+		return -EINVAL;
+	uint32_t id = node->minor;
+	inode_put(node);
+
+	struct proc_entry *pe = kobj_idmap_lookup(&proc_entry_map, &id);
+	if(!pe)
+		return -EINVAL;
+
+	ssize_t ret = pe->call(pe->data, 0, off, len, b);
+	kobj_putref(pe);
+	printk("ret: %ld\n", ret);
+	return ret;
+}
+
+static struct file_calls proc_ops = {
+	.read = _proc_read,
+	.write = NULL,
+	.select = NULL,
+	.ioctl = NULL,
+	.create = NULL,
+	.destroy = NULL,
+	.map = NULL,
+	.unmap = NULL,
+	.open = NULL,
+	.close = NULL,
+};
+
+void proc_create(const char *path, ssize_t (*call)(void *data, int, size_t, size_t, char *), void *data)
+{
+	struct proc_entry *pe = kobj_allocate(&kobj_proc_entry);
+	pe->data = data;
+	pe->call = call;
+
+	int r = sys_mknod(path, S_IFCHR | 0600, makedev(dev.devnr, pe->id));
+	assert(r == 0);
+}
+
+void proc_destroy(const char *path)
+{
+	struct inode *node;
+	if(fs_path_resolve(path, NULL, 0, 0, NULL, &node) < 0)
+		return;
+
+	uint32_t id = node->minor;
+	inode_put(node);
+
+	struct proc_entry *pe = kobj_idmap_lookup(&proc_entry_map, &id);
+	if(pe == NULL)
+		return;
+
+	kobj_idmap_delete(&proc_entry_map, pe, &id);
+	kobj_putref(pe);
+}
+
+__orderedinitializer(__orderedafter(DEVICE_INITIALIZER_ORDER)) static void _proc_init(void)
+{
+	dev_register(&dev, &proc_ops, S_IFCHR);
+	kobj_idmap_create(&proc_entry_map, sizeof(uint32_t));
+}
+

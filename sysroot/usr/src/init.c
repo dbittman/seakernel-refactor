@@ -62,6 +62,13 @@ int main()
 		exit(1);
 	}
 
+	mkdir("/mnt/proc", 0777);
+	if(mount("/proc", "/mnt/proc", NULL, MS_BIND, NULL) == -1) {
+		syslog(LOG_EMERG, "failed to remount procfs: %s", strerror(errno));
+		exit(1);
+	}
+
+
 	syslog(LOG_NOTICE, "chrooting");
 	if(chdir("/mnt") == -1) {
 		syslog(LOG_EMERG, "failed to chdir: %s", strerror(errno));

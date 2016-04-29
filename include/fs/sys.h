@@ -79,6 +79,7 @@ sysret_t sys_symlink(const char *target, const char *linkpath);
 sysret_t sys_openat(int dirfd, const char *path, int flags, int mode);
 sysret_t sys_fchmod(int fd, int mode);
 sysret_t sys_fchown(int fd, int owner, int group);
+sysret_t sys_fstatat(int dirfd, const char *path, struct stat *buf, int flags);
 
 
 
