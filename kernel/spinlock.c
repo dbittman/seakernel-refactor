@@ -8,10 +8,11 @@ void spinlock_create(struct spinlock *lock)
 	memset(lock, 0, sizeof(*lock));
 }
 
+#include <printk.h>
 void spinlock_acquire(struct spinlock *lock)
 {
 	int interrupt = arch_interrupt_set(0);
-	if(current_thread) {
+	if(current_thread && current_thread->processor) {
 		int r = current_thread->processor->preempt_disable++;
 		assert(r >= 0);
 	}
@@ -43,7 +44,7 @@ void spinlock_release(struct spinlock *lock)
 		current_thread->held_spinlocks--;
 #endif
 	atomic_flag_clear(&lock->lock);
-	if(current_thread) {
+	if(current_thread && current_thread->processor) {
 		int r = current_thread->processor->preempt_disable--;
 		assert(r > 0);
 	}

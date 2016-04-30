@@ -112,12 +112,12 @@ void arch_thread_fork_entry(void *_frame)
 #include <processor.h>
 void x86_64_exception_entry(struct arch_exception_frame *frame)
 {
-	x86_64_signal_eoi();
 	if(frame->int_no < 32) {
 		__fault(frame);
 	} else {
 		interrupt_entry(frame->int_no, frame->cs == 0x8 ? INTERRUPT_INKERNEL : 0);
 	}
+	x86_64_signal_eoi();
 	if(frame->cs != 0x8) {
 		if(thread_check_status_retuser(current_thread))
 			x86_64_do_signal(frame);

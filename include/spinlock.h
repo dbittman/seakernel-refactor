@@ -11,7 +11,7 @@ void spinlock_create(struct spinlock *);
 void spinlock_acquire(struct spinlock *);
 void spinlock_release(struct spinlock *);
 
-#define SPINLOCK_INIT { 0, 0 }
+#define SPINLOCK_INIT { {0}, 0 }
 
 #endif
 

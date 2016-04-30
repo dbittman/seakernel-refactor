@@ -58,11 +58,11 @@ static void ahci_check_eot(struct ahci_bus *bus, int port)
 	bool release = false;
 	for(int i=0;i<32;i++) {
 		struct request *req;
-		if((dev->slots & (1 << i)) && !(hp->command_issue & (1 << i)) && (req = atomic_exchange(&dev->req_slots[i], NULL))) {
+		if((dev->slots & (1ul << i)) && !(hp->command_issue & (1ul << i)) && (req = atomic_exchange(&dev->req_slots[i], NULL))) {
 			req->ret_count = req->count;
 			blocklist_unblock_all(&req->wait);
 			kobj_putref(req);
-			dev->slots &= ~(1 << i);
+			dev->slots &= ~(1ul << i);
 			hp->sata_error = ~0;
 			release = true;
 		}
@@ -77,7 +77,7 @@ void ahci_interrupt_handler(int int_no, int flags)
 	struct ahci_bus *bus = interrupt_map[int_no - 32];
 	uint32_t intstat = bus->abar->interrupt_status;
 	for(int i=0;i<32;i++) {
-		if(intstat & (1 << i)) {
+		if(intstat & (1u << i)) {
 			struct ahci_device *dev = &bus->ports[i];
 			spinlock_acquire(&dev->lock);
 			if(bus->abar->ports[i].interrupt_status & 0x1) {

@@ -63,8 +63,14 @@ static void _key_interrupt(int v, int flags)
 {
 	(void)v;
 	(void)flags;
-	unsigned char scan = x86_64_inb(0x60);
-	charbuffer_write(&keybuf, (char *)&scan, 1, CHARBUFFER_DO_NONBLOCK);
+	unsigned char tmp;
+	do {
+		tmp = x86_64_inb(0x64);
+		if(tmp & 1) {
+			unsigned char scan = x86_64_inb(0x60);
+			charbuffer_write(&keybuf, (char *)&scan, 1, CHARBUFFER_DO_NONBLOCK);
+		}
+	} while(tmp & 2);
 }
 
 static void _late_init(void)

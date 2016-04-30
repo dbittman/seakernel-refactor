@@ -113,12 +113,12 @@ int64_t arch_time_getepoch(void)
 {
 	read_rtc();
 	int yday = day;
-	for(int i=0;i<month-1;i++)
+	for(int i=0;i<month-1 && i < 12;i++)
 		yday += dpm[i];
 
 	int yr = year - 1900;
-	return second + minute*60 + hour*3600 + yday*86400 +
-		     (yr-70)*31536000 + ((yr-69)/4)*86400 -
-		          ((yr-1)/100)*86400 + ((yr+299)/400)*86400;
+	return second + minute*60 + hour*3600 + yday*86400ul +
+		     (yr-70)*31536000ul + ((yr-69)/4)*86400ul -
+		          ((yr-1)/100)*86400ul + ((yr+299)/400)*86400ul;
 }
 
