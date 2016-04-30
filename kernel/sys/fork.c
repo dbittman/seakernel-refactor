@@ -7,7 +7,10 @@
 #include <string.h>
 #include <printk.h>
 #include <errno.h>
-
+#include <system.h>
+#include <fs/proc.h>
+#include <fs/sys.h>
+#include <klibc.h>
 static void copy_process(struct process *parent, struct process *child)
 {
 	child->root = kobj_getref(parent->root);
@@ -45,6 +48,117 @@ static struct processor *select_processor(void)
 	}
 }
 
+static int _map_compar(const void *_a, const void *_b)
+{
+	const struct mapping *a = _a;
+	const struct mapping *b = _b;
+	if(a->vpage < b->vpage)
+		return -1;
+	else if(a->vpage > b->vpage)
+		return 1;
+	return 0;
+}
+
+ssize_t _proc_read_maps(void *data, int rw, size_t off, size_t len, char *buf)
+{
+	if(rw != 0)
+		return -EINVAL;
+	size_t current = 0;
+	struct process *proc = data;
+	if(len < arch_mm_page_size(0))
+		len = arch_mm_page_size(0);
+	void *tmp = (void *)mm_virtual_allocate(__round_up_pow2(len), false);
+	mutex_acquire(&proc->map_lock);
+	size_t alloc = __round_up_pow2(proc->mappings.count * sizeof(struct mapping));
+	if(alloc < arch_mm_page_size(0))
+		alloc = arch_mm_page_size(0);
+	struct mapping *maps = (void *)mm_virtual_allocate(alloc, true);
+	
+	struct hashiter iter;
+	size_t num = 0;
+	for(hash_iter_init(&iter, &proc->mappings);
+			!hash_iter_done(&iter); hash_iter_next(&iter)) {
+		struct mapping *map = hash_iter_get(&iter);
+		memcpy(&maps[num++], map, sizeof(*map));
+	}
+
+	qsort(maps, num, sizeof(struct mapping), _map_compar);
+
+	/* now combine neighbors */
+	for(size_t i=0;i<num;i++) {
+		struct mapping *map = &maps[i];
+		size_t pagecount = 1;
+		if(map->vpage > 0) {
+			for(size_t j=1;j<(num-i);j++) {
+				struct mapping *next = &maps[i+j];
+				if(next->vpage == map->vpage + j
+						&& (map->flags & ~MMAP_MAP_MAPPED) == (map->flags & ~MMAP_MAP_MAPPED)
+						&& map->prot == map->prot) {
+					if((map->flags & MMAP_MAP_ANON)
+							|| (unsigned)next->nodepage == map->nodepage + j) {
+						/* merge */
+						next->vpage = 0; //mark as not here
+						pagecount++;
+					}
+				}
+			}
+			map->nodepage = pagecount;
+		}
+	}
+	PROCFS_PRINTF(off, len, tmp, current,
+			"         MAP BEGIN              MAP END      FLAGS   EWR (PROT)\n");
+	for(size_t i=0;i<num;i++) {
+		struct mapping *map = &maps[i];
+		if(map->vpage > 0) {
+			PROCFS_PRINTF(off, len, tmp, current,
+					"%16.16lx - %16.16lx %8.8lx %3.3b\n", map->vpage * arch_mm_page_size(0), (map->vpage + (uintptr_t)map->nodepage) * arch_mm_page_size(0), map->flags, map->prot);
+		}
+	}
+
+	mutex_release(&proc->map_lock);
+	memcpy(buf, tmp, current > len ? len : current);
+	mm_virtual_deallocate((uintptr_t)maps);
+	mm_virtual_deallocate((uintptr_t)tmp);
+	return current;
+}
+
+static void __create_proc_entries(struct process *proc)
+{
+	#define __proc_make(pid,name,call,data) do { char str[128]; snprintf(str, 128, "/proc/%d/%s", pid, name); proc_create(str, call, data); } while(0)
+	char dir[128];
+	snprintf(dir, 128, "/proc/%d", proc->pid);
+	int r = sys_mkdir(dir, 0755);
+	assert(r == 0);
+	snprintf(dir, 128, "/proc/%d/fd", proc->pid);
+	r = sys_mkdir(dir, 0755);
+	assert(r == 0);
+	kobj_getref(proc);
+	__proc_make(proc->pid, "status", _proc_read_int, &proc->status);
+	kobj_getref(proc);
+	__proc_make(proc->pid, "cmask", _proc_read_int, &proc->cmask);
+	kobj_getref(proc);
+	__proc_make(proc->pid, "sid", _proc_read_int, &proc->seshid);
+	kobj_getref(proc);
+	__proc_make(proc->pid, "pgroupid", _proc_read_int, &proc->pgroupid);
+	kobj_getref(proc);
+	__proc_make(proc->pid, "uid", _proc_read_int, &proc->status);
+	kobj_getref(proc);
+	__proc_make(proc->pid, "euid", _proc_read_int, &proc->status);
+	kobj_getref(proc);
+	__proc_make(proc->pid, "suid", _proc_read_int, &proc->status);
+	kobj_getref(proc);
+	__proc_make(proc->pid, "gid", _proc_read_int, &proc->status);
+	kobj_getref(proc);
+	__proc_make(proc->pid, "egid", _proc_read_int, &proc->status);
+	kobj_getref(proc);
+	__proc_make(proc->pid, "sgid", _proc_read_int, &proc->status);
+	kobj_getref(proc);
+	__proc_make(proc->pid, "brk", _proc_read_int, &proc->brk);
+	kobj_getref(proc);
+	__proc_make(proc->pid, "maps", _proc_read_maps, proc);
+
+}
+
 sysret_t sys_fork(void *frame)
 {
 	struct thread *thread = kobj_allocate(&kobj_thread);
@@ -52,8 +166,8 @@ sysret_t sys_fork(void *frame)
 	copy_process(current_thread->process, proc);
 	copy_thread(current_thread, thread);
 	process_copy_mappings(current_thread->process, proc);
-	process_copy_files(current_thread->process, proc);
 	process_attach_thread(proc, thread);
+	__create_proc_entries(proc);
 	if(current_thread->process == kernel_process) {
 		thread->user_tls_base = (void *)process_allocate_user_tls(proc);
 		arch_thread_create(thread, (uintptr_t)&arch_thread_fork_entry, frame);
@@ -61,6 +175,8 @@ sysret_t sys_fork(void *frame)
 		memcpy((void *)((uintptr_t)thread->kernel_tls_base + KERNEL_STACK_SIZE/2), frame, sizeof(struct arch_exception_frame));
 		thread->user_tls_base = current_thread->user_tls_base;
 		arch_thread_create(thread, (uintptr_t)&arch_thread_fork_entry, (void *)((uintptr_t)thread->kernel_tls_base + KERNEL_STACK_SIZE/2));
+
+		process_copy_files(current_thread->process, proc);
 	}
 
 	thread->state = THREADSTATE_RUNNING;

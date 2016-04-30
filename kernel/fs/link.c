@@ -44,6 +44,10 @@ int fs_unlink(struct inode *node, const char *name, size_t namelen)
 		return -ENOENT;
 	}
 	struct inode *target = dirent_get_inode(&dir);
+	if(!target) {
+		mutex_release(&node->lock);
+		return -EIO;
+	}
 	if(S_ISDIR(target->mode)) {
 		inode_put(target);
 		mutex_release(&node->lock);

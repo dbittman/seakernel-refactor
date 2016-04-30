@@ -174,6 +174,23 @@ static int _lookup(struct inode *node, const char *name, size_t namelen, struct 
 	return 0;
 }
 
+static int _unlink(struct inode *node, const char *name, size_t namelen)
+{
+	struct ramfs_data *rfs = node->fs->fsdata;
+	assert(rfs != NULL);
+	struct ramfs_inode *ri = hash_lookup(&rfs->inodes, &node->id.inoid, sizeof(uint64_t));
+	assert(ri != NULL);
+
+	mutex_acquire(&ri->lock);
+	struct ramfs_dirent *rd = hash_lookup(&ri->dirents, name, namelen);
+	if(rd) {
+		hash_delete(&ri->dirents, name, namelen);
+		kobj_putref(rd);
+	}
+	mutex_release(&ri->lock);
+	return 0;
+}
+
 static size_t _getdents(struct inode *node, _Atomic size_t *start, struct gd_dirent *gd, size_t count)
 {
 	struct ramfs_data *rfs = node->fs->fsdata;
@@ -245,6 +262,27 @@ static int _link(struct inode *node, const char *name, size_t namelen, struct in
 	return __ramfs_do_link(ri, name, namelen, rt);
 }
 
+#include <fs/proc.h>
+static int _readlink(struct inode *node, char *path, size_t len)
+{
+	if(node->major) {
+		ssize_t ret = proc_read_data(node->minor, 0, len, path);
+		if(ret >= 0) {
+			path[ret] = 0;
+			return 0;
+		}
+	}
+	int r = inode_do_read_data(node, 0, len, path);
+	path[r] = 0;
+	return 0;
+}
+
+static int _writelink(struct inode *node, const char *path)
+{
+	inode_do_write_data(node, 0, strlen(path), path);
+	return 0;
+}
+
 static struct inode_ops ramfs_inode_ops = {
 	.read_page = _read_page,
 	.write_page = _write_page,
@@ -253,9 +291,9 @@ static struct inode_ops ramfs_inode_ops = {
 	.lookup = _lookup,
 	.link = _link,
 	.getdents = _getdents,
-	.unlink = NULL,
-	.readlink = NULL,
-	.writelink = NULL,
+	.unlink = _unlink,
+	.readlink = _readlink,
+	.writelink = _writelink,
 };
 
 static void _ramfs_create(void *obj)
@@ -287,6 +325,12 @@ static void _ramfs_destroy(void *obj)
 	hash_destroy(&ramfs_data->inodes);
 }
 
+static void _release_inode(struct filesystem *fs, struct inode *node)
+{
+	(void)fs;
+	(void)node;
+}
+
 static struct kobj kobj_ramfs = {
 	KOBJ_DEFAULT_ELEM(ramfs_data),
 	.create = _ramfs_create,
@@ -303,7 +347,6 @@ static int _mount(struct filesystem *fs, struct blockdev *bd, unsigned long flag
 	return 0;
 }
 
-
 static struct ramfs *initial_ramfs;
 
 __orderedinitializer(__orderedafter(FILESYSTEM_INIT_ORDER))
@@ -314,6 +357,7 @@ static void _init_ramfs(void)
 static struct fs_ops ramfs_fs_ops = {
 	.load_inode = _load_inode,
 	.alloc_inode = _alloc_inode,
+	.release_inode = _release_inode,
 	.mount = _mount,
 };
 

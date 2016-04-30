@@ -26,6 +26,8 @@ sysret_t sys_fcntl(int fd, int cmd, long arg)
 			break;
 		case F_DUPFD:
 			ret = process_allocate_fd(file, (int)arg);
+			if(ret >= 0)
+				process_copy_proc_fd(current_thread->process, current_thread->process, fd, ret);
 			break;
 		default:
 			ret = -EINVAL;

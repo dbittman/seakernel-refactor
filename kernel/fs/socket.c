@@ -60,6 +60,7 @@ sysret_t sys_socket(int domain, int type, int protocol)
 		kobj_putref(file);
 		return -EMFILE;
 	}
+	process_create_proc_fd(current_thread->process, fd, "[socket]");
 	struct socket *sock = file->devdata;
 	sock->domain = domain;
 	sock->type = type;
@@ -83,6 +84,7 @@ sysret_t sys_socketpair(int domain, int type, int protocol, int *sv)
 		kobj_putref(f2);
 		return -EMFILE;
 	}
+	process_create_proc_fd(current_thread->process, fd1, "[socket]");
 	int fd2 = process_allocate_fd(f2, 0);
 	if(fd2 < 0) {
 		kobj_putref(f1);
@@ -90,6 +92,7 @@ sysret_t sys_socketpair(int domain, int type, int protocol, int *sv)
 		process_release_fd(fd1);
 		return -EMFILE;
 	}
+	process_create_proc_fd(current_thread->process, fd2, "[socket]");
 
 	struct socket *s1 = f1->devdata;
 	struct socket *s2 = f2->devdata;

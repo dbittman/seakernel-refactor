@@ -9,6 +9,7 @@
 #include <file.h>
 #include <arena.h>
 #include <fs/stat.h>
+#include <fcntl.h>
 #include <processor.h>
 
 static char *write_data(uintptr_t *end, void *data, size_t len)
@@ -130,6 +131,7 @@ sysret_t sys_execve(const char *path, char **arg, char **env)
 
 	write_aux(&aux, AT_NULL, AT_NULL);
 	write_aux(&aux, AT_PAGESZ, arch_mm_page_size(0));
+	sys_fcntl(fd, F_SETFD, FD_CLOEXEC);
 	write_aux(&aux, AT_EXECFD, fd);
 	if(phdrs) {
 		write_aux(&aux, AT_PHDR, phdrs);

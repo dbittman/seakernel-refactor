@@ -7,6 +7,8 @@
 #include <errno.h>
 #include <fs/stat.h>
 #include <device.h>
+#include <fs/sys.h>
+#include <printk.h>
 
 static void _file_put(void *obj)
 {
@@ -49,6 +51,45 @@ struct file_calls *file_get_ops(struct inode *node)
 		return &socket_fops;
 	else
 		return &fs_fops;
+}
+
+void process_remove_proc_fd(struct process *proc, int fd)
+{
+	if(proc == kernel_process)
+		return;
+
+	char str[128];
+	snprintf(str, 128, "/proc/%d/fd/%d", proc->pid, fd);
+	int r = sys_unlink(str);
+	/* TODO: we need to seriously evaluate things like this.
+	 * This could totally fail, for real reasons (EINTR). */
+	assert(r == 0);
+}
+
+void process_create_proc_fd(struct process *proc, int fd, const char *path)
+{
+	if(proc == kernel_process)
+		return;
+	char str[128];
+	snprintf(str, 128, "/proc/%d/fd/%d", proc->pid, fd);
+	int r = sys_symlink(path, str);
+	assert(r == 0);
+}
+
+void process_copy_proc_fd(struct process *from, struct process *to, int fromfd, int tofd)
+{
+	if(from == kernel_process || to == kernel_process)
+		return;
+	char fp[128];
+	snprintf(fp, 128, "/proc/%d/fd/%d", from->pid, fromfd);
+	char tp[128];
+	snprintf(tp, 128, "/proc/%d/fd/%d", to->pid, tofd);
+
+	char link[256];
+	int r = sys_readlink(fp, link, 256);
+	assert(r >= 0);
+	r = sys_symlink(link, tp);
+	assert(r == 0);
 }
 
 struct file *file_create(struct dirent *dir, enum file_device_type type)
@@ -128,6 +169,7 @@ void process_release_fd(int fd)
 	struct file *file = current_thread->process->files[fd].file;
 	current_thread->process->files[fd].file = NULL;
 	kobj_putref(file);
+	process_remove_proc_fd(current_thread->process, fd);
 	spinlock_release(&current_thread->process->files_lock);
 }
 
@@ -157,6 +199,7 @@ void process_copy_files(struct process *from, struct process *to)
 			to->files[i].file = kobj_getref(from->files[i].file);
 			to->files[i].flags = from->files[i].flags;
 
+			process_copy_proc_fd(from, to, i, i);
 			struct file *f = to->files[i].file;
 			if(f->ops && f->ops->open)
 				f->ops->open(f);
@@ -172,6 +215,7 @@ void process_close_files(struct process *proc, bool all)
 		if(proc->files[i].file) {
 			if((proc->files[i].flags & FD_CLOEXEC) || all) {
 				file_close(proc->files[i].file);
+				process_remove_proc_fd(proc, i);
 				proc->files[i].file = NULL;
 				proc->files[i].flags = 0;
 			}

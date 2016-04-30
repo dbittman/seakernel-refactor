@@ -68,6 +68,8 @@ sysret_t sys_openat(int dirfd, const char *path, int flags, int mode)
 	if((flags & O_TRUNC) && (flags & F_WRITE))
 		file_truncate(file, 0);
 
+	/* warning: this doesn't take into account dirfd */
+	process_create_proc_fd(current_thread->process, fd, path);
 
 	inode_put(node);
 	kobj_putref(file);
@@ -86,6 +88,8 @@ sysret_t sys_dup(int old)
 		return -EBADF;
 
 	int nf = process_allocate_fd(file, 0);
+	if(nf >= 0)
+		process_copy_proc_fd(current_thread->process, current_thread->process, old, nf);
 	kobj_putref(file);
 	return nf;
 }
@@ -95,28 +99,35 @@ sysret_t sys_dup2(int old, int new)
 	struct file *file = process_get_file(old);
 	if(!file)
 		return -EBADF;
-
+	if(new >= MAX_FD || new < 0)
+		return -ERANGE;
 	struct file *of = process_exchange_fd(file, new);
 	kobj_putref(file);
-	if(of)
+	if(of) {
+		process_remove_proc_fd(current_thread->process, new);
 		file_close(of);
+	}
+	process_copy_proc_fd(current_thread->process, current_thread->process, old, new);
 	return new;
 }
 
 sysret_t sys_mknod(const char *path, int mode, dev_t dev)
 {
-	int fd = sys_open(path, O_CREAT | O_WRONLY | O_EXCL, mode);
-	if(fd < 0)
-		return fd;
+	struct inode *node;
+	int res = fs_path_resolve(path, NULL, PATH_CREATE, mode, NULL, &node);
+	if(res < 0) {
+		return res;
+	}
+	
+	if(!(res & PATH_DID_CREATE)) {
+		inode_put(node);
+		return -EEXIST;
+	}
 
-	struct file *file = process_get_file(fd);
-	struct inode *node = file_get_inode(file);
 	node->major = major(dev);
 	node->minor = minor(dev);
 	inode_mark_dirty(node);
 	inode_put(node);
-	kobj_putref(file);
-	sys_close(fd);
 	return 0;
 }
 
@@ -178,10 +189,11 @@ sysret_t sys_lseek(int fd, ssize_t off, int whence)
 
 sysret_t sys_mkdir(const char *path, int mode)
 {
-	int f = sys_open(path, O_CREAT | O_RDWR | O_EXCL, S_IFDIR | (mode & 0777));
-	if(f < 0)
-		return f;
-	sys_close(f);
+	int ret = fs_path_resolve(path, NULL, PATH_CREATE, S_IFDIR | (mode & 0777), NULL, NULL);
+	if(ret < 0)
+		return ret;
+	else if(!(ret & PATH_DID_CREATE))
+		return -EEXIST;
 	return 0;
 }
 

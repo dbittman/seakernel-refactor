@@ -8,15 +8,8 @@ const char *DIGITS_upper = "0123456789ABCDEF";
 #define WN_LOWER 1
 #define WN_NONEG 2
 #define WN_LJUST 4
-char *write_number(char *buffer, long long value, int base, int options, int min_width)
+char *write_number(char *buffer, long long value, int base, int options, int min_width, int precision)
 {
-	if(base == 16) {
-		*buffer++ = '0';
-		*buffer++ = 'x';
-	} else if(base == 2) {
-		*buffer++ = '0';
-		*buffer++ = 'b';
-	}
 	char digits[256];
 	memset(digits, 0, 256);
 	bool negative = false;
@@ -40,9 +33,20 @@ char *write_number(char *buffer, long long value, int base, int options, int min
 	if(negative)
 		*buffer++ = '-';
 	if(!(options & WN_LJUST)) {
-		for(int i=0;i+len < min_width;i++)
+		for(int i=0;i+((len > precision) ? len : precision )< min_width;i++)
 			*buffer++ = ' ';
 	}
+	if(base == 16) {
+		*buffer++ = '0';
+		*buffer++ = 'x';
+	} else if(base == 2) {
+		*buffer++ = '0';
+		*buffer++ = 'b';
+	}
+
+	for(int i=len;i<precision;i++)
+		*buffer++ = '0';
+
 	for(int i=len-1;i>=0;i--) {
 		if(options & WN_LOWER)
 			*buffer++ = DIGITS_lower[(int)digits[i]];
@@ -50,7 +54,7 @@ char *write_number(char *buffer, long long value, int base, int options, int min
 			*buffer++ = DIGITS_upper[(int)digits[i]];
 	}
 	if(options & WN_LJUST) {
-		for(int i=0;i+len < min_width;i++)
+		for(int i=0;i+((len > precision ? len : precision)) < min_width;i++)
 			*buffer++ = ' ';
 	}
 
@@ -99,8 +103,6 @@ void vbufprintk(char *buffer, const char *fmt, va_list args)
 				s++;
 				precision = parse_number(&s);
 			}
-			(void)min_field_width;
-			(void)precision;
 			char type = *s;
 			int l = 0;
 			if(type == 'l') {
@@ -121,30 +123,30 @@ void vbufprintk(char *buffer, const char *fmt, va_list args)
 					goto done;
 				case 'd': case 'i':
 					GETVAL(value, signed);
-					b = write_number(b, value, 10, flags, min_field_width);
+					b = write_number(b, value, 10, flags, min_field_width, precision);
 					break;
 				case 'u':
 					GETVAL(uvalue, unsigned);
-					b = write_number(b, uvalue, 10, flags | WN_NONEG, min_field_width);
+					b = write_number(b, uvalue, 10, flags | WN_NONEG, min_field_width, precision);
 					break;
 				case 'o':
 					GETVAL(uvalue, unsigned);
-					b = write_number(b, uvalue, 8, flags | WN_NONEG, min_field_width);
+					b = write_number(b, uvalue, 8, flags | WN_NONEG, min_field_width, precision);
 					break;
 				case 'c':
 					*b++ = (unsigned char)va_arg(args, int);
 					break;
 				case 'x':
 					GETVAL(uvalue, unsigned);
-					b = write_number(b, uvalue, 16, flags | WN_NONEG, min_field_width);
+					b = write_number(b, uvalue, 16, flags | WN_NONEG, min_field_width, precision);
 					break;
 				case 'b':
 					GETVAL(uvalue, unsigned);
-					b = write_number(b, uvalue, 2, flags | WN_NONEG, min_field_width);
+					b = write_number(b, uvalue, 2, flags | WN_NONEG, min_field_width, precision);
 					break;
 				case 'p':
 					uvalue = (unsigned long long)va_arg(args, void *);
-					b = write_number(b, uvalue, 16, flags | WN_NONEG, min_field_width);
+					b = write_number(b, uvalue, 16, flags | WN_NONEG, min_field_width, precision);
 					break;
 				case 's':
 					str = va_arg(args, char *);

@@ -161,12 +161,14 @@ sysret_t sys_pipe(int *fds)
 		kobj_putref(rf);
 		return -EMFILE;
 	}
+	process_create_proc_fd(current_thread->process, wfd, "[pipe:write]");
 	int rfd = process_allocate_fd(rf, 0);
 	kobj_putref(rf);
 	if(rfd < 0) {
 		process_release_fd(wfd);
 		return -EMFILE;
 	}
+	process_create_proc_fd(current_thread->process, rfd, "[pipe:read]");
 
 	fds[0] = rfd;
 	fds[1] = wfd;

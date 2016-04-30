@@ -38,6 +38,11 @@ void file_close(struct file *file);
 struct file *process_exchange_fd(struct file *file, int);
 struct file *file_create(struct dirent *dir, enum file_device_type);
 
+struct process;
+void process_remove_proc_fd(struct process *proc, int fd);
+void process_copy_proc_fd(struct process *from, struct process *to, int fromfd, int tofd);
+void process_create_proc_fd(struct process *proc, int fd, const char *path);
+
 static inline struct inode *file_get_inode(struct file *f)
 {
 	if(f->dirent)

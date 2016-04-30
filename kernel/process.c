@@ -6,6 +6,8 @@
 #include <map.h>
 #include <printk.h>
 #include <fs/inode.h>
+#include <fs/sys.h>
+#include <fs/proc.h>
 struct process *kernel_process;
 
 struct kobj_idmap processids;
@@ -102,6 +104,42 @@ struct kobj kobj_process = {
 	.destroy = NULL,
 };
 
+static void __remove_proc_entries(struct process *proc)
+{
+#define remove_proc_entry(pid, name) do { char str[128]; snprintf(str, 128, "/proc/%d/%s", pid, name); proc_destroy(str); } while(0)
+	remove_proc_entry(proc->pid, "status");
+	kobj_putref(proc);
+	remove_proc_entry(proc->pid, "uid");
+	kobj_putref(proc);
+	remove_proc_entry(proc->pid, "euid");
+	kobj_putref(proc);
+	remove_proc_entry(proc->pid, "suid");
+	kobj_putref(proc);
+	remove_proc_entry(proc->pid, "gid");
+	kobj_putref(proc);
+	remove_proc_entry(proc->pid, "egid");
+	kobj_putref(proc);
+	remove_proc_entry(proc->pid, "sgid");
+	kobj_putref(proc);
+	remove_proc_entry(proc->pid, "sid");
+	kobj_putref(proc);
+	remove_proc_entry(proc->pid, "pgroupid");
+	kobj_putref(proc);
+	remove_proc_entry(proc->pid, "cmask");
+	kobj_putref(proc);
+	remove_proc_entry(proc->pid, "brk");
+	kobj_putref(proc);
+	remove_proc_entry(proc->pid, "maps");
+	kobj_putref(proc);
+	char str[128];
+	snprintf(str, 128, "/proc/%d/fd", proc->pid);
+	int r = sys_rmdir(str);
+	assert(r == 0);
+	snprintf(str, 128, "/proc/%d", proc->pid);
+	r = sys_rmdir(str);
+	assert(r == 0);
+}
+
 void process_exit(struct process *proc, int code)
 {
 	proc->exit_code = code;
@@ -111,6 +149,8 @@ void process_exit(struct process *proc, int code)
 	}
 	proc->flags |= PROC_EXITED | PROC_STATUS_CHANGED;
 	blocklist_unblock_all(&proc->wait);
+
+	__remove_proc_entries(proc);
 
 	struct process *init = process_get_by_pid(1);
 	assert(init != NULL);
@@ -129,6 +169,7 @@ void process_exit(struct process *proc, int code)
 		}
 	}
 	kobj_idmap_unlock(&processids);
+	process_remove_mappings(proc, true);
 
 	kobj_putref(init);
 }
