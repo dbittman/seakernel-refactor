@@ -66,19 +66,26 @@ static void print_proc(int pid)
 	if(read_int(pid, "uid", &uid) == -1)
 		return;
 
+	char path[256];
+	char link[156];
+	sprintf(path, "/proc/%d/exe", pid);
+
+	if(readlink(path, link, 256) == -1)
+		link[0]=0;
+
 	struct passwd *pw;
 	pw = getpwuid(uid);
 
 	mark_seen(pid);
 
-	printf("%4d %s\n", pid, pw ? pw->pw_name : "???");
+	printf("%4d %s %s\n", pid, pw ? pw->pw_name : "???", link);
 }
 
 static void print_procs(void)
 {
 	DIR *dir = opendir("/proc");
 	struct dirent *de;
-	printf(" PID USER\n");
+	printf(" PID USER EXECUTABLE\n");
 	while((de = readdir(dir))) {
 		int pid, end;
 		int r = sscanf(de->d_name, "%d%n", &pid, &end);

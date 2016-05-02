@@ -132,6 +132,8 @@ static void __remove_proc_entries(struct process *proc)
 	remove_proc_entry(proc->pid, "maps");
 	kobj_putref(proc);
 	char str[128];
+	snprintf(str, 128, "/proc/%d/exe", proc->pid);
+	sys_unlink(str);
 	snprintf(str, 128, "/proc/%d/fd", proc->pid);
 	int r = sys_rmdir(str);
 	assert(r == 0);

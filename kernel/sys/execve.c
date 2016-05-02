@@ -62,6 +62,11 @@ sysret_t sys_execve(const char *path, char **arg, char **env)
 
 	/* other tests... */
 
+	char proc_exe[128];
+	snprintf(proc_exe, 128, "/proc/%d/exe", current_thread->process->pid);
+	sys_unlink(proc_exe);
+	sys_symlink(path, proc_exe);
+
 	/* backup */
 	struct arena arena;
 	arena_create(&arena);

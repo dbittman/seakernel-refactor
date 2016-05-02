@@ -23,5 +23,10 @@ static inline unsigned long long __round_up_pow2(unsigned int a)
 }
 
 void init_register_late_call(void *call, void *data);
+
+#define LATE_INIT_CALL(call, data) \
+	__initializer static void ___init##__LINE__##__FILE__##_lateinitreg(void) { init_register_late_call((void *)&call, data); }
+
+
 #endif
 

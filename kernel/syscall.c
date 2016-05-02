@@ -58,7 +58,7 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_utimensat] = SC sys_utimensat,
 	[SYS_fchown]    = SC sys_fchown,
 	[SYS_fchmod]    = SC sys_fchmod,
-	[SYS_newfstatat]   = SC sys_fstatat,
+	[SYS_newfstatat]= SC sys_fstatat,
 
 	[SYS_socket]   = SC sys_socket,
 	[SYS_socketpair]   = SC sys_socketpair,

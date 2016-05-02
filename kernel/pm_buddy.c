@@ -152,3 +152,26 @@ int mm_physical_get_usage(void)
 	return use;
 }
 
+#include <errno.h>
+#include <system.h>
+#include <fs/proc.h>
+static ssize_t _pm_buddy_proc(void *data, int rw, size_t off, size_t len, char *buf)
+{
+	(void)data;
+	if(rw != 0)
+		return -EINVAL;
+
+	size_t current = 0;
+	PROCFS_PRINTF(off, len, buf, current,
+			" FREE MEMORY   TOTAL MEMORY   USAGE\n");
+	PROCFS_PRINTF(off, len, buf, current,
+			"%12ld   %12ld    %3d%%\n", free_memory, total_memory, mm_physical_get_usage());
+	return current;
+}
+
+static void _late_init(void)
+{
+	proc_create("/proc/mem", _pm_buddy_proc, NULL);
+}
+
+LATE_INIT_CALL(_late_init, NULL);
