@@ -10,6 +10,8 @@ LIBRARIES=ds string
 MAKEFILES=Makefile $(CONFIGFILE)
 # read in configuration, and add to CFLAGS
 include $(CONFIGFILE)
+SYSROOT=$(CONFIG_BUILD_SYSROOT)
+export SYSROOT
 CFLAGS+=$(addprefix -D,$(shell cat $(CONFIGFILE) | sed -e 's/=y/=1/g' -e 's/=n/=0/g' -e 's/\#.*$$//' -e '/^$$/d'))
 
 ARCH=$(CONFIG_ARCH)
@@ -45,7 +47,7 @@ endif
 
 CFLAGS+=-O$(CONFIG_BUILD_OPTIMIZATION)
 
-include sysroot/usr/src/include.mk
+include $(SYSROOT)/usr/src/include.mk
 
 all: $(BUILDDIR)/kernel.elf $(BUILDDIR)/initrd.tar $(USRPROGS)
 
@@ -61,7 +63,7 @@ include $(MACHINEDIR)/include.mk
 include $(ARCHDIR)/include.mk
 
 ifeq ($(CONFIG_BUILD_CLANG),y)
-CC=clang -target $(TOOLCHAIN_PREFIX) -isysroot /home/dbittman/toolchain/install
+CC=clang -target $(TOOLCHAIN_PREFIX) -i$(SYSROOT) /home/dbittman/toolchain/install
 else
 CC=$(TOOLCHAIN_PREFIX)-gcc
 endif
@@ -69,7 +71,7 @@ endif
 AS=$(TOOLCHAIN_PREFIX)-as
 LD=$(TOOLCHAIN_PREFIX)-gcc
 
-MAKEFILES+=$(MACHINEDIR)/include.mk $(ARCHDIR)/include.mk sysroot/usr/src/include.mk
+MAKEFILES+=$(MACHINEDIR)/include.mk $(ARCHDIR)/include.mk $(SYSROOT)/usr/src/include.mk
 
 # for each library that we're using, include their sources
 $(foreach lib,$(LIBRARIES),$(eval include lib/$(lib)/include.mk))
@@ -152,7 +154,7 @@ $(BUILDDIR)/hd.img: $(USRPROGS)
 	mke2fs -F $(BUILDDIR)/hd.img
 	mkdir -p $(BUILDDIR)/mnt
 	sudo mount $(BUILDDIR)/hd.img $(BUILDDIR)/mnt
-	sudo cp -r sysroot/* sysroot-install/* $(BUILDDIR)/mnt/
+	sudo cp -r $(SYSROOT)/* $(SYSROOT)-install/* $(BUILDDIR)/mnt/
 	sudo mkdir -p $(BUILDDIR)/mnt/bin
 	sudo mkdir -p $(BUILDDIR)/mnt/dev
 	sudo mkdir -p $(BUILDDIR)/mnt/tmp

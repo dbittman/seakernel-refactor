@@ -3,6 +3,8 @@
 #include <blocklist.h>
 #include <assert.h>
 #include <printk.h>
+#include <errno.h>
+#include <fs/proc.h>
 void kobj_lru_create(struct kobj_lru *lru, size_t idlen, size_t max, struct kobj *kobj,
 		bool (*init)(void *obj, void *id, void *), void (*release)(void *obj, void *), void *data)
 {
@@ -49,6 +51,40 @@ void kobj_lru_release_all(struct kobj_lru *lru)
 	}
 
 	spinlock_release(&lru->lock);
+}
+
+ssize_t kobj_lru_proc_read(void *data, int rw, size_t off, size_t len, char *buf)
+{
+	size_t current = 0;
+	if(rw != 0)
+		return -EINVAL;
+	struct kobj_lru_proc_info *opt = data;
+
+	spinlock_acquire(&opt->lru->lock);
+	
+	struct hashiter iter;
+	for(hash_iter_init(&iter, &opt->lru->hash);
+			!hash_iter_done(&iter); hash_iter_next(&iter)) {
+		void *obj = hash_iter_get(&iter);
+		struct kobj_header *header = obj;
+
+		if(header->_koh_refs == 2) {
+			PROCFS_PRINTF(off, len, buf, current,
+					" LRU: ");
+		} else {
+			PROCFS_PRINTF(off, len, buf, current,
+					"USED, %ld refs: ", header->_koh_refs - 2);
+		}
+
+		if((ssize_t)len - (ssize_t)current > 0)
+			current += opt->read_entry(obj, off, len - current, buf + current);
+
+		PROCFS_PRINTF(off, len, buf, current,
+				"\n");
+	}
+
+	spinlock_release(&opt->lru->lock);
+	return current;
 }
 
 void kobj_lru_mark_ready(struct kobj_lru *lru, void *obj, void *id)

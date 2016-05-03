@@ -9,6 +9,7 @@
 #include <device.h>
 #include <thread.h>
 #include <process.h>
+#include <fs/proc.h>
 
 struct kobj kobj_inode_page = KOBJ_DEFAULT(inodepage);
 
@@ -76,7 +77,28 @@ static struct kobj kobj_inode = {
 	.destroy = _inode_destroy,
 };
 
+static ssize_t _inode_proc_lru_read_entry(void *item, size_t off, size_t len, char *buf)
+{
+	size_t current = 0;
+	struct inode *node = item;
+	PROCFS_PRINTF(off, len, buf, current,
+			"%ld.%ld %c (%d / %d pages)", node->id.fsid, node->id.inoid,
+			node->flags & INODE_FLAG_DIRTY ? 'D' : ' ', node->pages.hash.count, (node->length - 1) / arch_mm_page_size(0) + 1);
+	return current;
+}
+
 static struct kobj_lru inode_lru;
+static struct kobj_lru_proc_info _proc_inode_lru_info = {
+	.lru = &inode_lru,
+	.options = 0,
+	.read_entry = _inode_proc_lru_read_entry,
+};
+
+static void _late_init(void)
+{
+	proc_create("/proc/inodes", kobj_lru_proc_read, &_proc_inode_lru_info);
+}
+LATE_INIT_CALL(_late_init, NULL);
 
 static bool _inode_initialize(void *obj, void *id, void *data)
 {

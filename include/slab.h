@@ -95,6 +95,13 @@ struct kobj_lru {
 	void (*release)(void *, void *);
 };
 
+#define KOBJ_LRU_PROC_OPT_SHORT 1
+struct kobj_lru_proc_info {
+	struct kobj_lru *lru;
+	ssize_t (*read_entry)(void *item, size_t off, size_t len, char *buf);
+	int options;
+};
+
 static inline void kobj_idmap_create(struct kobj_idmap *idm, size_t idlen)
 {
 	hash_create(&idm->hash, HASH_LOCKLESS, 128 /* TODO (minor) [dbittman]: make an intelligent decision about this number */);
@@ -162,6 +169,7 @@ void kobj_lru_create(struct kobj_lru *lru, size_t idlen, size_t max, struct kobj
 		bool (*init)(void *obj, void *id, void *data), void (*release)(void *, void *), void *data);
 void kobj_lru_mark_ready(struct kobj_lru *lru, void *obj, void *id);
 void kobj_lru_mark_error(struct kobj_lru *lru, void *obj, void *id);
+ssize_t kobj_lru_proc_read(void *data, int rw, size_t off, size_t len, char *buf);
 void kobj_lru_reclaim(struct kobj_lru *lru);
 void *kobj_lru_get(struct kobj_lru *lru, void *id);
 void kobj_lru_put(struct kobj_lru *lru, void *obj);
