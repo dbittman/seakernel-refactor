@@ -61,10 +61,11 @@ static void _inode_put(void *obj)
 {
 	struct inode *node = obj;
 	(void)node;
-	mutex_acquire(&node->fs->lock);
-	if(node->links == 0)
+	if(node->links == 0 && node->fs) {
+		mutex_acquire(&node->fs->lock);
 		node->fs->driver->fs_ops->release_inode(node->fs, node);
-	mutex_release(&node->fs->lock);
+		mutex_release(&node->fs->lock);
+	}
 }
 
 static struct kobj kobj_inode = {

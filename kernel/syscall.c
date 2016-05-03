@@ -95,6 +95,8 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_fadvise64] = SC sys_fadvise,
 	[SYS_clock_gettime] = SC sys_clock_gettime,
 	[SYS_clock_getres] = SC sys_clock_getres,
+	[SYS_fsync] = SC sys_fsync,
+	[SYS_sync] = SC sys_sync,
 
 	[SYS_arch_prctl] = SC sys_arch_prctl,
 

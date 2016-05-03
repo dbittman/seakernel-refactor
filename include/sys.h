@@ -53,3 +53,5 @@ sysret_t sys_clock_gettime(int id, struct timespec *res);
 sysret_t sys_clock_getres(int id, struct timespec *res);
 sysret_t sys_utimensat(int dirfd, const char *filename, const struct timespec times[2]);
 
+sysret_t sys_fsync(int);
+sysret_t sys_sync(void);

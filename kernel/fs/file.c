@@ -242,7 +242,12 @@ ssize_t file_write(struct file *f, size_t off, size_t len, const char *buf)
 
 int file_truncate(struct file *f, size_t len)
 {
-	f->pos = len;
+	struct inode *node = file_get_inode(f);
+	if(!node)
+		return -EINVAL;
+	node->length = len;
+	inode_mark_dirty(node);
+	inode_put(node);
 	return 0;
 }
 
