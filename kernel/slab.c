@@ -7,7 +7,9 @@
 #include <assert.h>
 #include <mmu.h>
 #include <trace.h>
-
+#include <fs/proc.h>
+#include <errno.h>
+#include <system.h>
 /* For now, this is reasonable. Objects
  * that we're going to allocate here should be
  * small. */
@@ -26,16 +28,51 @@ struct slab {
 
 TRACE_DEFINE(kobj_trace, "kobj");
 
+static bool cache_list_init = false;
+static struct linkedlist cache_list;
+
+ssize_t _slab_proc_read(void *data, int rw, size_t off, size_t len, char *buf)
+{
+	(void)data;
+	size_t current = 0;
+	if(rw != 0)
+		return -EINVAL;
+	__linkedlist_lock(&cache_list);
+	struct linkedentry *entry;
+	for(entry = linkedlist_iter_start(&cache_list);
+			entry != linkedlist_iter_end(&cache_list);
+			entry = linkedlist_iter_next(entry)) {
+		struct cache *cache = linkedentry_obj(entry);
+
+		PROCFS_PRINTF(off, len, buf, current,
+				"%20s %8d %8d\n", cache->kobj->name, cache->total_inuse, cache->total_slabs);
+	}
+	__linkedlist_unlock(&cache_list);
+	return current;
+}
+
+static void _late_init(void)
+{
+	proc_create("/proc/slab", _slab_proc_read, NULL);
+}
+LATE_INIT_CALL(_late_init, NULL);
+
 static void initialize_cache(struct kobj *ko)
 {
 	struct cache *cache = &ko->cache;
+	if(!cache_list_init) {
+		cache_list_init = true;
+		linkedlist_create(&cache_list, 0);
+	}
 	cache->kobj = ko;
 	/* we don't need locks in the linked lists because the
 	 * cache itself is locked. */
 	linkedlist_create(&cache->empty, LINKEDLIST_LOCKLESS);
 	linkedlist_create(&cache->partial, LINKEDLIST_LOCKLESS);
 	linkedlist_create(&cache->full, LINKEDLIST_LOCKLESS);
-	cache->total_slabs = cache->total_inuse = cache->total_cached = 0;
+	cache->total_slabs = cache->total_inuse = 0;
+
+	linkedlist_insert(&cache_list, &cache->listelem, cache);
 }
 
 static struct slab *create_new_slab(struct cache *cache)
@@ -77,6 +114,7 @@ static void *allocate_from_cache(struct cache *cache)
 		if(!(slab = linkedlist_head(&cache->empty))) {
 			/* didn't find one, so allocate a new one */
 			slab = create_new_slab(cache);
+			cache->total_slabs++;
 			new = true;
 		}
 	}
@@ -91,6 +129,7 @@ static void *allocate_from_cache(struct cache *cache)
 		if(!new)
 			linkedlist_remove(&cache->empty, &slab->entry);
 		linkedlist_insert(&cache->partial, &slab->entry, slab);
+		cache->total_inuse++;
 	}
 	spinlock_release(&cache->kobj->lock);
 	/* now that we have a slab that we want to use, pop and object
@@ -114,6 +153,7 @@ static void deallocate_object(void *obj)
 	} else if(count == 1) {
 		linkedlist_remove(&header->_koh_kobj->cache.partial, &slab->entry);
 		linkedlist_insert(&header->_koh_kobj->cache.empty, &slab->entry, slab);
+		header->_koh_kobj->cache.total_inuse--;
 	}
 	spinlock_release(&header->_koh_kobj->lock);
 }

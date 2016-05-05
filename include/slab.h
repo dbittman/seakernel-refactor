@@ -13,8 +13,8 @@ struct cache {
 	struct linkedlist empty, partial, full;
 	size_t total_slabs;
 	size_t total_inuse;
-	size_t total_cached;
 	struct kobj *kobj;
+	struct linkedentry listelem;
 };
 
 struct kobj {
