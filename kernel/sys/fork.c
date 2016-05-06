@@ -186,6 +186,28 @@ sysret_t sys_fork(void *frame)
 	return ret;
 }
 
+struct pt_regs {
+	int _placeholder;
+};
+
+long sys_clone(unsigned long flags, void *child_stack, void *ptid, void *ctid, struct pt_regs *regs, void *frame)
+{
+	printk(":: %lx, %p %p %p %p\n", flags, child_stack, ptid, ctid, regs);
+	struct thread *thread = kobj_allocate(&kobj_thread);
+	copy_thread(current_thread, thread);
+	process_attach_thread(current_thread->process, thread);
+	
+	memcpy((void *)((uintptr_t)thread->kernel_tls_base + KERNEL_STACK_SIZE/2), frame, sizeof(struct arch_exception_frame));
+	thread->user_tls_base = (void *)((uintptr_t)child_stack - USER_TLS_SIZE);
+	thread->arch.fs = (uintptr_t)regs; //TODO: arch-specific
+	arch_thread_create(thread, (uintptr_t)&arch_thread_fork_entry, (void *)((uintptr_t)thread->kernel_tls_base + KERNEL_STACK_SIZE/2));
+
+	thread->state = THREADSTATE_RUNNING;
+	processor_add_thread(select_processor(), thread);
+	sysret_t ret = thread->tid;
+	return ret;
+}
+
 _Noreturn void sys_do_exit(int code)
 {
 	linkedlist_remove(&current_thread->process->threads, &current_thread->proc_entry);

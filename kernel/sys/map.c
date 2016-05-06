@@ -59,6 +59,11 @@ intptr_t sys_mmap(uintptr_t addr, size_t len, int prot, int flags, int fd, size_
 	return virt;
 }
 
+sysret_t sys_mprotect(void *addr, size_t len, int prot)
+{
+	return map_change_protect(current_thread->process, (uintptr_t)addr, len, prot);
+}
+
 /* TODO: I would like to not have this */
 uintptr_t sys_brk(void *nb)
 {

@@ -104,8 +104,12 @@ extern void x86_64_fork_return(void *);
 extern int kernel_text_start, kernel_text_end;
 void arch_thread_fork_entry(void *_frame)
 {
+	struct arch_exception_frame *frame = _frame;
 	if((uintptr_t)_frame >= (uintptr_t)&kernel_text_start && (uintptr_t)_frame < (uintptr_t)&kernel_text_end)
 		((void (*)(void))_frame)();
+	if(frame->rax == SYS_clone) {
+		frame->userrsp = (uintptr_t)current_thread->user_tls_base + USER_TLS_SIZE;
+	}
 	x86_64_fork_return(_frame);
 }
 
@@ -127,11 +131,6 @@ void x86_64_exception_entry(struct arch_exception_frame *frame)
 #define DEBUG_SYS 0
 void x86_64_syscall_entry(struct arch_exception_frame *frame)
 {
-	if(frame->rax == SYS_vfork)
-		frame->rax = SYS_fork; //HACK
-	if(frame->rax == SYS_fork) {
-		frame->rdi = (uintptr_t)frame;
-	}
 	if(frame->rax == SYS_rt_sigreturn) {
 		x86_64_restore_frame(frame);
 		return;
@@ -141,7 +140,7 @@ void x86_64_syscall_entry(struct arch_exception_frame *frame)
 		printk("syscall %ld(%2d) %3lu: %lx %lx %lx %lx %lx %lx (from %lx)\n", current_thread->tid, current_thread->processor->id, frame->rax, frame->rdi, frame->rsi, frame->rdx, frame->r10, frame->r8, frame->r9, frame->rip);
 	long num = frame->rax;
 #endif
-	frame->rax = syscall_entry(frame->rax, frame->rdi, frame->rsi, frame->rdx, frame->r10, frame->r8, frame->r9);
+	frame->rax = syscall_entry(frame, frame->rax, frame->rdi, frame->rsi, frame->rdx, frame->r10, frame->r8, frame->r9);
 #if DEBUG_SYS
 	long ret = frame->rax;
 

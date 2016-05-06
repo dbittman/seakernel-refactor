@@ -37,6 +37,8 @@ ssize_t _slab_proc_read(void *data, int rw, size_t off, size_t len, char *buf)
 	size_t current = 0;
 	if(rw != 0)
 		return -EINVAL;
+	PROCFS_PRINTF(off, len, buf, current,
+			"                NAME    INUSE    TOTAL\n");
 	__linkedlist_lock(&cache_list);
 	struct linkedentry *entry;
 	for(entry = linkedlist_iter_start(&cache_list);

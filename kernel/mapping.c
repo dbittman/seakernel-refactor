@@ -7,6 +7,7 @@
 #include <printk.h>
 #include <string.h>
 #include <errno.h>
+#include <fs/sys.h>
 /* TODO: simplify this system. I don't
  * think it needs to store the page, just
  * the frame. */
@@ -206,6 +207,25 @@ void map_mmap(uintptr_t virtual, struct file *file, int prot, int flags, size_t 
 				prot, flags, file, nodepage + i, false);
 	}
 	//mutex_release(&current_thread->process->map_lock);
+}
+
+int map_change_protect(struct process *proc, uintptr_t virt, size_t len, int prot)
+{
+	int num = len / arch_mm_page_size(0);
+	mutex_acquire(&current_thread->process->map_lock);
+	for(int i=0;i<num;i++) {
+		uintptr_t vpage = (virt / arch_mm_page_size(0)) + i;
+		struct mapping *map = hash_lookup(&proc->mappings, &vpage, sizeof(vpage));
+		if(map->file && (((prot & PROT_WRITE) && !(map->file->flags & F_WRITE))
+					|| (((prot & PROT_READ) && !(map->file->flags & F_READ))))) {
+			mutex_release(&current_thread->process->map_lock);
+			return -EACCES;
+		}
+
+		map->prot = prot;
+	}
+	mutex_release(&current_thread->process->map_lock);
+	return 0;
 }
 
 void map_unmap(uintptr_t virtual, size_t length)

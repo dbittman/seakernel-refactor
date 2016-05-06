@@ -3,8 +3,12 @@
 #include <signal.h>
 #include <file.h>
 sysret_t sys_fork(void *);
+
+struct pt_regs;
+long sys_clone(unsigned long flags, void *child_stack, void *ptid, void *ctid, struct pt_regs *regs, void*);
 intptr_t sys_mmap(uintptr_t addr, size_t len, int prot, int flags, int fd, size_t off);
 void *sys_mremap(void *old, size_t oldsz, size_t newsz, int flags, void *new);
+sysret_t sys_mprotect(void *addr, size_t len, int prot);
 sysret_t sys_execve(const char *path, char **arg, char **env);
 void sys_exit(int code);
 _Noreturn void sys_do_exit(int code);

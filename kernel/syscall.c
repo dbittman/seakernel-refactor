@@ -23,6 +23,8 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_pwrite64] = SC sys_pwrite,
 	[SYS_pread64]  = SC sys_pread,
 	[SYS_mmap]     = SC sys_mmap,
+	[SYS_mprotect] = SC sys_mprotect,
+	[SYS_clone]    = SC sys_clone,
 	[SYS_fork]     = SC sys_fork,
 	[SYS_exit]     = SC sys_exit,
 	[SYS_mknod]    = SC sys_mknod,
@@ -110,7 +112,7 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 
 };
 
-long syscall_entry(long num,
+long syscall_entry(void *frame, long num,
 		long arg1,
 		long arg2,
 		long arg3,
@@ -121,9 +123,15 @@ long syscall_entry(long num,
 	assert(current_thread->processor->preempt_disable == 0);
 	arch_interrupt_set(1);
 
+	if(num == SYS_vfork)
+		num = SYS_fork;
 	long ret;
 	syscall_t call = syscall_table[num];
 	if(call) {
+		if(num == SYS_fork)
+			arg1 = (long)frame;
+		else if(num == SYS_clone)
+			arg6 = (long)frame;
 		ret = call(arg1, arg2, arg3, arg4, arg5, arg6);
 	} else {
 		printk("[p%d, t%ld]: unimplemented syscall %ld\n", current_thread->process->pid, current_thread->tid, num);

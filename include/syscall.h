@@ -2,7 +2,7 @@
 #define __SYSCALL_H
 
 
-long syscall_entry(long num,
+long syscall_entry(void *frame, long num,
 		long arg1,
 		long arg2,
 		long arg3,

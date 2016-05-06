@@ -35,7 +35,6 @@ struct kobj {
 	.size = sizeof(struct _name)
 
 
-
 #define KOBJ_DEFAULT(_name) {\
 	.initialized = false, \
 	.name = #_name, \
