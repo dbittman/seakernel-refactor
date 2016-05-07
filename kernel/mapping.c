@@ -256,7 +256,7 @@ void process_copy_mappings(struct process *from, struct process *to)
 		}
 		if(!(map->flags & MMAP_MAP_SHARED)) {
 			int flags;
-			if(arch_mm_virtual_getmap(from->ctx, map->vpage * arch_mm_page_size(0), NULL, &flags)) {
+			if(arch_mm_virtual_getmap(from->ctx, map->vpage * arch_mm_page_size(0), NULL, &flags, NULL)) {
 				flags &= ~MAP_WRITE;
 				int r = arch_mm_virtual_chattr(from->ctx, map->vpage * arch_mm_page_size(0), flags);
 				assert(r);

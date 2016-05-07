@@ -100,6 +100,10 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_fsync] = SC sys_fsync,
 	[SYS_sync] = SC sys_sync,
 
+	[SYS_futex] = SC sys_futex,
+	[SYS_set_tid_address] = SC sys_set_tid_address,
+	[SYS_exit_group] = SC sys_exit_group,
+
 	[SYS_arch_prctl] = SC sys_arch_prctl,
 
 

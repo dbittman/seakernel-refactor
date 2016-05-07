@@ -153,7 +153,7 @@ static void _print_range(struct vm_context *ctx, uintptr_t start, uintptr_t end)
 	while(addr != end) {
 		uintptr_t phys;
 		int flags;
-		if(arch_mm_virtual_getmap(ctx, addr, &phys, &flags)) {
+		if(arch_mm_virtual_getmap(ctx, addr, &phys, &flags, NULL)) {
 			if(run_flags == 0) {
 				run_start = addr;
 				run_flags = flags;

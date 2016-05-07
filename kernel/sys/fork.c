@@ -189,6 +189,9 @@ sysret_t sys_fork(void *frame)
 struct pt_regs {
 	int _placeholder;
 };
+#define CLONE_CHILD_SETTID   0x01000000
+#define CLONE_PARENT_SETTID  0x00100000
+#define CLONE_CHILD_CLEARTID 0x00200000
 
 long sys_clone(unsigned long flags, void *child_stack, void *ptid, void *ctid, struct pt_regs *regs, void *frame)
 {
@@ -200,6 +203,15 @@ long sys_clone(unsigned long flags, void *child_stack, void *ptid, void *ctid, s
 	memcpy((void *)((uintptr_t)thread->kernel_tls_base + KERNEL_STACK_SIZE/2), frame, sizeof(struct arch_exception_frame));
 	thread->user_tls_base = (void *)((uintptr_t)child_stack - USER_TLS_SIZE);
 	thread->arch.fs = (uintptr_t)regs; //TODO: arch-specific
+	if(flags & CLONE_CHILD_SETTID) {
+		thread->set_child_tid = ctid;
+	}
+	if(flags & CLONE_PARENT_SETTID) {
+		*(int *)ptid = (int)thread->tid;
+	}
+	if(flags & CLONE_CHILD_CLEARTID) {
+		thread->clear_child_tid = ctid;
+	}
 	arch_thread_create(thread, (uintptr_t)&arch_thread_fork_entry, (void *)((uintptr_t)thread->kernel_tls_base + KERNEL_STACK_SIZE/2));
 
 	thread->state = THREADSTATE_RUNNING;
@@ -208,8 +220,19 @@ long sys_clone(unsigned long flags, void *child_stack, void *ptid, void *ctid, s
 	return ret;
 }
 
+long sys_set_tid_address(_Atomic int *addr)
+{
+	current_thread->clear_child_tid = addr;
+	return current_thread->tid;
+}
+
 _Noreturn void sys_do_exit(int code)
 {
+	if(current_thread->clear_child_tid != NULL) {
+		*(_Atomic int *)current_thread->clear_child_tid = 0;
+		sys_futex(current_thread->clear_child_tid, FUTEX_WAKE, 1, NULL, NULL, 0);
+	}
+
 	linkedlist_remove(&current_thread->process->threads, &current_thread->proc_entry);
 	kobj_putref(current_thread);
 	if(current_thread->process->threads.count == 0) {
@@ -227,6 +250,20 @@ void sys_exit(int code)
 {
 	current_thread->flags |= THREAD_EXIT;
 	current_thread->exit_code = code;
+}
+
+void sys_exit_group(int code)
+{
+	__linkedlist_lock(&current_thread->process->threads);
+	struct linkedentry *entry;
+	for(entry = linkedlist_iter_start(&current_thread->process->threads);
+			entry != linkedlist_iter_end(&current_thread->process->threads);
+			entry = linkedlist_iter_next(entry)) {
+		struct thread *t = linkedentry_obj(entry);
+		t->exit_code = code;
+		t->flags |= THREAD_EXIT;
+	}
+	__linkedlist_unlock(&current_thread->process->threads);
 }
 
 long sys_gettid(void)

@@ -46,6 +46,7 @@ struct thread {
 	struct vm_context *ctx;
 	void *kernel_tls_base, *stackpointer;
 	void *user_tls_base;
+	_Atomic int *set_child_tid, *clear_child_tid;
 	unsigned long tid;
 	/* A */ long long time /* ago, I can still remember when that music... */;
 	_Atomic int flags;
@@ -93,6 +94,7 @@ void preempt(void);
 void schedule(void);
 void kernel_idle_work(void);
 bool thread_send_signal(struct thread *thread, int signal);
+void thread_fork_init(void);
 static inline bool thread_is_runable(struct thread *thr)
 {
 	assert(thr != NULL);

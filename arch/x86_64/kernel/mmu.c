@@ -6,7 +6,7 @@ extern uintptr_t *initial_pml4;
 /* TODO (major) [dbittman]: Make these atomic */
 /* TODO (major) [dbittman]: Invalidation */
 /* TODO (major) [dbittman]: PAGE_PRESENT */
-size_t arch_mm_page_size(int level)
+__attribute__((const,pure)) size_t arch_mm_page_size(int level)
 {
 	if(level == 0)
 		return 0x1000; //4K
@@ -156,7 +156,7 @@ uintptr_t arch_mm_virtual_unmap(struct vm_context *ctx, uintptr_t virt)
 	return ret;
 }
 
-bool arch_mm_virtual_getmap(struct vm_context *ctx, uintptr_t virt, uintptr_t *phys, int *flags)
+bool arch_mm_virtual_getmap(struct vm_context *ctx, uintptr_t virt, uintptr_t *phys, int *flags, size_t *size)
 {
 	int pml4_idx = PML4_IDX(virt);
 	int pdpt_idx = PDPT_IDX(virt);
@@ -176,6 +176,8 @@ bool arch_mm_virtual_getmap(struct vm_context *ctx, uintptr_t virt, uintptr_t *p
 			*phys = pdpt[pdpt_idx] & MMU_PTE_PHYS_MASK;
 		if(flags)
 			*flags = __convert_attr_to_flags(pdpt[pdpt_idx] & ~MMU_PTE_PHYS_MASK);
+		if(size)
+			*size = arch_mm_page_size(2);
 		return pdpt[pdpt_idx] != 0;
 	}
 	
@@ -187,6 +189,8 @@ bool arch_mm_virtual_getmap(struct vm_context *ctx, uintptr_t virt, uintptr_t *p
 			*phys = pd[pd_idx] & MMU_PTE_PHYS_MASK;
 		if(flags)
 			*flags = __convert_attr_to_flags(pd[pd_idx] & ~MMU_PTE_PHYS_MASK);
+		if(size)
+			*size = arch_mm_page_size(1);
 		return pd[pd_idx] != 0;
 	}
 
@@ -195,6 +199,8 @@ bool arch_mm_virtual_getmap(struct vm_context *ctx, uintptr_t virt, uintptr_t *p
 		*phys = pt[pt_idx] & MMU_PTE_PHYS_MASK;
 	if(flags)
 		*flags = __convert_attr_to_flags(pt[pt_idx] & ~MMU_PTE_PHYS_MASK);
+	if(size)
+		*size = arch_mm_page_size(0);
 	return pt[pt_idx] != 0;
 }
 

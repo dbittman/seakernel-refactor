@@ -110,6 +110,7 @@ void arch_thread_fork_entry(void *_frame)
 	if(frame->rax == SYS_clone) {
 		frame->userrsp = (uintptr_t)current_thread->user_tls_base + USER_TLS_SIZE;
 	}
+	thread_fork_init();
 	x86_64_fork_return(_frame);
 }
 

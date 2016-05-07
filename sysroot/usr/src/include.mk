@@ -1,7 +1,11 @@
 
-USRPROGS_NAMES=cond init syslogd sctl ps
+USRPROGS_NAMES=cond init syslogd sctl ps thr
 
 USRPROGS=$(addprefix initrd/bin/,$(USRPROGS_NAMES))
+
+initrd/bin/thr: sysroot/usr/src/thr.c
+	@mkdir -p initrd/bin
+	$(TOOLCHAIN_PREFIX)-linux-musl-gcc -static -Og -g  -o $@ $< -Wall 
 
 initrd/bin/init: sysroot/usr/src/init.c
 	@mkdir -p initrd/bin
