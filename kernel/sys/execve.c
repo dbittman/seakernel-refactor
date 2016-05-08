@@ -91,7 +91,6 @@ sysret_t sys_execve(const char *path, char **arg, char **env)
 	}
 	savedenv[envc] = NULL;
 	
-	
 	process_remove_mappings(current_thread->process, false);
 
 	intptr_t base = 0;
@@ -121,6 +120,7 @@ sysret_t sys_execve(const char *path, char **arg, char **env)
 	process_close_files(current_thread->process, false);
 	memset(current_thread->process->actions, 0, sizeof(current_thread->process->actions));
 
+	current_thread->user_tls_base = (void *)process_allocate_user_tls(current_thread->process);
 	uintptr_t aux = (uintptr_t)current_thread->user_tls_base + USER_TLS_SIZE;
 
 	for(int i=0;i<argc;i++) {

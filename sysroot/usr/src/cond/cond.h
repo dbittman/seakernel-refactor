@@ -10,24 +10,25 @@
 #include <termios.h>
 #include <sys/ioctl.h>
 #include <stdbool.h>
-
+#include <threads.h>
 struct cell {
 	uint8_t character;
 	uint8_t attr;
 };
 
 struct pty {
-	int masterfd;
+	_Atomic int masterfd;
 	struct cell lines[LINES][80];
-	int cx, cy, sp, s_cy, s_cx;
+	_Atomic int cx, cy, sp, s_cy, s_cx;
 	bool cursor_invisible;
 	uint8_t cattr;
 	struct termios term;
 	struct winsize win;
+	thrd_t thread;
 };
 
 extern struct pty *ptys[MAX_TERMS];
-extern struct pty *current_pty;
+extern struct pty * _Atomic current_pty;
 extern int keyfd;
 
 void read_keyboard(void);

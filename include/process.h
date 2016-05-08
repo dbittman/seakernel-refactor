@@ -39,7 +39,7 @@ struct process {
 
 	struct inode * _Atomic root;
 	struct inode * _Atomic cwd;
-	int cmask;
+	_Atomic int cmask;
 	_Atomic int uid, gid, euid, egid, sgid, suid;
 	_Atomic int seshid, pgroupid;
 	int exit_code;
@@ -47,7 +47,7 @@ struct process {
 	struct sigaction actions[_NSIG+1];
 	struct spinlock signal_lock;
 
-	struct pty_file *pty;
+	struct pty_file * _Atomic pty;
 
 	_Atomic uintptr_t brk;
 	struct blocklist wait;

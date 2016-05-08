@@ -346,7 +346,7 @@ void escape_code(struct pty *pty)
 	int args[4];
 	memset(args, 0, sizeof(args));
 	
-	unsigned char c;
+	char c;
 	if(READ(pty, &c) != 1) {
 		return;
 	}

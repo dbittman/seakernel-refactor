@@ -15,7 +15,7 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <signal.h>
-
+#include <threads.h>
 #include "cond.h"
 
 char *command[9];
@@ -39,8 +39,17 @@ struct winsize def_win = {
 };
 
 struct pty *ptys[MAX_TERMS];
-struct pty *current_pty = NULL;
+struct pty * _Atomic current_pty = NULL;
 int keyfd;
+
+int pty_thread(void *p)
+{
+	struct pty *pty = p;
+	while(1) {
+		process_output(pty);
+	}
+	return 0;
+}
 
 struct pty *create_pty(struct termios *term, struct winsize *win)
 {
@@ -67,7 +76,7 @@ struct pty *spawn_terminal(char *cmd)
 	syslog(LOG_INFO, "spawning new terminal: %s\n", cmd);
 	struct pty *p = create_pty(&def_term, &def_win);
 	clear(p);
-	int pid = forkpty(&p->masterfd, NULL, &p->term, &p->win);
+	int pid = forkpty((int *)&p->masterfd, NULL, &p->term, &p->win);
 	if(!pid) {
 		//execlp(cmd, cmd, (char *)NULL);
 		execlp("/bin/bash", "sh", "-c", cmd, (char *)NULL);
@@ -75,8 +84,9 @@ struct pty *spawn_terminal(char *cmd)
 	}
 	int flags = fcntl(p->masterfd, F_GETFL, 0);
 	if(flags >= 0)
-		flags |= O_NONBLOCK;
+		flags &= ~O_NONBLOCK;
 	fcntl(p->masterfd, F_SETFL, flags);
+	thrd_create(&p->thread, pty_thread, p);
 	return p;
 }
 
@@ -96,39 +106,6 @@ void switch_console(int con)
 	current_pty = n;
 	flip(n);
 	update_cursor(n);
-}
-
-void select_loop(void)
-{
-	while(true) {
-		fd_set readers;
-		FD_ZERO(&readers);
-		int max = 0;
-		for(int i=0;i<MAX_TERMS;i++) {
-			if(ptys[i]) {
-				FD_SET(ptys[i]->masterfd, &readers);
-				if(ptys[i]->masterfd > max)
-					max = ptys[i]->masterfd;
-			}
-		}
-		FD_SET(keyfd, &readers);
-		if(keyfd > max)
-			max = keyfd;
-		int r = select(max+1, &readers, NULL, NULL, NULL);
-		if(r > 0) {
-			for(int i=0;i<MAX_TERMS;i++) {
-				if(ptys[i] && FD_ISSET(ptys[i]->masterfd, &readers)) {
-					/* data available. */
-					process_output(ptys[i]);
-				}
-			}
-			if(FD_ISSET(keyfd, &readers)) {
-				/* keyboard data available */
-				read_keyboard();
-			}
-		}
-
-	}
 }
 
 void help()
@@ -165,6 +142,7 @@ void parse_options(int argc, char **argv)
 	}
 }
 #include <sys/resource.h>
+
 int main(int argc, char **argv)
 {
 	//daemon(0, 0);
@@ -177,7 +155,7 @@ int main(int argc, char **argv)
 	openlog("cond", 0, 0);
 	parse_options(argc, argv);
 	syslog(LOG_INFO, "starting cond v. 0.1\n");
-	keyfd = open("/dev/keyboard", O_RDWR | O_NONBLOCK | O_CLOEXEC);
+	keyfd = open("/dev/keyboard", O_RDWR | O_CLOEXEC);
 	if(keyfd == -1) {
 		syslog(LOG_ERR, "failed to open keyboard file: %s\n", strerror(errno));
 		exit(1);
@@ -191,6 +169,9 @@ int main(int argc, char **argv)
 	}
 	current_pty = ptys[0];
 	flip(current_pty);
-	select_loop();
+
+	while(1) {
+		read_keyboard();
+	}
 }
 

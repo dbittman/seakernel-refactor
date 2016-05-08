@@ -86,7 +86,6 @@ static int __futex_wait(_Atomic int *uaddr, int val, const struct timespec *time
 	if(timeout) {
 		time = timeout->tv_nsec / 1000 + timeout->tv_sec * 1000000;
 	}
-	//printk("futex wait: %p, %d (%d)\n", uaddr, *uaddr, val);
 	_Atomic int *loc = (_Atomic int *)(f->phys + PHYS_MAP_START);
 	
 	blockpoint_create(&bp, timeout ? BLOCK_TIMEOUT : 0, time);
@@ -98,7 +97,6 @@ static int __futex_wait(_Atomic int *uaddr, int val, const struct timespec *time
 	atomic_thread_fence(memory_order_seq_cst);
 	enum block_result res = blockpoint_cleanup(&bp);
 	drop_futex(f);
-	//printk("wait returned %d\n", res);
 	switch(res) {
 		case BLOCK_RESULT_UNBLOCKED: case BLOCK_RESULT_BLOCKED:
 			return 0;
@@ -120,7 +118,6 @@ static int __futex_wake(_Atomic int *uaddr, int num)
 			break;
 		woken++;
 	}
-	//printk("woke up %d\n", woken);
 	drop_futex(f);
 	return woken;
 }
@@ -130,8 +127,7 @@ sysret_t sys_futex(_Atomic int *uaddr, int op, int val, const struct timespec *t
 	int ret;
 	(void)uaddr2;
 	(void)val3;
-	op &= ~FUTEX_PRIVATE; //TODO
-	printk("%ld: futex %d on %p with %d\n", current_thread->tid, op, uaddr, val);
+	op &= ~FUTEX_PRIVATE;
 	switch(op) {
 		case FUTEX_WAIT:
 			ret = __futex_wait(uaddr, val, timeout);

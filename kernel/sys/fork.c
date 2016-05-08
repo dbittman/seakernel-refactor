@@ -195,7 +195,6 @@ struct pt_regs {
 
 long sys_clone(unsigned long flags, void *child_stack, void *ptid, void *ctid, struct pt_regs *regs, void *frame)
 {
-	printk(":: %lx, %p %p %p %p\n", flags, child_stack, ptid, ctid, regs);
 	struct thread *thread = kobj_allocate(&kobj_thread);
 	copy_thread(current_thread, thread);
 	process_attach_thread(current_thread->process, thread);

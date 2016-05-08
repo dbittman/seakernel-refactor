@@ -63,6 +63,7 @@ void mm_fault_entry(uintptr_t address, int flags, uintptr_t from)
 		if(mmu_mappings_handle_fault(address, flags))
 			return;
 		printk("SIGSEGV - process %d, addr %lx cause %x (tls %lx) from %lx\n", current_thread->process->pid, address, flags, current_thread->arch.fs, from);
+		panic(0, "");
 		thread_send_signal(current_thread, SIGSEGV);
 		return;
 	}
