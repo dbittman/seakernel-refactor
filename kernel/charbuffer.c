@@ -67,7 +67,7 @@ ssize_t charbuffer_write(struct charbuffer *cb, const char *buf, size_t len, int
 			
 			atomic_fetch_add(&cb->head, amount);
 			spinlock_release(&cb->write);
-			blocklist_unblock_one(&cb->wait_read);
+			blocklist_unblock_all(&cb->wait_read);
 
 			int rem = cb->capacity - (atomic_load(&cb->head) - atomic_load(&cb->tail));
 			if(rem == 0)
@@ -84,11 +84,12 @@ ssize_t charbuffer_write(struct charbuffer *cb, const char *buf, size_t len, int
 		} else {
 			atomic_fetch_add(&cb->head, amount);
 			spinlock_release(&cb->write);
-			blocklist_unblock_one(&cb->wait_read);
+			blocklist_unblock_all(&cb->wait_read);
 			spinlock_acquire(&cb->write);
 		}
 	}
 	spinlock_release(&cb->write);
+	blocklist_unblock_all(&cb->wait_read);
 	return amount_written;
 }
 
@@ -143,7 +144,7 @@ ssize_t charbuffer_read(struct charbuffer *cb, char *buf, size_t len, int flags)
 			atomic_fetch_add(&cb->tail, amount);
 			spinlock_release(&cb->read);
 
-			blocklist_unblock_one(&cb->wait_write);
+			blocklist_unblock_all(&cb->wait_write);
 
 			int rem = (atomic_load(&cb->head) - atomic_load(&cb->tail));
 			if(rem == 0 && !cb->term)
@@ -159,10 +160,13 @@ ssize_t charbuffer_read(struct charbuffer *cb, char *buf, size_t len, int flags)
 			buf += amount;
 		} else {
 			atomic_fetch_add(&cb->tail, amount);
-			blocklist_unblock_one(&cb->wait_write);
+			spinlock_release(&cb->read);
+			blocklist_unblock_all(&cb->wait_write);
+			spinlock_acquire(&cb->read);
 		}
 	}
 	spinlock_release(&cb->read);
+	blocklist_unblock_all(&cb->wait_write);
 	return amount_read;
 }
 

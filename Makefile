@@ -62,14 +62,20 @@ MACHINEDIR=machine/$(MACHINE)
 include $(MACHINEDIR)/include.mk
 include $(ARCHDIR)/include.mk
 
+ifeq ($(CONFIG_BUILD_SYSTEM_COMPILER),y)
+TOOLCHAIN_PREFIX=
+else
+TOOLCHAIN_PREFIX:=$(TOOLCHAIN_PREFIX)-
+endif
+
 ifeq ($(CONFIG_BUILD_CLANG),y)
 CC=clang -target $(TOOLCHAIN_PREFIX) -i$(SYSROOT) /home/dbittman/toolchain/install
 else
-CC=$(TOOLCHAIN_PREFIX)-gcc
+CC=$(TOOLCHAIN_PREFIX)gcc
 endif
 
-AS=$(TOOLCHAIN_PREFIX)-as
-LD=$(TOOLCHAIN_PREFIX)-gcc
+AS=$(TOOLCHAIN_PREFIX)as
+LD=$(TOOLCHAIN_PREFIX)gcc
 
 MAKEFILES+=$(MACHINEDIR)/include.mk $(ARCHDIR)/include.mk $(SYSROOT)/usr/src/include.mk
 
@@ -127,7 +133,7 @@ $(BUILDDIR)/symbols.o: $(BUILDDIR)/symbols.c
 # the developers of binutils are.
 $(BUILDDIR)/kernel.sym.c: $(BUILDDIR)/kernel.elf.stage1
 	@echo -e "[GEN]\t$(BUILDDIR)/kernel.sym.c"
-	@$(TOOLCHAIN_PREFIX)-objdump -t $(BUILDDIR)/kernel.elf.stage1 | grep "^.* [lg]" | awk '{print $$1 " " $$(NF-1) " " $$NF}' | grep -v ".hidden" | sed -rn 's|([0-9a-f]+) ([0-9a-f]+) ([a-zA-Z0-9_/\.]+)|{.value=0x\1, .size=0x\2, .name="\3"},|p' > $(BUILDDIR)/kernel.sym.c
+	@$(TOOLCHAIN_PREFIX)objdump -t $(BUILDDIR)/kernel.elf.stage1 | grep "^.* [lg]" | awk '{print $$1 " " $$(NF-1) " " $$NF}' | grep -v ".hidden" | sed -rn 's|([0-9a-f]+) ([0-9a-f]+) ([a-zA-Z0-9_/\.]+)|{.value=0x\1, .size=0x\2, .name="\3"},|p' > $(BUILDDIR)/kernel.sym.c
 
 # link the stage1 kernel binary, not including the symbol table
 $(BUILDDIR)/kernel.elf.stage1: $(OBJECTS) $(BUILDDIR)/link.ld $(MAKEFILES)
@@ -159,6 +165,11 @@ $(BUILDDIR)/hd.img: $(USRPROGS)
 	sudo mkdir -p $(BUILDDIR)/mnt/dev
 	sudo mkdir -p $(BUILDDIR)/mnt/tmp
 	sudo cp $(USRPROGS) $(BUILDDIR)/mnt/bin
+	sudo mkdir -p $(BUILDDIR)/mnt/usr/src/seakernel
+	sudo cp -r arch drivers include kernel lib machine tests tools config.cfg Makefile README.md $(BUILDDIR)/mnt/usr/src/seakernel
+	sudo sed -s -i -e 's|CONFIG_BUILD_SYSROOT=.*|CONFIG_BUILD_SYSROOT=/|g' $(BUILDDIR)/mnt/usr/src/seakernel/config.cfg
+	sudo sed -s -i -e 's|CONFIG_BUILD_SYSTEM_COMPILER=.*|CONFIG_BUILD_SYSTEM_COMPILER=y|g' $(BUILDDIR)/mnt/usr/src/seakernel/config.cfg
+	sudo sed -s -i -e 's|CONFIG_BUILD_CLANG=.*|CONFIG_BUILD_CLANG=n|g' $(BUILDDIR)/mnt/usr/src/seakernel/config.cfg
 	sudo umount $(BUILDDIR)/mnt
 
 newhd:

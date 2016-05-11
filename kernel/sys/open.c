@@ -313,15 +313,19 @@ ssize_t sys_preadv(int fd, struct iovec *iov, int iovc, size_t off)
 	for(int i=0;i<iovc;i++) {
 		if(!iov[i].len)
 			continue;
-		ssize_t thisamount = file_read(file, off, iov[i].len, iov[i].base);
-		if(thisamount < 0) {
-			kobj_putref(file);
-			if(amount == 0)
-				return thisamount;
-			return amount;
+		for(size_t thisvec = 0;thisvec < iov[i].len;) {
+			printk("%d read: %ld %ld (%ld)\n", current_thread->process->pid, off, iov[i].len - thisvec, thisvec);
+			ssize_t thisamount = file_read(file, off, iov[i].len - thisvec, (char *)iov[i].base + thisvec);
+			if(thisamount <= 0) {
+				kobj_putref(file);
+				if(amount == 0)
+					return thisamount;
+				return amount;
+			}
+			thisvec += thisamount;
+			amount += thisamount;
+			off += thisamount;
 		}
-		amount += thisamount;
-		off += thisamount;
 	}
 	kobj_putref(file);
 	return amount;

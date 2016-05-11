@@ -113,17 +113,17 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 
 	[SYS_futex] = SC sys_futex,
 	[SYS_set_tid_address] = SC sys_set_tid_address,
-	[SYS_exit_group] = SC sys_exit_group,
+	[SYS_exit_group]      = SC sys_exit_group,
 
-	[SYS_arch_prctl] = SC sys_arch_prctl,
+	[SYS_arch_prctl]      = SC sys_arch_prctl,
 
 
 	/* non-linux syscalls */
-	[SYS_dump_perf]  = SC sys_dump_perf,
+	[SYS_dump_perf]       = SC sys_dump_perf,
 
 
 	/* syscalls I don't want to provide TODO */
-	[SYS_brk]      = SC sys_brk,
+	[SYS_brk]             = SC sys_brk,
 
 };
 
