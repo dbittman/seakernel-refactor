@@ -61,7 +61,11 @@ intptr_t sys_mmap(uintptr_t addr, size_t len, int prot, int flags, int fd, size_
 
 sysret_t sys_munmap(void *addr, size_t len)
 {
-	map_unmap((uintptr_t)addr, len);
+	/* TODO: something weird happens here
+	 * where the library calls with with a very large 'len'. figure out why */
+	(void)addr;
+	(void)len;
+	//map_unmap((uintptr_t)addr, len);
 	return 0;
 }
 
