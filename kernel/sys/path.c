@@ -94,10 +94,11 @@ sysret_t sys_chroot(const char *path)
 	return 0;
 }
 
-sysret_t sys_access(const char *path, int mode)
+sysret_t sys_faccessat(int fd, const char *path, int mode)
 {
-	struct inode *node;
-	int ret = fs_path_resolve(path, NULL, 0, 0, NULL, &node);
+	struct inode *start = __get_at_start(fd), *node;
+	int ret = fs_path_resolve(path, start, 0, 0, NULL, &node);
+	inode_put(start);
 	if(ret < 0)
 		return ret;
 
@@ -111,6 +112,12 @@ sysret_t sys_access(const char *path, int mode)
 
 	inode_put(node);
 	return 0;
+
+}
+
+sysret_t sys_access(const char *path, int mode)
+{
+	return sys_faccessat(AT_FDCWD, path, mode);
 }
 
 #define AT_SYMLINK_NOFOLLOW 0x100

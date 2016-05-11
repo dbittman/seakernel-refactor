@@ -198,7 +198,7 @@ bool mapping_remove(struct process *proc, uintptr_t virtual)
 
 void map_mmap(uintptr_t virtual, struct file *file, int prot, int flags, size_t len, size_t off)
 {
-	int num = len / arch_mm_page_size(0);
+	int num = (len - 1) / arch_mm_page_size(0) + 1;
 	int nodepage = off / arch_mm_page_size(0);
 	//mutex_acquire(&current_thread->process->map_lock);
 	for(int i=0;i<num;i++) {
@@ -211,7 +211,7 @@ void map_mmap(uintptr_t virtual, struct file *file, int prot, int flags, size_t 
 
 int map_change_protect(struct process *proc, uintptr_t virt, size_t len, int prot)
 {
-	int num = len / arch_mm_page_size(0);
+	int num = (len - 1) / arch_mm_page_size(0) + 1;
 	mutex_acquire(&current_thread->process->map_lock);
 	for(int i=0;i<num;i++) {
 		uintptr_t vpage = (virt / arch_mm_page_size(0)) + i;
@@ -230,7 +230,7 @@ int map_change_protect(struct process *proc, uintptr_t virt, size_t len, int pro
 
 void map_unmap(uintptr_t virtual, size_t length)
 {
-	for(unsigned i=0;i<(length / arch_mm_page_size(0));i++)
+	for(unsigned i=0;i<((length - 1) / arch_mm_page_size(0) + 1);i++)
 		mapping_remove(current_thread->process, virtual + i * arch_mm_page_size(0));
 }
 
@@ -256,7 +256,7 @@ void process_copy_mappings(struct process *from, struct process *to)
 		}
 		if(!(map->flags & MMAP_MAP_SHARED)) {
 			int flags;
-			if(arch_mm_virtual_getmap(from->ctx, map->vpage * arch_mm_page_size(0), NULL, &flags)) {
+			if(arch_mm_virtual_getmap(from->ctx, map->vpage * arch_mm_page_size(0), NULL, &flags, NULL)) {
 				flags &= ~MAP_WRITE;
 				int r = arch_mm_virtual_chattr(from->ctx, map->vpage * arch_mm_page_size(0), flags);
 				assert(r);

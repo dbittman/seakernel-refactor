@@ -9,6 +9,7 @@
 #include <system.h>
 #include <signal.h>
 #include <process.h>
+#include <sys.h>
 static _Atomic int threadid = ATOMIC_VAR_INIT(0);
 
 static struct kobj_idmap active_threads;
@@ -33,6 +34,7 @@ static void _thread_init(void *obj)
 	sigemptyset(&thread->pending_signals);
 	sigemptyset(&thread->sigmask);
 	thread->flags = 0;
+	thread->set_child_tid = thread->clear_child_tid = NULL;
 	memset(thread->timers, 0, sizeof(thread->timers));
 #if CONFIG_DEBUG
 	thread->held_spinlocks = 0;
@@ -143,5 +145,12 @@ void thread_init(void)
 	proc->idle_thread.processor = proc;
 	proc->idle_thread.process = kernel_process;
 	arch_thread_init(&proc->idle_thread);
+}
+
+void thread_fork_init(void)
+{
+	if(current_thread->set_child_tid != NULL) {
+		*current_thread->set_child_tid = (int)current_thread->tid;
+	}
 }
 

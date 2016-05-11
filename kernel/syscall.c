@@ -23,6 +23,7 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_pwrite64] = SC sys_pwrite,
 	[SYS_pread64]  = SC sys_pread,
 	[SYS_mmap]     = SC sys_mmap,
+	[SYS_munmap]   = SC sys_munmap,
 	[SYS_mprotect] = SC sys_mprotect,
 	[SYS_clone]    = SC sys_clone,
 	[SYS_fork]     = SC sys_fork,
@@ -64,6 +65,10 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_linkat]    = SC sys_linkat,
 	[SYS_renameat]  = SC sys_renameat,
 	[SYS_rename]    = SC sys_rename,
+	[SYS_faccessat] = SC sys_faccessat,
+	[SYS_umask]     = SC sys_umask,
+	[SYS_fchmodat]  = SC sys_fchmodat,
+	[SYS_chmod]     = SC sys_chmod,
 
 	[SYS_socket]   = SC sys_socket,
 	[SYS_socketpair]   = SC sys_socketpair,
@@ -102,6 +107,13 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_clock_getres] = SC sys_clock_getres,
 	[SYS_fsync] = SC sys_fsync,
 	[SYS_sync] = SC sys_sync,
+	[SYS_uname] = SC sys_uname,
+	[SYS_setpgid] = SC sys_setpgid,
+	[SYS_setsid] = SC sys_setsid,
+
+	[SYS_futex] = SC sys_futex,
+	[SYS_set_tid_address] = SC sys_set_tid_address,
+	[SYS_exit_group] = SC sys_exit_group,
 
 	[SYS_arch_prctl] = SC sys_arch_prctl,
 

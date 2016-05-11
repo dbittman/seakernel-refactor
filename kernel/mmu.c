@@ -63,6 +63,7 @@ void mm_fault_entry(uintptr_t address, int flags, uintptr_t from)
 		if(mmu_mappings_handle_fault(address, flags))
 			return;
 		printk("SIGSEGV - process %d, addr %lx cause %x (tls %lx) from %lx\n", current_thread->process->pid, address, flags, current_thread->arch.fs, from);
+		panic(0, "");
 		thread_send_signal(current_thread, SIGSEGV);
 		return;
 	}
@@ -153,7 +154,7 @@ static void _print_range(struct vm_context *ctx, uintptr_t start, uintptr_t end)
 	while(addr != end) {
 		uintptr_t phys;
 		int flags;
-		if(arch_mm_virtual_getmap(ctx, addr, &phys, &flags)) {
+		if(arch_mm_virtual_getmap(ctx, addr, &phys, &flags, NULL)) {
 			if(run_flags == 0) {
 				run_start = addr;
 				run_flags = flags;

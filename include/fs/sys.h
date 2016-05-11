@@ -83,6 +83,10 @@ sysret_t sys_fstatat(int dirfd, const char *path, struct stat *buf, int flags);
 sysret_t sys_linkat(int olddirfd, const char *targ, int newdirfd, const char *_path);
 sysret_t sys_renameat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath);
 sysret_t sys_rename(const char *oldpath, const char *newpath);
+sysret_t sys_faccessat(int fd, const char *path, int mode);
+sysret_t sys_umask(int mask);
+sysret_t sys_chmod(const char *path, int mode);
+sysret_t sys_fchmodat(int dirfd, const char *path, int mode);
 
 
 

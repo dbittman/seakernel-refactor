@@ -108,13 +108,17 @@ static inline void kobj_idmap_create(struct kobj_idmap *idm, size_t idlen)
 	idm->idlen = idlen;
 }
 
-static inline void kobj_idmap_insert(struct kobj_idmap *idm, void *obj, void *id)
+static inline bool kobj_idmap_insert(struct kobj_idmap *idm, void *obj, void *id)
 {
+	bool ret = true;
 	struct kobj_header *h = obj;
 	spinlock_acquire(&idm->lock);
 	if(hash_insert(&idm->hash, id, idm->idlen, &h->idelem, obj) == 0)
 		kobj_getref(obj);
+	else
+		ret = false;
 	spinlock_release(&idm->lock);
+	return ret;
 }
 
 static inline void kobj_idmap_delete(struct kobj_idmap *idm, void *obj, void *id)

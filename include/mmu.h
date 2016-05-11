@@ -40,11 +40,11 @@ void arch_mm_context_create(struct vm_context *ctx);
 void arch_mm_context_init(struct vm_context *ctx);
 void arch_mm_context_destroy(struct vm_context *ctx);
 
-size_t arch_mm_page_size(int level);
+__attribute__((const,pure)) size_t arch_mm_page_size(int level);
 bool arch_mm_virtual_map(struct vm_context *ctx, uintptr_t virt,
 		uintptr_t phys, size_t pagesize, int flags);
 uintptr_t arch_mm_virtual_unmap(struct vm_context *, uintptr_t virt);
-bool arch_mm_virtual_getmap(struct vm_context *, uintptr_t virt, uintptr_t *phys, int *flags);
+bool arch_mm_virtual_getmap(struct vm_context *, uintptr_t virt, uintptr_t *phys, int *flags, size_t *);
 bool arch_mm_virtual_chattr(struct vm_context *ctx, uintptr_t virt, int flags);
 
 void pmm_buddy_init(void);

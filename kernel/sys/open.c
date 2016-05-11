@@ -76,6 +76,11 @@ sysret_t sys_openat(int dirfd, const char *path, int flags, int mode)
 	return fd;
 }
 
+sysret_t sys_umask(int mask)
+{
+	return atomic_exchange(&current_thread->process->cmask, mask & 0777);
+}
+
 sysret_t sys_open(const char *path, int flags, int mode)
 {
 	return sys_openat(AT_FDCWD, path, flags, mode);
@@ -411,5 +416,30 @@ sysret_t sys_fchmod(int fd, int mode)
 	}
 	inode_put(node);
 	return ret;
+}
+
+sysret_t sys_fchmodat(int dirfd, const char *path, int mode)
+{
+	struct inode *start = __get_at_start(dirfd), *node;
+	int err = fs_path_resolve(path, start, 0, 0, NULL, &node);
+	inode_put(start);
+	if(err < 0)
+		return err;
+	
+	err = 0;
+	if(current_thread->process->euid == node->uid || current_thread->process->euid == 0) {
+		node->mode = (node->mode & ~0x7ff) | (mode & 0x7ff);
+		inode_mark_dirty(node);
+	} else {
+		err = -EPERM;
+	}
+	inode_put(node);
+
+	return err;
+}
+
+sysret_t sys_chmod(const char *path, int mode)
+{
+	return sys_fchmodat(AT_FDCWD, path, mode);
 }
 
