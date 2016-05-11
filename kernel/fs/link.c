@@ -30,7 +30,6 @@ int fs_link(struct inode *node, const char *name, size_t namelen, struct inode *
 	return ret;
 }
 
-#include <printk.h>
 int fs_unlink(struct inode *node, const char *name, size_t namelen)
 {
 	if(!inode_check_perm(node, PERM_WRITE))

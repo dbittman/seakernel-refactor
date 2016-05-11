@@ -61,6 +61,9 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_fchown]    = SC sys_fchown,
 	[SYS_fchmod]    = SC sys_fchmod,
 	[SYS_newfstatat]= SC sys_fstatat,
+	[SYS_linkat]    = SC sys_linkat,
+	[SYS_renameat]  = SC sys_renameat,
+	[SYS_rename]    = SC sys_rename,
 
 	[SYS_socket]   = SC sys_socket,
 	[SYS_socketpair]   = SC sys_socketpair,

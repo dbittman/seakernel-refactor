@@ -292,10 +292,17 @@ sysret_t sys_rmdir(const char *path)
 	return sys_unlinkat(AT_FDCWD, path, AT_REMOVEDIR);
 }
 
-sysret_t sys_link(const char *targ, const char *_path)
+sysret_t sys_linkat(int olddirfd, const char *targ, int newdirfd, const char *_path)
 {
 	if(strlen(_path) > 255)
 		return -ENAMETOOLONG;
+	struct inode *oldstart = __get_at_start(olddirfd);
+	struct inode *newstart = __get_at_start(newdirfd);
+	if(!newstart || !oldstart) {
+		if(newstart) inode_put(newstart);
+		if(oldstart) inode_put(oldstart);
+		return -EBADF;
+	}
 	char path[256];
 	memset(path, 0, sizeof(path));
 	memcpy(path, _path, strlen(_path));
@@ -304,17 +311,22 @@ sysret_t sys_link(const char *targ, const char *_path)
 	char *name;
 	if(sep) {
 		*sep = 0;
-		int err = fs_path_resolve(path, NULL, 0, 0, NULL, &parent);
-		if(err < 0)
+		int err = fs_path_resolve(path, oldstart, 0, 0, NULL, &parent);
+		inode_put(oldstart);
+		if(err < 0) {
+			inode_put(newstart);
 			return err;
+		}
 		name = sep + 1;
 	} else {
 		parent = kobj_getref(current_thread->process->cwd);
 		name = path;
+		inode_put(oldstart);
 	}
 
 	struct inode *targetnode;
-	int err = fs_path_resolve(targ, NULL, 0, 0, NULL, &targetnode);
+	int err = fs_path_resolve(targ, newstart, 0, 0, NULL, &targetnode);
+	inode_put(newstart);
 	if(err < 0) {
 		inode_put(parent);
 		return err;
@@ -331,6 +343,12 @@ sysret_t sys_link(const char *targ, const char *_path)
 	return err;
 }
 
+
+sysret_t sys_link(const char *targ, const char *_path)
+{
+	return sys_linkat(AT_FDCWD, targ, AT_FDCWD, _path);
+}
+
 sysret_t sys_symlink(const char *target, const char *linkpath)
 {
 	struct inode *link;
@@ -345,5 +363,23 @@ sysret_t sys_symlink(const char *target, const char *linkpath)
 	err = link->fs->driver->inode_ops->writelink(link, target);
 	inode_put(link);
 	return err;
+}
+
+sysret_t sys_renameat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath)
+{
+	int err = sys_unlinkat(newdirfd, newpath, AT_REMOVEDIR);
+	if(err != -ENOENT)
+		return err;
+	err = sys_linkat(olddirfd, oldpath, newdirfd, newpath);
+	if(err < 0)
+		return err;
+
+	err = sys_unlinkat(olddirfd, oldpath, 0);
+	return err;
+}
+
+sysret_t sys_rename(const char *oldpath, const char *newpath)
+{
+	return sys_renameat(AT_FDCWD, oldpath, AT_FDCWD, newpath);
 }
 
