@@ -35,7 +35,8 @@ void __linkedlist_lock(struct linkedlist *list);
 void __linkedlist_unlock(struct linkedlist *list);
 void *linkedlist_head(struct linkedlist *list);
 void *linkedlist_remove_head(struct linkedlist *list);
-void *linkedlist_remove_tail(struct linkedlist *list);
+void *__linkedlist_remove_tail(struct linkedlist *list, bool locked);
+#define linkedlist_remove_tail(list) __linkedlist_remove_tail(list, false)
 void linkedlist_create(struct linkedlist *list, int flags);
 void linkedlist_insert(struct linkedlist *list, struct linkedentry *entry, void *obj);
 void linkedlist_remove(struct linkedlist *list, struct linkedentry *entry);

@@ -100,9 +100,9 @@ static ssize_t _unix_send(struct socket *sock, const char *buf, size_t len, int 
 	struct unix_connection *con = sock->unix.con;
 	ssize_t ret;
 	if(con->server == sock)
-		ret = charbuffer_write(&con->out, buf, len, 0);
+		ret = charbuffer_write(&con->out, buf, len, (flags & _MSG_NONBLOCK) ? CHARBUFFER_DO_NONBLOCK : 0);
 	else
-		ret = charbuffer_write(&con->in, buf, len, 0);
+		ret = charbuffer_write(&con->in, buf, len, (flags & _MSG_NONBLOCK) ? CHARBUFFER_DO_NONBLOCK : 0);
 	cleanup_connection(sock, ret);
 	return ret;
 }
@@ -113,9 +113,9 @@ static ssize_t _unix_recv(struct socket *sock, char *buf, size_t len, int flags)
 	ssize_t ret;
 	struct unix_connection *con = sock->unix.con;
 	if(con->server == sock)
-		ret = charbuffer_read(&con->in, buf, len, CHARBUFFER_DO_ANY);
+		ret = charbuffer_read(&con->in, buf, len, CHARBUFFER_DO_ANY | ((flags & _MSG_NONBLOCK) ? CHARBUFFER_DO_NONBLOCK : 0));
 	else
-		ret = charbuffer_read(&con->out, buf, len, CHARBUFFER_DO_ANY);
+		ret = charbuffer_read(&con->out, buf, len, CHARBUFFER_DO_ANY | ((flags & _MSG_NONBLOCK) ? CHARBUFFER_DO_NONBLOCK : 0));
 	cleanup_connection(sock, ret);
 	return ret;
 }
@@ -143,7 +143,8 @@ static int _unix_connect(struct socket *sock, const struct sockaddr *_addr, sock
 	linkedlist_insert(&master->pend_con, &sock->pend_con_entry, kobj_getref(sock));
 	blocklist_unblock_one(&master->pend_con_wait);
 	
-	schedule();
+	if(!(sock->flags & SF_CONNEC))
+		schedule();
 	blockpoint_cleanup(&bp);
 	if(!(sock->flags & SF_CONNEC)) {
 		kobj_putref(master);
@@ -195,9 +196,11 @@ static int _unix_accept(struct socket *sock, struct sockaddr *addr, socklen_t *a
 		if(!(sock->flags & SF_BOUND))
 			return -EINVAL;
 		blockpoint_create(&bp, 0, 0);
+		__linkedlist_lock(&sock->pend_con);
 		blockpoint_startblock(&sock->pend_con_wait, &bp);
 
-		client = linkedlist_remove_tail(&sock->pend_con);
+		client = __linkedlist_remove_tail(&sock->pend_con, true);
+		__linkedlist_unlock(&sock->pend_con);
 		if(!client)
 			schedule();
 		blockpoint_cleanup(&bp);

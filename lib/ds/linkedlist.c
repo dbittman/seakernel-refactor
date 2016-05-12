@@ -51,15 +51,17 @@ void *linkedlist_remove_head(struct linkedlist *list)
 	return ret;
 }
 
-void *linkedlist_remove_tail(struct linkedlist *list)
+void *__linkedlist_remove_tail(struct linkedlist *list, bool locked)
 {
 	void *ret = NULL;
-	__linkedlist_lock(list);
+	if(!locked)
+		__linkedlist_lock(list);
 	if(list->head->prev != &list->sentry) {
 		ret = list->head->prev->obj;
 		linkedlist_do_remove(list, list->head->prev);
 	}
-	__linkedlist_unlock(list);
+	if(!locked)
+		__linkedlist_unlock(list);
 	return ret;
 }
 

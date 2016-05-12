@@ -45,6 +45,7 @@ struct socket *socket_get_from_fd(int fd, int *err)
 		return NULL;
 	}
 	struct socket *sock = kobj_getref(file->devdata);
+	*err = file->flags;
 	kobj_putref(file);
 	return sock;
 }
@@ -169,6 +170,7 @@ sysret_t sys_listen(int sockfd, int backlog)
 	return err;
 }
 
+#include <printk.h>
 ssize_t _do_recv(struct socket *sock, char *buf, size_t len, int flags)
 {
 	if(sock->flags & SF_SHUTDOWN)
@@ -199,7 +201,7 @@ sysret_t sys_recv(int sockfd, char *buf, size_t len, int flags)
 	struct socket *socket = socket_get_from_fd(sockfd, &err);
 	if(!socket) return err;
 
-	ssize_t ret = _do_recv(socket, buf, len, flags);
+	ssize_t ret = _do_recv(socket, buf, len, flags | ((err & O_NONBLOCK) ? _MSG_NONBLOCK : 0));
 	kobj_putref(socket);
 	return ret;
 }
@@ -210,7 +212,7 @@ sysret_t sys_send(int sockfd, const char *buf, size_t len, int flags)
 	struct socket *socket = socket_get_from_fd(sockfd, &err);
 	if(!socket) return err;
 	
-	size_t ret = _do_send(socket, buf, len, flags);
+	size_t ret = _do_send(socket, buf, len, flags | ((err & O_NONBLOCK) ? _MSG_NONBLOCK : 0));
 	kobj_putref(socket);
 	return ret;
 }
@@ -223,9 +225,9 @@ sysret_t sys_recvfrom(int sockfd, char *buf, size_t len, int flags, struct socka
 
 	ssize_t ret = -ENOTSUP;
 	if(socket->flags & SF_CONNEC)
-		ret = _do_recv(socket, buf, len, flags);
+		ret = _do_recv(socket, buf, len, flags | ((err & O_NONBLOCK) ? _MSG_NONBLOCK : 0));
 	else if(socket->ops->recvfrom)
-		ret = socket->ops->recvfrom(socket, buf, len, flags, src, srclen);
+		ret = socket->ops->recvfrom(socket, buf, len, flags | ((err & O_NONBLOCK) ? _MSG_NONBLOCK : 0), src, srclen);
 	kobj_putref(socket);
 	return ret;
 }
@@ -238,9 +240,9 @@ sysret_t sys_sendto(int sockfd, const char *buf, size_t len, int flags, const st
 	
 	ssize_t ret = -ENOTSUP;
 	if(socket->flags & SF_CONNEC)
-		ret = _do_send(socket, buf, len, flags);
+		ret = _do_send(socket, buf, len, flags | ((err & O_NONBLOCK) ? _MSG_NONBLOCK : 0));
 	else if(socket->ops->sendto)
-		ret = socket->ops->sendto(socket, buf, len, flags, dest, addrlen);
+		ret = socket->ops->sendto(socket, buf, len, flags | ((err & O_NONBLOCK) ? _MSG_NONBLOCK : 0), dest, addrlen);
 	kobj_putref(socket);
 	return ret;
 }
@@ -265,7 +267,7 @@ static ssize_t _socket_read(struct file *file, size_t off, size_t len, char *buf
 	(void)off;
 	assert(file->devtype == FDT_SOCK);
 	struct socket *sock = kobj_getref(file->devdata);
-	size_t ret = _do_recv(sock, buf, len, 0);
+	size_t ret = _do_recv(sock, buf, len, (file->flags & O_NONBLOCK) ? _MSG_NONBLOCK : 0);
 	kobj_putref(sock);
 	return ret;
 }
@@ -275,7 +277,7 @@ static ssize_t _socket_write(struct file *file, size_t off, size_t len, const ch
 	(void)off;
 	assert(file->devtype == FDT_SOCK);
 	struct socket *sock = kobj_getref(file->devdata);
-	ssize_t ret = _do_send(sock, buf, len, 0);
+	ssize_t ret = _do_send(sock, buf, len, (file->flags & O_NONBLOCK) ? _MSG_NONBLOCK : 0);
 	kobj_putref(sock);
 	return ret;
 }

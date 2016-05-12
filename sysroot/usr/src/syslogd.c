@@ -5,11 +5,15 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/select.h>
-
+#include <errno.h>
+#include <fcntl.h>
 int handle_client(int client)
 {
 	char buffer[1024];
 	ssize_t amount = read(client, buffer, 1023);
+	if(amount < 0 && errno == EAGAIN) {
+		return 0;
+	}
 	if(amount < 0) {
 		perror("read from client");
 		return -1;
@@ -64,6 +68,16 @@ int main(int argc, char **argv)
 						FD_SET(client, &active_fds);
 					} else {
 						perror("accept");
+					}
+					int flags;
+					if((flags = fcntl(client, F_GETFL)) < 0) {
+						perror("fcntl");
+						FD_CLR(client, &active_fds);
+					} else {
+						if(fcntl(client, F_SETFL, flags | O_NONBLOCK) < 0) {
+							perror("fcntl");
+							FD_CLR(client, &active_fds);
+						}
 					}
 				} else {
 					if(handle_client(i) < 0) {

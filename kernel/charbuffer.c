@@ -58,6 +58,7 @@ ssize_t charbuffer_write(struct charbuffer *cb, const char *buf, size_t len, int
 		if(amount_written != len 
 				&& (!(flags & CHARBUFFER_DO_ANY) || amount_written == 0)) {
 			if(flags & CHARBUFFER_DO_NONBLOCK) {
+				atomic_fetch_add(&cb->head, amount);
 				spinlock_release(&cb->write);
 				return amount_written;
 			}
@@ -129,8 +130,9 @@ ssize_t charbuffer_read(struct charbuffer *cb, char *buf, size_t len, int flags)
 		if(amount_read != len
 				&& (!(flags & CHARBUFFER_DO_ANY) || amount_read == 0)) {
 			if(flags & CHARBUFFER_DO_NONBLOCK) {
+				atomic_fetch_add(&cb->tail, amount);
 				spinlock_release(&cb->read);
-				return amount_read;
+				return amount_read > 0 ? amount_read : -EAGAIN;
 			}
 			if(cb->eof && amount_read == 0) {
 				cb->eof = 0;

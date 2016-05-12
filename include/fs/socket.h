@@ -62,6 +62,8 @@ struct socket_unix_data {
 #define SF_CONNEC 8
 #define SF_SHUTDOWN 0x10
 
+#define _MSG_NONBLOCK (1u << 31)
+
 struct socket {
 	struct kobj_header _header;
 	int domain, type, protocol;
