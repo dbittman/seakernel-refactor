@@ -163,6 +163,7 @@ sysret_t sys_fork(void *frame)
 {
 	struct thread *thread = kobj_allocate(&kobj_thread);
 	struct process *proc = kobj_allocate(&kobj_process);
+
 	copy_process(current_thread->process, proc);
 	copy_thread(current_thread, thread);
 	process_copy_mappings(current_thread->process, proc);

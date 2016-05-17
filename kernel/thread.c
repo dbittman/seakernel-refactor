@@ -112,13 +112,15 @@ _Noreturn void thread_exit(struct thread *thread)
 			timer_remove(&thread->timers[i].timer);
 		}
 	}
-	thread->flags |= THREAD_UNINTER;
+	spinlock_acquire(&thread->processor->schedlock);
+	thread->flags |= THREAD_UNINTER | THREAD_DEAD;
 	thread->processor->running = &thread->processor->idle_thread;
 	thread->state = THREADSTATE_INIT;
 	workqueue_insert(&thread->processor->workqueue, &thread->wi_delete);
+	spinlock_release(&thread->processor->schedlock);
 	printk("thread %ld exited\n", thread->tid);
 	schedule();
-	__builtin_unreachable();
+	panic(0, "unreachable %ld (%x)", thread->tid, thread->flags);
 }
 
 struct kobj kobj_thread = {

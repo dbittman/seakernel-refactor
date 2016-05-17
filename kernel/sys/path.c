@@ -299,7 +299,7 @@ sysret_t sys_rmdir(const char *path)
 	return sys_unlinkat(AT_FDCWD, path, AT_REMOVEDIR);
 }
 
-sysret_t sys_linkat(int olddirfd, const char *targ, int newdirfd, const char *_path)
+static sysret_t _do_linkat(int olddirfd, const char *targ, int newdirfd, const char *_path, bool allow_dir)
 {
 	if(strlen(_path) > 255)
 		return -ENAMETOOLONG;
@@ -338,7 +338,7 @@ sysret_t sys_linkat(int olddirfd, const char *targ, int newdirfd, const char *_p
 		inode_put(parent);
 		return err;
 	}
-	if(S_ISDIR(targetnode->mode)) {
+	if(S_ISDIR(targetnode->mode) && !allow_dir) {
 		inode_put(targetnode);
 		inode_put(parent);
 		return -EPERM;
@@ -350,6 +350,10 @@ sysret_t sys_linkat(int olddirfd, const char *targ, int newdirfd, const char *_p
 	return err;
 }
 
+sysret_t sys_linkat(int olddirfd, const char *targ, int newdirfd, const char *_path)
+{
+	return _do_linkat(olddirfd, targ, newdirfd, _path, false);
+}
 
 sysret_t sys_link(const char *targ, const char *_path)
 {
@@ -374,14 +378,20 @@ sysret_t sys_symlink(const char *target, const char *linkpath)
 
 sysret_t sys_renameat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath)
 {
-	int err = sys_unlinkat(newdirfd, newpath, AT_REMOVEDIR);
+	int err = sys_unlinkat(newdirfd, newpath, 0);
+	if(err == -EISDIR) {
+		err = sys_unlinkat(newdirfd, newpath, AT_REMOVEDIR);
+	}
 	if(err != -ENOENT)
 		return err;
-	err = sys_linkat(olddirfd, oldpath, newdirfd, newpath);
+	err = _do_linkat(olddirfd, oldpath, newdirfd, newpath, true);
 	if(err < 0)
 		return err;
 
 	err = sys_unlinkat(olddirfd, oldpath, 0);
+	if(err == -EISDIR) {
+		err = sys_unlinkat(olddirfd, oldpath, AT_REMOVEDIR);
+	}
 	return err;
 }
 

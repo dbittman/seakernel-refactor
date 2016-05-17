@@ -132,7 +132,7 @@ ssize_t charbuffer_read(struct charbuffer *cb, char *buf, size_t len, int flags)
 			if(flags & CHARBUFFER_DO_NONBLOCK) {
 				atomic_fetch_add(&cb->tail, amount);
 				spinlock_release(&cb->read);
-				return amount_read > 0 ? amount_read : -EAGAIN;
+				return amount_read > 0 ? (ssize_t)amount_read : -EAGAIN;
 			}
 			if(cb->eof && amount_read == 0) {
 				cb->eof = 0;

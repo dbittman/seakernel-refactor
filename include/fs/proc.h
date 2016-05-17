@@ -3,7 +3,7 @@
 void proc_destroy(const char *path);
 void proc_create(const char *path, ssize_t (*call)(void *data, int, size_t, size_t, char *), void *data);
 ssize_t proc_read_data(uint32_t id, size_t off, size_t len, char *b);
-
+#include <string.h>
 #define PROCFS_PRINTF(offset,length,buf,current,format...) \
 	do { \
 		char line[1024]; \

@@ -62,18 +62,20 @@ static inline void processor_release(struct processor *proc)
 
 static inline void processor_disable_preempt(void)
 {
-	struct processor *proc = processor_get_current();
+	int old = arch_interrupt_set(0);
+	struct processor *proc = current_thread ? current_thread->processor : processor_get_id(arch_processor_current_id());
 	int r = atomic_fetch_add(&proc->preempt_disable, 1);
 	assert(r >= 0);
-	processor_release(proc);
+	arch_interrupt_set(old);
 }
 
 static inline void processor_enable_preempt(void)
 {
-	struct processor *proc = processor_get_current();
+	int old = arch_interrupt_set(0);
+	struct processor *proc = current_thread ? current_thread->processor : processor_get_id(arch_processor_current_id());
 	int r = atomic_fetch_sub(&proc->preempt_disable, 1);
 	assert(r > 0);
-	processor_release(proc);
+	arch_interrupt_set(old);
 }
 
 #if FEATURE_SUPPORTED_CYCLE_COUNT

@@ -2,6 +2,7 @@
 #include <processor.h>
 #include <interrupt.h>
 #include <printk.h>
+#include <process.h>
 
 _Atomic long long min_time = 0;
 
@@ -9,6 +10,8 @@ static struct thread *__select_thread(struct processor *proc)
 {
 	/* throw the old process back on the queue */
 	spinlock_acquire(&proc->schedlock);
+	if(current_thread->flags & THREAD_DEAD)
+		current_thread->flags |= THREAD_GONE;
 	if(proc->running->state == THREADSTATE_RUNNING && proc->running != &proc->idle_thread) {
 		if(!(atomic_fetch_or(&proc->running->flags, THREAD_ONQUEUE) & THREAD_ONQUEUE)) {
 			priqueue_insert(&proc->runqueue, &proc->running->runqueue_node,
@@ -19,9 +22,12 @@ static struct thread *__select_thread(struct processor *proc)
 	if(!thread)
 		thread = &proc->idle_thread;
 	else {
+		assertmsg(thread->state != THREADSTATE_INIT,
+				"%ld: %x %d %d", thread->tid, thread->flags, thread->state, thread->process->pid);
 		thread->flags &= ~THREAD_ONQUEUE;
 	}
-	if((thread->flags & THREAD_UNINTER) && thread->state != THREADSTATE_RUNNING) {
+	if(((thread->flags & THREAD_UNINTER) && thread->state != THREADSTATE_RUNNING)
+			|| thread->flags & THREAD_DEAD) {
 		thread = &proc->idle_thread;
 	}
 	proc->running = thread;

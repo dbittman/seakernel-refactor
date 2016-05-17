@@ -98,13 +98,13 @@ static int __futex_wait(_Atomic int *uaddr, int val, const struct timespec *time
 	enum block_result res = blockpoint_cleanup(&bp);
 	drop_futex(f);
 	switch(res) {
-		case BLOCK_RESULT_UNBLOCKED: case BLOCK_RESULT_BLOCKED:
-			return 0;
 		case BLOCK_RESULT_TIMEOUT:
 			return -ETIMEDOUT;
 		case BLOCK_RESULT_INTERRUPTED:
 			return -EINTR;
+		default: break;
 	}
+	return 0;
 }
 
 static int __futex_wake(_Atomic int *uaddr, int num)

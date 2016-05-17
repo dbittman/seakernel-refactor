@@ -119,7 +119,7 @@ void hash_iter_init(struct hashiter *iter, struct hash *h)
 	iter->bucket = 0;
 	iter->hash = h;
 	
-	while(++iter->bucket < h->length && h->table[iter->bucket].count == 0)
+	while(h->table[iter->bucket].count == 0 && ++iter->bucket < h->length)
 		;
 	if(iter->bucket >= h->length)
 		return;
@@ -134,7 +134,8 @@ void hash_iter_next(struct hashiter *iter)
 	struct hash *h = iter->hash;
 	struct linkedlist *curlist = &h->table[iter->bucket];
 	if(iter->next == linkedlist_iter_end(curlist)) {
-		while(++iter->bucket < h->length && h->table[iter->bucket].count == 0)
+		iter->bucket++;
+		while(h->table[iter->bucket].count == 0 && ++iter->bucket < h->length)
 			;
 		if(iter->bucket >= h->length)
 			return;

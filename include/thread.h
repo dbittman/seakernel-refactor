@@ -16,6 +16,8 @@
 #define THREAD_EXIT 2
 #define THREAD_ONQUEUE 4
 #define THREAD_UNINTER 8
+#define THREAD_DEAD 0x10
+#define THREAD_GONE 0x20
 enum thread_state {
 	THREADSTATE_INIT,
 	THREADSTATE_RUNNING,

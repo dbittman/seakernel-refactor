@@ -314,7 +314,6 @@ ssize_t sys_preadv(int fd, struct iovec *iov, int iovc, size_t off)
 		if(!iov[i].len)
 			continue;
 		for(size_t thisvec = 0;thisvec < iov[i].len;) {
-			printk("%d read: %ld %ld (%ld)\n", current_thread->process->pid, off, iov[i].len - thisvec, thisvec);
 			ssize_t thisamount = file_read(file, off, iov[i].len - thisvec, (char *)iov[i].base + thisvec);
 			if(thisamount <= 0) {
 				kobj_putref(file);

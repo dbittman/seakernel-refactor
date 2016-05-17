@@ -365,7 +365,7 @@ static int _link(struct inode *node, const char *name, size_t namelen, struct in
 					inode_mark_dirty(node);
 					return 0;
 				}
-			} else if (dir->record_len > (dir->name_len + sizeof(*dir)*2 + 8 + namelen)) {
+			} else if (dir->record_len >= (dir->name_len + sizeof(*dir)*2 + 8 + namelen) && 0) {
 				size_t oldlen = dir->record_len;
 				dir->record_len = (dir->name_len + sizeof(*dir) + 4) & ~3;
 				struct ext2_dirent *nd = (void *)((char *)dir + dir->record_len);
@@ -376,7 +376,7 @@ static int _link(struct inode *node, const char *name, size_t namelen, struct in
 				nd->inode = target->id.inoid;
 				inopage->flags |= INODEPAGE_DIRTY;
 				inode_release_page(node, inopage);
-				assert(((uintptr_t)nd - (inopage->frame + PHYS_MAP_START)) + nd->record_len == ext2_sb_blocksize(&ext2->superblock));
+				//assert(((uintptr_t)nd - (inopage->frame + PHYS_MAP_START)) + nd->record_len == ext2_sb_blocksize(&ext2->superblock));
 				return 0;
 			}
 			dirread += dir->record_len;

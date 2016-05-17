@@ -19,11 +19,12 @@ void priqueue_insert(struct priqueue *pq, struct priqueue_node *node, void *data
 	/* we only scale the incoming priority levels to the number we can handle if we need
 	 * to. If we have unused queues, that's okay. */
 	int q = pq->levels > PRIQUEUE_LEVELS ? (pri * PRIQUEUE_LEVELS) / pq->levels : pri;
+	if(q < 0) q = 0;
+	if(q >= pq->levels) q = pq->levels-1;
 
-#if DEBUG_PRIQUEUE
+#if DEBUG_PRIQUEUE || 1
 	printk("%d Insert %d\n", current_thread->processor->id, q);
 #endif
-
 	linkedlist_insert(&pq->lists[q], &node->entry, data);
 	if(q > pq->curhighest)
 		pq->curhighest = q;
