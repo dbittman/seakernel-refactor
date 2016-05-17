@@ -33,7 +33,6 @@ static void _thread_init(void *obj)
 	thread->process = kernel_process;
 	sigemptyset(&thread->pending_signals);
 	sigemptyset(&thread->sigmask);
-	assert(!(thread->flags & THREAD_ONQUEUE));
 	thread->flags = 0;
 	thread->set_child_tid = thread->clear_child_tid = NULL;
 	memset(thread->timers, 0, sizeof(thread->timers));
@@ -56,7 +55,6 @@ static void _thread_put(void *obj)
 {
 	struct thread *thread = obj;
 	assert(thread != &thread->processor->idle_thread);
-	assertmsg(!(thread->flags & THREAD_ONQUEUE), "%ld %x %d", thread->tid, thread->flags, thread->state);
 	printk("Thread put %ld\n", thread->tid);
 	if(thread->ctx != &kernel_context) {
 		kobj_putref(thread->ctx);

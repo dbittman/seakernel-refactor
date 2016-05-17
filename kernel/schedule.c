@@ -28,7 +28,23 @@ static struct thread *__select_thread(struct processor *proc)
 			|| thread->flags & THREAD_DEAD) {
 		thread = &proc->idle_thread;
 	}
-	assertmsg(thread->state != THREADSTATE_INIT, "%p %p", thread, current_thread);
+
+	/* this is a weird edge case (that should probably get fixed up, TODO):
+	 * if a thread exits and another thread unblocks that exiting thread (for
+	 * example, it gets a signal), then the thread may be added to the runqueue
+	 * during its exiting. Threads that are exiting don't "remove" themselves from
+	 * the runqueue because that happens in the scheduler above, so they could be
+	 * in the runqueue in an unrunnable state. Then, another thread creates a new
+	 * thread and the slab allocator returns the recently exited thread. The flags
+	 * are cleared and the scheduler is then free to run that "new" thread...with the
+	 * old state. Thus allowing the thread to reach the unreachable part of thread_exit.
+	 *
+	 * So, if a thread's state is INIT, then don't run it. Wait until the creating thread
+	 * sets it to runable. */
+	if(thread->state == THREADSTATE_INIT) {
+		thread = &proc->idle_thread;
+	}
+	//assertmsg(thread->state != THREADSTATE_INIT, "%p %p", thread, current_thread);
 	proc->running = thread;
 	spinlock_release(&proc->schedlock);
 	return thread;
