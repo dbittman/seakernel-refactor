@@ -3,7 +3,7 @@ CFLAGS=-ffreestanding -Wall -Wextra -Iinclude -std=gnu11 -Wshadow -Wstrict-overf
 ASFLAGS=
 BUILDDIR=build
 CONFIGFILE=config.cfg
-LDFLAGS=-fno-use-linker-plugin
+LDFLAGS=
 .DEFAULT_GOAL=all
 # these are the required libraries that the kernel needs.
 LIBRARIES=ds string

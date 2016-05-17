@@ -80,9 +80,7 @@ static ssize_t _pipe_write(struct file *file,
 	int flags = CHARBUFFER_DO_ANY;
 	if(file->flags & O_NONBLOCK)
 		flags |= CHARBUFFER_DO_NONBLOCK;
-	printk("write %ld\n", len);
 	size_t ret = charbuffer_write(&pipe->buf, buf, len, flags);
-	printk("wrote %ld\n", ret);
 	return ret;
 }
 
@@ -102,7 +100,6 @@ static void _pipe_close(struct file *file)
 		pipe->writers--;
 	if(file->flags & F_READ)
 		pipe->readers--;
-	printk("close %x\n", file->flags);
 	assert(pipe->writers >= 0);
 	assert(pipe->readers >= 0);
 

@@ -64,6 +64,9 @@ struct socket_unix_data {
 
 #define _MSG_NONBLOCK (1u << 31)
 
+//some compilers define 'unix' as 1, which doesn't make sense for kernel code.
+#undef unix
+
 struct socket {
 	struct kobj_header _header;
 	int domain, type, protocol;

@@ -180,8 +180,11 @@ sysret_t sys_fork(void *frame)
 		process_copy_files(current_thread->process, proc);
 	}
 
+	struct processor *processor = select_processor();
+	spinlock_acquire(&processor->schedlock);
 	thread->state = THREADSTATE_RUNNING;
-	processor_add_thread(select_processor(), thread);
+	processor_add_thread(processor, thread);
+	spinlock_release(&processor->schedlock);
 	sysret_t ret = proc->pid;
 	kobj_putref(proc);
 	return ret;
@@ -214,8 +217,11 @@ long sys_clone(unsigned long flags, void *child_stack, void *ptid, void *ctid, s
 	}
 	arch_thread_create(thread, (uintptr_t)&arch_thread_fork_entry, (void *)((uintptr_t)thread->kernel_tls_base + KERNEL_STACK_SIZE/2));
 
+	struct processor *processor = select_processor();
+	spinlock_acquire(&processor->schedlock);
 	thread->state = THREADSTATE_RUNNING;
-	processor_add_thread(select_processor(), thread);
+	processor_add_thread(processor, thread);
+	spinlock_release(&processor->schedlock);
 	sysret_t ret = thread->tid;
 	return ret;
 }

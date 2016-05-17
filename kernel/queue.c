@@ -22,7 +22,7 @@ void priqueue_insert(struct priqueue *pq, struct priqueue_node *node, void *data
 	if(q < 0) q = 0;
 	if(q >= pq->levels) q = pq->levels-1;
 
-#if DEBUG_PRIQUEUE || 1
+#if DEBUG_PRIQUEUE
 	printk("%d Insert %d\n", current_thread->processor->id, q);
 #endif
 	linkedlist_insert(&pq->lists[q], &node->entry, data);

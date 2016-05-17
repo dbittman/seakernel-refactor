@@ -106,6 +106,7 @@ void blockpoint_startblock(struct blocklist *bl, struct blockpoint *bp)
 		current_thread->flags |= THREAD_UNINTER;
 	else
 		current_thread->flags &= ~THREAD_UNINTER;
+	assert(current_thread->processor->running == current_thread || current_thread->processor->running == &current_thread->processor->idle_thread);
 	current_thread->processor->running = &current_thread->processor->idle_thread;
 	current_thread->state = THREADSTATE_BLOCKED;
 	spinlock_release(&current_thread->processor->schedlock);
@@ -128,6 +129,7 @@ enum block_result blockpoint_cleanup(struct blockpoint *bp)
 	spinlock_acquire(&current_thread->processor->schedlock);
 	current_thread->flags &= ~THREAD_UNINTER;
 	current_thread->state = THREADSTATE_RUNNING;
+	assert(current_thread->processor->running == current_thread || current_thread->processor->running == &current_thread->processor->idle_thread);
 	current_thread->processor->running = current_thread;
 	spinlock_release(&current_thread->processor->schedlock);
 	linkedlist_remove(&bp->bl->waitlist, &bp->node);
