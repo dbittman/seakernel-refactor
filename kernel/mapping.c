@@ -8,6 +8,314 @@
 #include <string.h>
 #include <errno.h>
 #include <fs/sys.h>
+
+static void _map_region_init(void *obj)
+{
+	struct map_region *reg = obj;
+	reg->file = NULL;
+	reg->flags = 0;
+}
+
+static void _map_region_create(void *obj)
+{
+	_map_region_init(obj);
+}
+
+struct kobj kobj_map_region = {
+	KOBJ_DEFAULT_ELEM(map_region),
+	.create = _map_region_create,
+	.init = _map_region_init,
+	.put = NULL, .destroy = NULL,
+};
+
+static inline int __get_pagelevel(size_t len)
+{
+	for(int i=MMU_NUM_PAGESIZE_LEVELS-1;i>=0;i--) {
+		if(arch_mm_page_size(i) <= len)
+			return i;
+	}
+	return 0;
+}
+
+static inline size_t __get_pagesize(size_t len)
+{
+	return arch_mm_page_size(__get_pagelevel(len));
+}
+
+void map_region_remove(uintptr_t start, size_t len, bool locked)
+{
+
+}
+
+void map_region_setup(struct process *proc, uintptr_t start, size_t len, int prot, int flags, struct file *file, int nodepage, bool locked)
+{
+	struct map_region *reg = kobj_allocate(&kobj_map_region);
+	reg->prot = prot;
+	reg->flags = flags;
+	reg->file = file ? kobj_getref(file) : NULL;
+	reg->nodepage = nodepage;
+	reg->start = start;
+	reg->length = len;
+	int pl = __get_pagelevel(len);
+	reg->psize = arch_mm_page_size(pl);
+
+	mutex_acquire(&proc->map_lock);
+	map_region_remove(start, len, true);
+	linkedlist_insert(&proc->maps[pl], &reg->entry, reg);
+	mutex_release(&proc->map_lock);
+}
+
+
+
+static struct map_region *__find_region(struct process *proc, uintptr_t addr)
+{
+	for(int i=MMU_NUM_PAGESIZE_LEVELS;i>=0;i--) {
+		for(struct linkedentry *entry = linkedlist_iter_start(&proc->maps[i]);
+				entry != linkedlist_iter_end(&proc->maps[i]);
+				entry = linkedlist_iter_next(entry)) {
+			struct map_region *reg = linkedentry_obj(entry);
+			if(addr >= reg->start && addr < (reg->start + reg->length)) {
+				return reg;
+			}
+		}
+	}
+	return NULL;
+}
+
+uintptr_t __get_phys_to_map(struct process *proc, struct map_region *reg, uintptr_t v)
+{
+	int pg = (v - reg->start) / arch_mm_page_size(0);
+	if(reg->file) {
+		uintptr_t frame = reg->file->ops->map(reg->file, reg, v - reg->start);
+		frame_acquire(frame);
+		return frame;
+	} else {
+		return frame_allocate();
+	}
+}
+
+int mmu_mappings_handle_fault(uintptr_t addr, int flags)
+{
+	/*
+	 * get region.
+	 * if no region, fail.
+	 * check write perms.
+	 * if fault_present:
+	 *     read mapping
+	 *     if mapped, succeed.
+	 *     get frame or page
+	 *     if private and not anon, clear write perm when mapping
+	 *     map, succeed.
+	 * elif fault_perm:
+	 *     exec -> fail.
+	 *     if fault_write and private:
+	 *         if anon:
+	 *             if count > 1, copy to new frame, dec count, else, mark writable
+	 *         else:
+	 *             copy data to new frame, mark as anon, call unmap callback
+	 *     elif fault_write and !anon and shared:
+	 *         mark writable
+	 */
+	bool success = false;
+	struct process *proc = current_thread->process;
+	mutex_acquire(&proc->map_lock);
+	struct map_region *reg = __find_region(proc, addr);
+	if(!reg)
+		goto out;
+	if((flags & FAULT_WRITE) && !(reg->prot & PROT_WRITE)) {
+		goto out;
+	}
+	
+	int set = MAP_PRIVATE | MAP_USER;
+	if(reg->prot & PROT_WRITE)
+		set |= MAP_WRITE;
+	if(reg->prot & PROT_EXEC)
+		set |= MAP_EXECUTE;
+
+	uintptr_t v = addr & ~(reg->psize - 1);
+	if(flags & FAULT_ERROR_PRES) {
+		if(arch_mm_virtual_getmap(proc->ctx, v, NULL, NULL, NULL)) {
+			/* another thread may have gotten here first */
+			success = true;
+			goto out;
+		}
+
+		uintptr_t phys = __get_phys_to_map(proc, reg, v);
+		
+		if((reg->flags & MMAP_MAP_PRIVATE) || !(reg->flags & MMAP_MAP_ANON))
+			set &= ~MAP_WRITE;
+
+		arch_mm_virtual_map(proc->ctx, v, phys, reg->psize, set);
+	} else {
+		if(flags & FAULT_EXEC) {
+			goto out;
+		}
+
+		if((flags & FAULT_WRITE) && (reg->flags & MMAP_MAP_PRIVATE)) {
+			if(reg->flags & MMAP_MAP_ANON) {
+				uintptr_t phys;
+				bool r = arch_mm_virtual_getmap(proc->ctx, v, &phys, NULL, NULL);
+				assert(r);
+
+				struct frame *frame = frame_get_from_address(phys);
+				if(frame->count > 1) {
+					uintptr_t newframe = frame_allocate();
+					
+					memcpy((void *)(newframe + PHYS_MAP_START), (void *)(phys + PHYS_MAP_START), arch_mm_page_size(0));
+					uintptr_t r2 = arch_mm_virtual_unmap(proc->ctx, v);
+					assert(r2 != 0);
+					r = arch_mm_virtual_map(proc->ctx, v, newframe, reg->psize, set);
+					assert(r);
+					frame_release(phys);
+				} else {
+					arch_mm_virtual_chattr(proc->ctx, v, set);
+				}
+			} else {
+				uintptr_t phys;
+				bool r = arch_mm_virtual_getmap(proc->ctx, v,&phys, NULL, NULL);
+				assert(r);
+
+				uintptr_t newframe = frame_allocate();
+				memcpy((void *)(newframe + PHYS_MAP_START), (void *)(phys + PHYS_MAP_START), reg->psize);
+
+				arch_mm_virtual_unmap(proc->ctx, v);
+				arch_mm_virtual_map(proc->ctx, v, newframe, reg->psize, set);
+				frame_release(phys);
+			}
+		} else if((flags & FAULT_WRITE) && !(reg->flags & MMAP_MAP_ANON) && (reg->flags & MMAP_MAP_SHARED)) {
+			/* TODO: MARK INODE PAGE DIRTY */
+			arch_mm_virtual_chattr(proc->ctx, addr & page_mask(0), set);
+		}
+	}
+
+	success = true;
+out:
+	mutex_release(&current_thread->process->map_lock);
+	return success;
+} 
+
+#if 0
+int mmu_mappings_handle_fault(uintptr_t addr, int flags)
+{
+	(void)flags;
+	struct process *proc = current_thread->process;
+	int success = false;
+	uintptr_t vpage = addr / arch_mm_page_size(0);
+	mutex_acquire(&proc->map_lock);
+	struct mapping *map = hash_lookup(&proc->mappings, &vpage, sizeof(vpage));
+	
+	if(!map) {
+		goto out;
+	}
+	int setflags = MAP_USER | MAP_PRIVATE;
+
+	if(map->prot & PROT_WRITE)
+		setflags |= MAP_WRITE;
+	if(map->prot & PROT_EXEC)
+		setflags |= MAP_EXECUTE;
+
+	if((flags & FAULT_WRITE) && !(map->prot & PROT_WRITE)) {
+		goto out;
+	}
+
+	/* TODO: there are times when we may know that we're doing a
+	 * write but the page isn't present. We could skip ahead to
+	 * the FAULT_ERROR_PERM case */
+	if(flags & FAULT_ERROR_PRES) {
+		uintptr_t frame = 0;
+		if(map->flags & MMAP_MAP_MAPPED) {
+			/* possible another thread got here first */
+			goto done;
+		}
+		if(map->flags & MMAP_MAP_ANON) {
+			if(!map->frame)
+				map->frame = frame_allocate();
+			frame = map->frame;
+		} else {
+			if(!map->page) {
+				if(!map->file->ops->map(map->file, map)) {
+					/* failed */
+					goto out;
+				}
+			}
+			frame = map->page->frame;
+		}
+		map->flags |= MMAP_MAP_MAPPED;
+
+		if((map->flags & MMAP_MAP_PRIVATE) || !(map->flags & MMAP_MAP_ANON))
+			setflags &= ~MAP_WRITE;
+
+		arch_mm_virtual_map(proc->ctx, addr & page_mask(0),
+				frame, arch_mm_page_size(0), setflags);
+	} else {
+		if(flags & FAULT_EXEC)
+			goto out;
+
+		if((flags & FAULT_WRITE) && (map->flags & MMAP_MAP_PRIVATE)) {
+			if(map->flags & MMAP_MAP_ANON) {
+				assert(map->frame);
+				struct frame *frame = frame_get_from_address(map->frame);
+
+				assert(frame->count > 0);
+				if(frame->count > 1) {
+					uintptr_t newframe = frame_allocate();
+					memcpy((void *)(newframe + PHYS_MAP_START), (void *)(map->frame + PHYS_MAP_START), arch_mm_page_size(0));
+					uintptr_t r = arch_mm_virtual_unmap(proc->ctx, addr & page_mask(0));
+					assert(r != 0);
+					r = arch_mm_virtual_map(proc->ctx, addr & page_mask(0), newframe, arch_mm_page_size(0), setflags);
+					assert(r);
+					frame_release(map->frame);
+					map->frame = newframe;
+				} else {
+					arch_mm_virtual_chattr(proc->ctx, addr & page_mask(0), setflags);
+				}
+			} else {
+				struct inodepage *page = map->page;
+				map->flags |= MMAP_MAP_ANON;
+				uintptr_t newframe = frame_allocate();
+				memcpy((void *)(newframe + PHYS_MAP_START), (void *)(page->frame + PHYS_MAP_START), arch_mm_page_size(0));
+
+				arch_mm_virtual_unmap(proc->ctx, addr & page_mask(0));
+				arch_mm_virtual_map(proc->ctx, addr & page_mask(0), newframe, arch_mm_page_size(0), setflags);
+				if(map->file->ops->unmap) {
+					map->file->ops->unmap(map->file, map);
+					kobj_putref(map->file);
+					map->file = NULL;
+				}
+				map->frame = newframe;
+			}
+		} else if(flags & FAULT_WRITE) {
+			if(!(map->flags & MMAP_MAP_ANON)) {
+				if(map->flags & MMAP_MAP_SHARED)
+					map->page->flags |= INODEPAGE_DIRTY;
+				arch_mm_virtual_chattr(proc->ctx, addr & page_mask(0), setflags);
+			}
+		}
+
+	}
+done:
+	success = true;
+
+out:
+	mutex_release(&proc->map_lock);
+	return success;
+}
+
+
+
+
+
+
+#endif
+
+
+
+
+
+
+
+#if 0
+
 /* TODO: simplify this system. I don't
  * think it needs to store the page, just
  * the frame. */
@@ -284,109 +592,6 @@ void process_remove_mappings(struct process *proc, bool user_tls_too)
 	mutex_release(&proc->map_lock);
 }
 
-int mmu_mappings_handle_fault(uintptr_t addr, int flags)
-{
-	(void)flags;
-	struct process *proc = current_thread->process;
-	int success = false;
-	uintptr_t vpage = addr / arch_mm_page_size(0);
-	mutex_acquire(&proc->map_lock);
-	struct mapping *map = hash_lookup(&proc->mappings, &vpage, sizeof(vpage));
-	
-	if(!map) {
-		goto out;
-	}
-	int setflags = MAP_USER | MAP_PRIVATE;
 
-	if(map->prot & PROT_WRITE)
-		setflags |= MAP_WRITE;
-	if(map->prot & PROT_EXEC)
-		setflags |= MAP_EXECUTE;
-
-	if((flags & FAULT_WRITE) && !(map->prot & PROT_WRITE)) {
-		goto out;
-	}
-
-	/* TODO: there are times when we may know that we're doing a
-	 * write but the page isn't present. We could skip ahead to
-	 * the FAULT_ERROR_PERM case */
-	if(flags & FAULT_ERROR_PRES) {
-		uintptr_t frame = 0;
-		if(map->flags & MMAP_MAP_MAPPED) {
-			/* possible another thread got here first */
-			goto done;
-		}
-		if(map->flags & MMAP_MAP_ANON) {
-			if(!map->frame)
-				map->frame = frame_allocate();
-			frame = map->frame;
-		} else {
-			if(!map->page) {
-				if(!map->file->ops->map(map->file, map)) {
-					/* failed */
-					goto out;
-				}
-			}
-			frame = map->page->frame;
-		}
-		map->flags |= MMAP_MAP_MAPPED;
-
-		if((map->flags & MMAP_MAP_PRIVATE) || !(map->flags & MMAP_MAP_ANON))
-			setflags &= ~MAP_WRITE;
-
-		arch_mm_virtual_map(proc->ctx, addr & page_mask(0),
-				frame, arch_mm_page_size(0), setflags);
-	} else {
-		if(flags & FAULT_EXEC)
-			goto out;
-
-		if((flags & FAULT_WRITE) && (map->flags & MMAP_MAP_PRIVATE)) {
-			if(map->flags & MMAP_MAP_ANON) {
-				assert(map->frame);
-				struct frame *frame = frame_get_from_address(map->frame);
-
-				assert(frame->count > 0);
-				if(frame->count > 1) {
-					uintptr_t newframe = frame_allocate();
-					memcpy((void *)(newframe + PHYS_MAP_START), (void *)(map->frame + PHYS_MAP_START), arch_mm_page_size(0));
-					uintptr_t r = arch_mm_virtual_unmap(proc->ctx, addr & page_mask(0));
-					assert(r != 0);
-					r = arch_mm_virtual_map(proc->ctx, addr & page_mask(0), newframe, arch_mm_page_size(0), setflags);
-					assert(r);
-					frame_release(map->frame);
-					map->frame = newframe;
-				} else {
-					arch_mm_virtual_chattr(proc->ctx, addr & page_mask(0), setflags);
-				}
-			} else {
-				struct inodepage *page = map->page;
-				map->flags |= MMAP_MAP_ANON;
-				uintptr_t newframe = frame_allocate();
-				memcpy((void *)(newframe + PHYS_MAP_START), (void *)(page->frame + PHYS_MAP_START), arch_mm_page_size(0));
-
-				arch_mm_virtual_unmap(proc->ctx, addr & page_mask(0));
-				arch_mm_virtual_map(proc->ctx, addr & page_mask(0), newframe, arch_mm_page_size(0), setflags);
-				if(map->file->ops->unmap) {
-					map->file->ops->unmap(map->file, map);
-					kobj_putref(map->file);
-					map->file = NULL;
-				}
-				map->frame = newframe;
-			}
-		} else if(flags & FAULT_WRITE) {
-			if(!(map->flags & MMAP_MAP_ANON)) {
-				if(map->flags & MMAP_MAP_SHARED)
-					map->page->flags |= INODEPAGE_DIRTY;
-				arch_mm_virtual_chattr(proc->ctx, addr & page_mask(0), setflags);
-			}
-		}
-
-	}
-done:
-	success = true;
-
-out:
-	mutex_release(&proc->map_lock);
-	return success;
-}
+#endif
 

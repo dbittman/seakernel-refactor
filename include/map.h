@@ -7,7 +7,6 @@
 #define MMAP_MAP_PRIVATE  0x2
 #define MMAP_MAP_FIXED   0x10
 #define MMAP_MAP_ANON    0x20
-#define MMAP_MAP_MAPPED 0x80000000
 
 #define PROT_READ  1
 #define PROT_WRITE 2
@@ -20,14 +19,27 @@ struct inode;
 struct inodepage;
 struct mapping {
 	struct kobj_header _header;
-	struct hashelem elem;
+	//struct hashelem elem;
 	uintptr_t vpage;
 	struct file *file;
-	union {
+	//union {
 		struct inodepage *page;
-		uintptr_t frame;
-	};
+	//	uintptr_t frame;
+	//};
 	int prot, flags, nodepage;
+};
+
+struct map_region {
+	struct kobj_header _header;
+	struct linkedentry entry;
+	uintptr_t start;
+	size_t psize;
+	size_t length;
+	
+	struct file *file;
+	int nodepage;
+	int prot;
+	int flags;
 };
 
 struct process;

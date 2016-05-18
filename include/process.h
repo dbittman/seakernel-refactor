@@ -4,6 +4,7 @@
 #include <slab.h>
 #include <signal.h>
 #include <mutex.h>
+#include <mmu.h>
 struct vm_context;
 struct thread;
 
@@ -28,7 +29,7 @@ struct process {
 	struct spinlock lock;
 	_Atomic int flags, status;
 
-	struct hash mappings;
+	struct linkedlist maps[MMU_NUM_PAGESIZE_LEVELS];
 	struct mutex map_lock;
 
 	struct fildes *files;

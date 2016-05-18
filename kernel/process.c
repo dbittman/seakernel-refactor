@@ -76,8 +76,9 @@ static void _process_create(void *obj)
 	proc->files = (void *)mm_virtual_allocate(__round_up_pow2(sizeof(struct fildes) * MAX_FD), true);
 	_process_init(obj);
 	linkedlist_create(&proc->threads, 0);
-	/* TODO: hash size? */
-	hash_create(&proc->mappings, HASH_LOCKLESS, 0x8000);
+	for(int i=0;i<MMU_NUM_PAGESIZE_LEVELS;i++) {
+		linkedlist_create(&proc->maps[i], LINKEDLIST_LOCKLESS);
+	}
 	mutex_create(&proc->map_lock);
 	spinlock_create(&proc->files_lock);
 	spinlock_create(&proc->signal_lock);

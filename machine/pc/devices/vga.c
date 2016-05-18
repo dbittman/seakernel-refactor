@@ -10,15 +10,12 @@
 #include <errno.h>
 static struct device dev;
 
-static bool _vga_map(struct file *file, struct mapping *map)
+static uintptr_t _vga_map(struct file *file, struct map_region *map, ptrdiff_t d)
 {
 	(void)file;
-	frame_acquire(0xB8000);
-	struct inodepage *page = kobj_allocate(&kobj_inode_page);
-	page->node = NULL;
-	map->page = page;
-	page->frame = 0xB8000;
-	return true;
+	(void)d;
+	(void)map;
+	return 0xB8000;
 }
 
 static void setcurs(int x, int y)

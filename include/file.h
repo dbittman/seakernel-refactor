@@ -50,7 +50,7 @@ static inline struct inode *file_get_inode(struct file *f)
 	return NULL;
 }
 
-struct mapping;
+struct map_region;
 struct file_calls {
 	ssize_t (*read)(struct file *, size_t, size_t, char *);
 	ssize_t (*write)(struct file *, size_t, size_t, const char *);
@@ -63,8 +63,8 @@ struct file_calls {
 	void (*open)(struct file *file);
 	void (*close)(struct file *file);
 
-	bool (*map)(struct file *file, struct mapping *map);
-	void (*unmap)(struct file *file, struct mapping *map);
+	uintptr_t (*map)(struct file *file, struct map_region *map, ptrdiff_t);
+	void (*unmap)(struct file *file, struct map_region *map, ptrdiff_t);
 };
 
 extern struct file_calls fs_fops;

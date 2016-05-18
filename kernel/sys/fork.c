@@ -48,6 +48,8 @@ static struct processor *select_processor(void)
 	}
 }
 
+/* TODO */
+#if 0
 static int _map_compar(const void *_a, const void *_b)
 {
 	const struct mapping *a = _a;
@@ -121,7 +123,7 @@ ssize_t _proc_read_maps(void *data, int rw, size_t off, size_t len, char *buf)
 	mm_virtual_deallocate((uintptr_t)tmp);
 	return current;
 }
-
+#endif
 static void __create_proc_entries(struct process *proc)
 {
 	#define __proc_make(pid,name,call,data) do { char str[128]; snprintf(str, 128, "/proc/%d/%s", pid, name); proc_create(str, call, data); } while(0)
@@ -154,8 +156,8 @@ static void __create_proc_entries(struct process *proc)
 	__proc_make(proc->pid, "sgid", _proc_read_int, &proc->status);
 	kobj_getref(proc);
 	__proc_make(proc->pid, "brk", _proc_read_int, &proc->brk);
-	kobj_getref(proc);
-	__proc_make(proc->pid, "maps", _proc_read_maps, proc);
+	//kobj_getref(proc);
+	//__proc_make(proc->pid, "maps", _proc_read_maps, proc);
 
 }
 

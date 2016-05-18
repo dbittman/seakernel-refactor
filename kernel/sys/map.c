@@ -51,12 +51,22 @@ intptr_t sys_mmap(uintptr_t addr, size_t len, int prot, int flags, int fd, size_
 	} else {
 		virt = process_allocate_mmap_region(current_thread->process, len);
 	}
-	map_mmap(virt, file, prot, flags, len, off);
+	uintptr_t base = virt;
+	for(int i=MMU_NUM_PAGESIZE_LEVELS;i>=0;i--) {
+		size_t ts = arch_mm_page_size(i);
+		if(ts > len) continue;
+
+		size_t thislen = len & (ts-1);
+		map_mmap(virt, file, prot, flags, thislen, off);
+		off += thislen;
+		virt += thislen;
+	}
+	//map_mmap(virt, file, prot, flags, len, off);
 
 	if(file)
 		kobj_putref(file);
 
-	return virt;
+	return base;
 }
 
 sysret_t sys_munmap(void *addr, size_t len)

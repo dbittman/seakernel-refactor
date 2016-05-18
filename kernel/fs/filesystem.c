@@ -56,18 +56,21 @@ struct kobj kobj_filesystem = {
 	.destroy = _filesystem_destroy,
 };
 
-static bool _fs_inode_map(struct file *file, struct mapping *map)
+static uintptr_t _fs_inode_map(struct file *file, struct map_region *map, ptrdiff_t d)
 {
 	struct inode *node = file_get_inode(file);
-	map->page = inode_get_page(node, map->nodepage);
+	struct inodepage *page = inode_get_page(node, map->nodepage + d / arch_mm_page_size(0));
 	inode_put(node);
-	return !!map->page;
+	return page->frame;
 }
 
-static void _fs_inode_unmap(struct file *file, struct mapping *map)
+static void _fs_inode_unmap(struct file *file, struct map_region *map, ptrdiff_t d)
 {
 	struct inode *node = file_get_inode(file);
-	inode_release_page(node, map->page);
+	struct inodepage *page = inode_get_page(node, map->nodepage + d / arch_mm_page_size(0));
+	/* TODO: hacky way to release this */
+	inode_release_page(node, page);
+	inode_release_page(node, page);
 	inode_put(node);
 }
 

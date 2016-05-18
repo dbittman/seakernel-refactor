@@ -10,6 +10,7 @@ struct vm_context;
 void arch_mm_init(struct vm_context *ctx);
 uintptr_t arch_mm_physical_allocate(size_t size, bool clear);
 
+#define MMU_NUM_PAGESIZE_LEVELS 2
 
 #define MMU_PTE_GLOBAL   (1 << 8)
 #define MMU_PTE_LARGE    (1 << 7)
