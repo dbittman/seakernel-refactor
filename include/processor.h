@@ -48,7 +48,7 @@ static inline struct processor *processor_get_current(void)
 {
 	int old = arch_interrupt_set(0);
 	struct processor *proc = current_thread ? current_thread->processor : processor_get_id(arch_processor_current_id());
-	int r = atomic_fetch_add(&proc->preempt_disable, 1);
+	int r = atomic_fetch_add_explicit(&proc->preempt_disable, 1, memory_order_acquire);
 	assert(r >= 0);
 	arch_interrupt_set(old);
 	return proc;
@@ -56,7 +56,7 @@ static inline struct processor *processor_get_current(void)
 
 static inline void processor_release(struct processor *proc)
 {
-	int r = atomic_fetch_sub(&proc->preempt_disable, 1);
+	int r = atomic_fetch_sub_explicit(&proc->preempt_disable, 1, memory_order_release);
 	assert(r > 0);
 }
 
@@ -64,7 +64,7 @@ static inline void processor_disable_preempt(void)
 {
 	int old = arch_interrupt_set(0);
 	struct processor *proc = current_thread ? current_thread->processor : processor_get_id(arch_processor_current_id());
-	int r = atomic_fetch_add(&proc->preempt_disable, 1);
+	int r = atomic_fetch_add_explicit(&proc->preempt_disable, 1, memory_order_acquire);
 	assert(r >= 0);
 	arch_interrupt_set(old);
 }
@@ -73,7 +73,7 @@ static inline void processor_enable_preempt(void)
 {
 	int old = arch_interrupt_set(0);
 	struct processor *proc = current_thread ? current_thread->processor : processor_get_id(arch_processor_current_id());
-	int r = atomic_fetch_sub(&proc->preempt_disable, 1);
+	int r = atomic_fetch_sub_explicit(&proc->preempt_disable, 1, memory_order_release);
 	assert(r > 0);
 	arch_interrupt_set(old);
 }

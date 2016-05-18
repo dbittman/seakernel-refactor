@@ -14,6 +14,7 @@ struct linkedentry {
 #include <spinlock.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <system.h>
 
 struct linkedlist {
 	struct linkedentry * _Atomic head;
@@ -31,8 +32,20 @@ struct linkedlist {
 #define linkedlist_back_iter_start(list) (list)->head->prev
 #define linkedlist_back_iter_next(entry) (entry)->prev
 
-void __linkedlist_lock(struct linkedlist *list);
-void __linkedlist_unlock(struct linkedlist *list);
+static inline void __linkedlist_lock(struct linkedlist *list)
+{
+	if(likely(!(list->flags & LINKEDLIST_LOCKLESS))) {
+		spinlock_acquire(&list->lock);
+	}
+}
+
+static inline void __linkedlist_unlock(struct linkedlist *list)
+{
+	if(likely(!(list->flags & LINKEDLIST_LOCKLESS))) {
+		spinlock_release(&list->lock);
+	}
+}
+
 void *linkedlist_head(struct linkedlist *list);
 void *linkedlist_remove_head(struct linkedlist *list);
 void *__linkedlist_remove_tail(struct linkedlist *list, bool locked);

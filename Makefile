@@ -24,6 +24,11 @@ ifeq ($(CONFIG_UBSAN),y)
 CFLAGS+=-fsanitize=undefined -fstack-protector-all -fstack-check
 endif
 
+# these warnings pop up if we define asserts to nothing, so remove them
+ifeq ($(CONFIG_DEBUG),n)
+CFLAGS+=-Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable
+endif
+
 ifeq ($(CONFIG_BUILD_WERROR),y)
 CFLAGS+=-Werror
 endif

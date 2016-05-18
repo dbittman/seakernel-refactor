@@ -22,9 +22,10 @@ extern int kernel_text_start;
 extern int kernel_text_end;
 struct fcall {
 	size_t count;
-	_Atomic long level;
 	uintptr_t base;
 	uint64_t start, mean;
+	_Atomic int level;
+	int iflag;
 };
 
 static struct fcall *calls;
@@ -34,11 +35,12 @@ static uint64_t calibration = 0;
 __attribute__((no_instrument_function))
 void __cyg_profile_func_enter(void *this_fn, void *call_site)
 {
-	if(enable) {
+	if(likely(enable)) {
 		(void)call_site;
 		int index = (uintptr_t)this_fn - (uintptr_t)&kernel_text_start;
 		calls[index].base = (uintptr_t)this_fn;
-		if(atomic_fetch_add(&calls[index].level, 1) == 0) {
+		if(likely(atomic_fetch_add(&calls[index].level, 1) == 0)) {
+			//calls[index].iflag = arch_interrupt_set(0);
 			calls[index].start = arch_processor_get_cycle_count();
 		}
 	}
@@ -48,12 +50,14 @@ __attribute__((no_instrument_function))
 void __cyg_profile_func_exit(void *this_fn, void *call_site)
 {
 	(void)call_site;
-	if(enable) {
+	if(likely(enable)) {
 		uint64_t c = arch_processor_get_cycle_count();
 		int index = (uintptr_t)this_fn - (uintptr_t)&kernel_text_start;
-		if(atomic_fetch_sub(&calls[index].level, 1) == 1) {
+		//int flag = calls[index].iflag;
+		if(likely(atomic_fetch_sub(&calls[index].level, 1) == 1)) {
+			//arch_interrupt_set(flag);
 			int64_t x = (c - calls[index].start) - calibration;
-			if(x > 0)
+			if(likely(x > 0))
 				calls[index].mean = (calls[index].mean * calls[index].count + x) / (calls[index].count+1);
 			calls[index].count++;
 		}

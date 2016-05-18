@@ -27,7 +27,7 @@ void hash_create(struct hash *h, int flags, size_t length)
 		length = arch_mm_page_size(0) / sizeof(struct linkedlist);
 	h->table = (void *)mm_virtual_allocate(__round_up_pow2(length * sizeof(struct linkedlist)), false);
 	for(size_t i=0;i<length;i++) {
-		linkedlist_create(&h->table[i], (flags & HASH_LOCKLESS) ? LINKEDLIST_LOCKLESS : 0);
+		linkedlist_create(&h->table[i], LINKEDLIST_LOCKLESS);
 	}
 	h->length = length;
 }
@@ -52,7 +52,7 @@ static bool __same_keys(const void *key1, size_t key1len, const void *key2, size
 {
 	if(key1len != key2len)
 		return false;
-	return memcmp(key1, key2, key1len) == 0 ? true : false;
+	return memcmp(key1, key2, key1len) == 0;
 }
 
 static bool __ll_check_exist(struct linkedentry *ent, void *data)
@@ -113,7 +113,6 @@ void *hash_lookup(struct hash *h, const void *key, size_t keylen)
 	return ret;
 }
 
-#include <printk.h>
 void hash_iter_init(struct hashiter *iter, struct hash *h)
 {
 	iter->bucket = 0;

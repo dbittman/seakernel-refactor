@@ -31,7 +31,7 @@ struct process {
 	struct hash mappings;
 	struct mutex map_lock;
 
-	struct fildes files[MAX_FD];
+	struct fildes *files;
 	struct spinlock files_lock;
 
 	int pid;

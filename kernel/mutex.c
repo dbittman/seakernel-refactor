@@ -10,14 +10,14 @@ static inline bool _spinlock_first(struct mutex *mutex)
 {
 	/* improve performance with an optimistic view that the mutex
 	 * might get unlocked soon by a thread on a different CPU */
-	for(int i=0;i<10;i++) {
+	for(int i=0;i<40;i++) {
 		int exp = 0;
 		if(atomic_compare_exchange_weak(&mutex->lock, &exp, 1))
 			return true;
 		/* ...and if that doesn't look like it's working, maybe
 		 * it will get unlocked soon by a thread on the same CPU,
 		 * so we can get away with rescheduling until it unlocks it */
-		if(i > 5)
+		if(i > 30)
 			schedule();
 	}
 	/* ...neither of those worked, so indicate that we couldn't grab

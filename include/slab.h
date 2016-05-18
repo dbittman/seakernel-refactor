@@ -64,16 +64,31 @@ struct kobj_header {
 };
 
 void *kobj_allocate(struct kobj *ko);
-void *kobj_getref(void *obj);
 size_t __kobj_putref(void *obj);
+
+static inline void *kobj_getref(void *obj)
+{
+	struct kobj_header *header = obj;
+	assert(header->magic == KOBJ_HEADER_MAGIC);
+	int x = atomic_fetch_add(&header->_koh_refs, 1);
+#if CONFIG_DEBUG
+	if(x == 0) {
+		panic(0, "getting dangling pointer: %p, %s\n", obj, header->_koh_kobj->name);
+	}
+#endif
+	return obj;
+}
+
 
 static inline size_t kobj_putref(void *obj)
 {
 	struct kobj_header *header = obj;
+#if CONFIG_DEBUG
 	assert(header->magic == KOBJ_HEADER_MAGIC);
 	if(header->flags)
 		panic(0, "called normal putref with flags non-zero %p: %s %x (%d)\n", obj, header->_koh_kobj->name, header->flags, *(int *)header->id);
 	assert(header->_koh_initialized);
+#endif
 	return __kobj_putref(obj);
 }
 
@@ -178,5 +193,11 @@ void *kobj_lru_get(struct kobj_lru *lru, void *id);
 void kobj_lru_put(struct kobj_lru *lru, void *obj);
 void kobj_lru_release_all(struct kobj_lru *lru);
 void kobj_lru_destroy(struct kobj_lru *lru);
+
+
+
+
+
+
 #endif
 

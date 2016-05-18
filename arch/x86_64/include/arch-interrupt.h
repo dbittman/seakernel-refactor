@@ -8,14 +8,15 @@ struct __attribute__((packed)) arch_exception_frame
 	uint64_t rip, cs, rflags, userrsp, ss;
 };
 
+__attribute__((no_instrument_function))
 static inline uint32_t arch_interrupt_set(int st)
 {
 	long old;
-	asm volatile("pushfq; pop %0" : "=r"(old) :: "memory");
+	asm ("pushfq; pop %0;" : "=r"(old) :: "memory");
 	if(st)
-		asm volatile("sti");
+		asm ("mfence; sti");
 	else
-		asm volatile("cli");
+		asm ("cli; mfence");
 	return old & (1 << 9);
 }
 

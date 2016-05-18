@@ -8,7 +8,6 @@ void spinlock_create(struct spinlock *lock)
 	memset(lock, 0, sizeof(*lock));
 }
 
-#include <printk.h>
 void spinlock_acquire(struct spinlock *lock)
 {
 	int interrupt = arch_interrupt_set(0);
@@ -32,12 +31,10 @@ void spinlock_acquire(struct spinlock *lock)
 		current_thread->held_spinlocks++;
 #endif
 	lock->interrupt = interrupt;
-	atomic_thread_fence(memory_order_seq_cst);
 }
 
 void spinlock_release(struct spinlock *lock)
 {
-	atomic_thread_fence(memory_order_seq_cst);
 	int interrupt = lock->interrupt;
 #if CONFIG_DEBUG
 	if(current_thread)

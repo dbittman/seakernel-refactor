@@ -58,13 +58,10 @@ static struct waiter *__init_waiters(struct arena *arena, int pid,
 	} else {
 		struct hashiter iter;
 		kobj_idmap_lock(&processids);
-		bool saw_me = false;
 		for(kobj_idmap_iter_init(&processids, &iter);
 				!kobj_idmap_iter_done(&iter);
 				kobj_idmap_iter_next(&iter)) {
 			struct process *proc = kobj_idmap_iter_get(&iter);
-			if(proc->pid == current_thread->process->pid)
-				saw_me = true;
 
 			if((pid < -1 && proc->pgroupid == -pid)
 					|| (pid == -1 && proc->parent == current_thread->process)
@@ -76,7 +73,6 @@ static struct waiter *__init_waiters(struct arena *arena, int pid,
 				root = w;
 			}
 		}
-		assert(saw_me);
 		kobj_idmap_unlock(&processids);
 	}
 	if(!root)

@@ -1,5 +1,7 @@
 #include <mmu.h>
 #include <processor.h>
+#include <process.h>
+#include <thread.h>
 void x86_64_processor_send_ipi(long dest, int signal);
 extern uintptr_t *initial_pml4;
 
@@ -29,7 +31,10 @@ static void tlb_shootdown(void)
 static void __invalidate(uintptr_t virt)
 {
 	asm volatile("invlpg (%%rax)" :: "a"(virt) : "memory");
-	tlb_shootdown();
+	if(current_thread && current_thread->process && current_thread->process->threads.count > 1) {
+		if(virt >= USER_TLS_REGION_END || virt < USER_TLS_REGION_START)
+			tlb_shootdown();
+	}
 }
 
 static int __convert_attr_to_flags(uint64_t attr)

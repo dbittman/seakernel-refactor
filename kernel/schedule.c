@@ -11,15 +11,15 @@ static struct thread *__select_thread(struct processor *proc)
 	spinlock_acquire(&proc->schedlock);
 	if(current_thread->flags & THREAD_DEAD)
 		current_thread->flags |= THREAD_GONE;
-	if(proc->running->state == THREADSTATE_RUNNING && proc->running != &proc->idle_thread) {
-		if(!(atomic_fetch_or(&proc->running->flags, THREAD_ONQUEUE) & THREAD_ONQUEUE)) {
+	if(likely(proc->running->state == THREADSTATE_RUNNING && proc->running != &proc->idle_thread)) {
+		if(likely(!(atomic_fetch_or(&proc->running->flags, THREAD_ONQUEUE) & THREAD_ONQUEUE))) {
 			assert(proc->running == current_thread && !(current_thread->flags & THREAD_DEAD));
 			priqueue_insert(&proc->runqueue, &proc->running->runqueue_node,
 					proc->running, thread_current_priority(proc->running));
 		}
 	}
 	struct thread *thread = priqueue_pop(&proc->runqueue);
-	if(!thread)
+	if(unlikely(!thread))
 		thread = &proc->idle_thread;
 	else {
 		thread->flags &= ~THREAD_ONQUEUE;
@@ -41,10 +41,9 @@ static struct thread *__select_thread(struct processor *proc)
 	 *
 	 * So, if a thread's state is INIT, then don't run it. Wait until the creating thread
 	 * sets it to runable. */
-	if(thread->state == THREADSTATE_INIT) {
+	if(unlikely(thread->state == THREADSTATE_INIT)) {
 		thread = &proc->idle_thread;
 	}
-	//assertmsg(thread->state != THREADSTATE_INIT, "%p %p", thread, current_thread);
 	proc->running = thread;
 	spinlock_release(&proc->schedlock);
 	return thread;
@@ -112,7 +111,6 @@ static void __do_schedule(int save_preempt)
 	if(!save_preempt && !workqueue_empty(wq)) {
 		workqueue_execute(wq);
 	}
-
 }
 
 void schedule()

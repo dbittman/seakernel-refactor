@@ -3,8 +3,17 @@
 
 #include <panic.h>
 
-#define assert(cond) do { if(!__builtin_expect(cond, 0)) panic(0, "assertion failure (%s:%d) %s", __FILE__, __LINE__, #cond); } while(0)
+#if CONFIG_DEBUG
 
+#define assert(cond) do { if(!__builtin_expect(cond, 0)) panic(0, "assertion failure (%s:%d) %s", __FILE__, __LINE__, #cond); } while(0)
 #define assertmsg(cond, msg, ...) do { if(!__builtin_expect(cond, 0)) panic(0, "assertion failure (%s:%d) %s -- " msg, __FILE__, __LINE__, #cond, ##__VA_ARGS__); } while(0)
+
+#else
+
+#define assert(x)
+#define assertmsg(...)
+
+#endif
+
 #endif
 

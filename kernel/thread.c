@@ -55,7 +55,6 @@ static void _thread_put(void *obj)
 {
 	struct thread *thread = obj;
 	assert(thread != &thread->processor->idle_thread);
-	printk("Thread put %ld\n", thread->tid);
 	if(thread->ctx != &kernel_context) {
 		kobj_putref(thread->ctx);
 		thread->ctx = NULL;
@@ -118,7 +117,6 @@ _Noreturn void thread_exit(struct thread *thread)
 	thread->state = THREADSTATE_INIT;
 	workqueue_insert(&thread->processor->workqueue, &thread->wi_delete);
 	spinlock_release(&thread->processor->schedlock);
-	printk("thread %ld exited\n", thread->tid);
 	schedule();
 	panic(0, "unreachable %ld (%x)", thread->tid, thread->flags);
 }

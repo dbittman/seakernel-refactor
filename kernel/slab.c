@@ -13,7 +13,7 @@
 /* For now, this is reasonable. Objects
  * that we're going to allocate here should be
  * small. */
-#define SLAB_SIZE arch_mm_page_size(0) * 64
+#define SLAB_SIZE arch_mm_page_size(0) * 32
 
 /* TODO (minor) [dbittman]: need a way to
  * reclaim slabs. When we do that, we need
@@ -190,26 +190,17 @@ void *kobj_allocate(struct kobj *ko)
 	return obj;
 }
 
-void *kobj_getref(void *obj)
-{
-	struct kobj_header *header = obj;
-	assert(header->magic == KOBJ_HEADER_MAGIC);
-	int x = atomic_fetch_add(&header->_koh_refs, 1);
-	if(x == 0) {
-		panic(0, "getting dangling pointer: %p, %s\n", obj, header->_koh_kobj->name);
-	}
-	return obj;
-}
-
 size_t __kobj_putref(void *obj)
 {
 	assert(obj != NULL);
 	struct kobj_header *header = obj;
 	assert(header->magic == KOBJ_HEADER_MAGIC);
 	ssize_t count = atomic_fetch_sub(&header->_koh_refs, 1);
+#if CONFIG_DEBUG
 	if(count <= 0) {
 		panic(0, "double-free of object %p, %s", obj, header->_koh_kobj->name);
 	}
+#endif
 	assert(count > 0);
 	if(count == 1) {
 		TRACE(&kobj_trace, "put object: %s - %p\n", header->_koh_kobj->name, obj);
@@ -219,4 +210,5 @@ size_t __kobj_putref(void *obj)
 	}
 	return count - 1;
 }
+
 

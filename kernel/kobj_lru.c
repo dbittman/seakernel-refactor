@@ -14,7 +14,7 @@ void kobj_lru_create(struct kobj_lru *lru, size_t idlen, size_t max, struct kobj
 	lru->idlen = idlen;
 	lru->data = data;
 	lru->release = release;
-	hash_create(&lru->hash, HASH_LOCKLESS, 2048 / sizeof(struct linkedlist));
+	hash_create(&lru->hash, HASH_LOCKLESS, 4096);
 	linkedlist_create(&lru->lru, LINKEDLIST_LOCKLESS);
 	linkedlist_create(&lru->active, LINKEDLIST_LOCKLESS);
 	spinlock_create(&lru->lock);
@@ -154,7 +154,6 @@ void *kobj_lru_get(struct kobj_lru *lru, void *id)
 		assert(header->magic == KOBJ_HEADER_MAGIC);
 		assert(header->flags & KOBJ_LRU);
 		ssize_t ref = header->_koh_refs++;
-	//	kobj_getref(obj);
 		if(!(header->flags & KOBJ_LRU_INIT)) {
 			struct blockpoint bp;
 			blockpoint_create(&bp, BLOCK_UNINTERRUPT, 0);

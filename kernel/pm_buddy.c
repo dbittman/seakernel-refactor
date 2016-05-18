@@ -130,7 +130,7 @@ void pmm_buddy_init()
 {
 	spinlock_create(&pm_buddy_lock);
 	uintptr_t start = (uintptr_t)static_bitmaps;
-	int length = ((MEMORY_SIZE / MIN_SIZE) / (8));
+	long length = ((MEMORY_SIZE / MIN_SIZE) / (8));
 	for(int i=0;i<=MAX_ORDER;i++) {
 		bitmaps[i] = (uint8_t *)start;
 		memset(bitmaps[i], ~0, length);

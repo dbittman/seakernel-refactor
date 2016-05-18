@@ -20,7 +20,7 @@ struct device *dev_get(int type, int major)
 		return hash_lookup(&chars, &major, sizeof(int));
 	else if(S_ISBLK(type))
 		return hash_lookup(&blocks, &major, sizeof(int));
-	assert(0);
+	panic(0, "called dev_get on non-device");
 }
 
 struct file_calls *dev_get_fops(struct inode *node)
@@ -36,12 +36,13 @@ int dev_register(struct device *dev, struct file_calls *calls, int type)
 	dev->devnr = ++_next_maj;
 	dev->calls = calls;
 	hash_create(&dev->attached, 0, 128);
-	if(S_ISCHR(type))
+	if(S_ISCHR(type)) {
 		hash_insert(&chars, &dev->devnr, sizeof(int), &dev->elem, dev);
-	else if(S_ISBLK(type))
+	} else if(S_ISBLK(type)) {
 		hash_insert(&blocks, &dev->devnr, sizeof(int), &dev->elem, dev);
-	else
+	} else {
 		assert(0);
+	}
 	return dev->devnr;
 }
 

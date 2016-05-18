@@ -10,7 +10,7 @@ struct arch_thread {
 __attribute__((const)) static inline struct thread *arch_thread_get_current(void)
 {
 	uint64_t stack;
-	asm volatile("mov %%rsp, %0" : "=r"(stack));
+	asm("mov %%rsp, %0" : "=r"(stack));
 	return *(struct thread **)(stack & ~(KERNEL_STACK_SIZE - 1));
 }
 

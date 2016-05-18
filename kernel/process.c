@@ -55,7 +55,6 @@ static _Atomic int next_pid = 0;
 static void _process_init(void *obj)
 {
 	struct process *proc = obj;
-	proc->ctx = kobj_allocate(&kobj_vm_context);
 	proc->next_user_tls = USER_TLS_REGION_START;
 	proc->next_mmap_reg = USER_MMAP_REGION_START;
 	proc->pid = next_pid++;
@@ -73,9 +72,12 @@ static void _process_init(void *obj)
 static void _process_create(void *obj)
 {
 	struct process *proc = obj;
+	proc->ctx = kobj_allocate(&kobj_vm_context);
+	proc->files = (void *)mm_virtual_allocate(__round_up_pow2(sizeof(struct fildes) * MAX_FD), true);
 	_process_init(obj);
 	linkedlist_create(&proc->threads, 0);
-	hash_create(&proc->mappings, HASH_LOCKLESS, 4096);
+	/* TODO: hash size? */
+	hash_create(&proc->mappings, HASH_LOCKLESS, 0x8000);
 	mutex_create(&proc->map_lock);
 	spinlock_create(&proc->files_lock);
 	spinlock_create(&proc->signal_lock);
@@ -86,8 +88,6 @@ static void _process_put(void *obj)
 {
 	struct process *proc = obj;
 	assert(proc != kernel_process);
-	printk("Process put %d\n", proc->pid);
-	kobj_putref(proc->ctx);
 	process_close_files(proc, true);
 	process_remove_mappings(proc, true);
 	inode_put(proc->cwd);

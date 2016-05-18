@@ -4,20 +4,6 @@
 #include <assert.h>
 #include <system.h>
 
-inline void __linkedlist_lock(struct linkedlist *list)
-{
-	if(likely(!(list->flags & LINKEDLIST_LOCKLESS))) {
-		spinlock_acquire(&list->lock);
-	}
-}
-
-inline void __linkedlist_unlock(struct linkedlist *list)
-{
-	if(likely(!(list->flags & LINKEDLIST_LOCKLESS))) {
-		spinlock_release(&list->lock);
-	}
-}
-
 static void linkedlist_do_remove(struct linkedlist *list, struct linkedentry *entry)
 {
 	assert(entry != &list->sentry);
@@ -104,16 +90,16 @@ void linkedlist_remove(struct linkedlist *list, struct linkedentry *entry)
 
 struct linkedentry *linkedlist_find(struct linkedlist *list, bool (*fn)(struct linkedentry *, void *data), void *data)
 {
-        __linkedlist_lock(list);
-        struct linkedentry *ent = list->head->next;
-        while(ent != &list->sentry) {
-                if(fn(ent, data))
-                        break;
-                ent = ent->next;
-        }
-        __linkedlist_unlock(list);
-        if(ent == &list->sentry)
-                return NULL;
-        return ent;
+    __linkedlist_lock(list);
+    struct linkedentry *ent = list->head->next;
+    while(ent != &list->sentry) {
+        if(fn(ent, data))
+            break;
+        ent = ent->next;
+    }
+    __linkedlist_unlock(list);
+    if(ent == &list->sentry)
+        return NULL;
+    return ent;
 }
 

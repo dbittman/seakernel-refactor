@@ -106,7 +106,6 @@ void main(void)
 #endif
 	arch_interrupt_set(1);
 
-
 	struct worker init;
 	worker_start(&init, &init_worker, NULL);
 
