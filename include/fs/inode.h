@@ -11,11 +11,17 @@ struct inode_id {
 
 struct inode;
 #define INODEPAGE_DIRTY 1
+
+struct inodepage_id {
+	uint64_t fsid;
+	uint64_t inoid;
+	uint64_t page;
+};
+
 struct inodepage {
 	struct kobj_header _header;
-	int page;
+	struct inodepage_id id;
 	uintptr_t frame;
-	struct inode *node;
 	_Atomic int flags;
 };
 
@@ -36,8 +42,6 @@ struct inode {
 
 	_Atomic uint64_t atime, mtime, ctime;
 	_Atomic int uid, gid;
-
-	struct kobj_lru pages;
 
 	int major, minor;
 };

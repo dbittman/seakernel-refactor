@@ -14,7 +14,7 @@ void kobj_lru_create(struct kobj_lru *lru, size_t idlen, size_t max, struct kobj
 	lru->idlen = idlen;
 	lru->data = data;
 	lru->release = release;
-	hash_create(&lru->hash, HASH_LOCKLESS, 4096);
+	hash_create(&lru->hash, HASH_LOCKLESS, max > 0 ? max * 4 : 0x4000);
 	linkedlist_create(&lru->lru, LINKEDLIST_LOCKLESS);
 	linkedlist_create(&lru->active, LINKEDLIST_LOCKLESS);
 	spinlock_create(&lru->lock);

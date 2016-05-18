@@ -13,7 +13,7 @@
 /* For now, this is reasonable. Objects
  * that we're going to allocate here should be
  * small. */
-#define SLAB_SIZE arch_mm_page_size(0) * 32
+#define SLAB_SIZE arch_mm_page_size(0) * 64
 
 /* TODO (minor) [dbittman]: need a way to
  * reclaim slabs. When we do that, we need

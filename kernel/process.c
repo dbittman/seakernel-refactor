@@ -23,9 +23,7 @@ uintptr_t process_allocate_user_tls(struct process *proc)
 	if(base >= USER_TLS_REGION_END) {
 		/* TODO: kill process or something */
 	}
-	for(uintptr_t virt = base;virt < base + USER_TLS_SIZE;virt += arch_mm_page_size(0)) {
-		mapping_establish(proc, virt, PROT_WRITE, MMAP_MAP_ANON | MMAP_MAP_PRIVATE, NULL, 0);
-	}
+	map_mmap(proc, base, USER_TLS_SIZE, PROT_WRITE | PROT_READ, MMAP_MAP_ANON | MMAP_MAP_PRIVATE, NULL, 0);
 	return base;
 }
 
@@ -130,8 +128,9 @@ static void __remove_proc_entries(struct process *proc)
 	kobj_putref(proc);
 	remove_proc_entry(proc->pid, "brk");
 	kobj_putref(proc);
-	remove_proc_entry(proc->pid, "maps");
-	kobj_putref(proc);
+	/* TODO */
+	//remove_proc_entry(proc->pid, "maps");
+	//kobj_putref(proc);
 	char str[128];
 	snprintf(str, 128, "/proc/%d/exe", proc->pid);
 	sys_unlink(str);

@@ -8,6 +8,23 @@
 #include <fs/sys.h>
 #include <printk.h>
 
+void map_mmap(struct process *proc, uintptr_t virt, size_t len, int prot, int flags, struct file *file, size_t off)
+{
+	map_region_setup(proc, virt, len, prot, flags, file, off / arch_mm_page_size(0), arch_mm_page_size(0), false);
+	/* TODO: if virt, off, and len are aligned such that we can make use of larger pages, do it
+	for(int i=MMU_NUM_PAGESIZE_LEVELS;i>=0;i--) {
+		size_t ts = arch_mm_page_size(i);
+		if(ts > len) continue;
+
+		size_t thislen = len & ~(ts-1);
+		assert(thislen > 0);
+		map_region_setup(proc, virt, thislen, prot, flags, file, off / arch_mm_page_size(0), false);
+		off += thislen;
+		virt += thislen;
+	}
+	*/
+}
+
 intptr_t sys_mmap(uintptr_t addr, size_t len, int prot, int flags, int fd, size_t off)
 {
 	if(len == 0
@@ -51,22 +68,12 @@ intptr_t sys_mmap(uintptr_t addr, size_t len, int prot, int flags, int fd, size_
 	} else {
 		virt = process_allocate_mmap_region(current_thread->process, len);
 	}
-	uintptr_t base = virt;
-	for(int i=MMU_NUM_PAGESIZE_LEVELS;i>=0;i--) {
-		size_t ts = arch_mm_page_size(i);
-		if(ts > len) continue;
-
-		size_t thislen = len & (ts-1);
-		map_mmap(virt, file, prot, flags, thislen, off);
-		off += thislen;
-		virt += thislen;
-	}
-	//map_mmap(virt, file, prot, flags, len, off);
+	map_mmap(current_thread->process, virt, len, prot, flags, file, off);
 
 	if(file)
 		kobj_putref(file);
 
-	return base;
+	return virt;
 }
 
 sysret_t sys_munmap(void *addr, size_t len)
@@ -91,7 +98,7 @@ uintptr_t sys_brk(void *nb)
 	if(new < USER_MAX_BRK && new >= USER_MIN_BRK) {
 		if(new < current_thread->process->brk)
 			return new;
-		map_mmap(current_thread->process->brk, NULL, PROT_READ | PROT_WRITE, MMAP_MAP_PRIVATE | MMAP_MAP_ANON, new - current_thread->process->brk, 0);
+		sys_mmap(current_thread->process->brk, new - current_thread->process->brk, PROT_READ | PROT_WRITE, MMAP_MAP_PRIVATE | MMAP_MAP_ANON, -1, 0);
 		current_thread->process->brk = (uintptr_t)new;
 		return new;
 	} else {
@@ -101,6 +108,8 @@ uintptr_t sys_brk(void *nb)
 
 void *sys_mremap(void *old, size_t oldsz, size_t newsz, int flags, void *new)
 {
+	return NULL;
+#if 0
 	int err;
 	if(newsz == 0 || oldsz == 0 || ((uintptr_t)old != ((uintptr_t)old & page_mask(0))))
 		return (void *)-EINVAL;
@@ -124,5 +133,6 @@ void *sys_mremap(void *old, size_t oldsz, size_t newsz, int flags, void *new)
 	if(err < 0)
 		return (void *)(long)err;
 	return new;
+#endif
 }
 

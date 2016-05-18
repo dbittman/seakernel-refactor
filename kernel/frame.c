@@ -31,9 +31,9 @@ void frame_acquire(uintptr_t phys)
 	frames[phys / arch_mm_page_size(0)].count++;
 }
 
-uintptr_t frame_allocate(void)
+uintptr_t frame_allocate_level(int level)
 {
-	uintptr_t phys = mm_physical_allocate(arch_mm_page_size(0), true);
+	uintptr_t phys = mm_physical_allocate(arch_mm_page_size(level), true);
 	frames[phys / arch_mm_page_size(0)].framenr = phys / arch_mm_page_size(0);
 	frame_acquire(phys);
 	return phys;

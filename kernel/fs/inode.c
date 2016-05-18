@@ -13,24 +13,30 @@
 
 struct kobj kobj_inode_page = KOBJ_DEFAULT(inodepage);
 
+static struct kobj_lru inode_lru;
+static struct kobj_lru inodepage_lru;
+
 static bool _inode_page_initialize(void *obj, void *_id, void *data)
 {
-	int id = *(int *)_id;
 	struct inodepage *page = obj;
-	page->page = id;
-	page->node = data;
+	memcpy(&page->id, _id, sizeof(page->id));
 
-	ssize_t thispagelen = page->node->length - id * arch_mm_page_size(0);
+	struct inode_id nodeid = {.fsid = page->id.fsid, .inoid = page->id.inoid };
+	struct inode *node = inode_lookup(&nodeid);
+
+	ssize_t thispagelen = node->length - page->id.page * arch_mm_page_size(0);
 	if(thispagelen < 0) thispagelen = 0;
 	if((size_t)thispagelen > arch_mm_page_size(0)) thispagelen = arch_mm_page_size(0);
 	page->frame = frame_allocate();
-	assert(page->node->fs != NULL);
-	if(thispagelen && page->node->fs->driver->inode_ops->read_page(page->node, id, page->frame) < 0) {
-		kobj_lru_mark_error(&page->node->pages, obj, &page->page);
+	assert(node->fs != NULL);
+	if(thispagelen && node->fs->driver->inode_ops->read_page(node, page->id.page, page->frame) < 0) {
+		kobj_lru_mark_error(&inodepage_lru, obj, &page->id);
+		inode_put(node);
 		return false;
 	} else {
 		memset((void *)(page->frame + PHYS_MAP_START + thispagelen), 0, arch_mm_page_size(0) - thispagelen);
-		kobj_lru_mark_ready(&page->node->pages, obj, &page->page);
+		kobj_lru_mark_ready(&inodepage_lru, obj, &page->id);
+		inode_put(node);
 		return true;
 	}
 }
@@ -39,23 +45,25 @@ static void _inode_page_release(void *obj, void *data)
 {
 	(void)data;
 	struct inodepage *page = obj;
+	struct inode_id nodeid = {.fsid = page->id.fsid, .inoid = page->id.inoid };
+	struct inode *node = inode_lookup(&nodeid);
+
 	/* TODO: should we write back pages in a more lazy way? (eg, during page_init?) */
-	if((page->flags & INODEPAGE_DIRTY) && page->node)
-		page->node->fs->driver->inode_ops->write_page(page->node, page->page, page->frame);
+	if((page->flags & INODEPAGE_DIRTY) && node)
+		node->fs->driver->inode_ops->write_page(node, page->id.page, page->frame);
 	frame_release(page->frame);
+	inode_put(node);
 }
 
 static void _inode_create(void *obj)
 {
 	struct inode *node = obj;
-	kobj_lru_create(&node->pages, sizeof(int), 0, &kobj_inode_page, _inode_page_initialize, _inode_page_release, obj);
 	mutex_create(&node->lock);
 }
 
 static void _inode_destroy(void *obj)
 {
 	struct inode *node = obj;
-	kobj_lru_destroy(&node->pages);
 }
 
 static void _inode_put(void *obj)
@@ -82,12 +90,11 @@ static ssize_t _inode_proc_lru_read_entry(void *item, size_t off, size_t len, ch
 	size_t current = 0;
 	struct inode *node = item;
 	PROCFS_PRINTF(off, len, buf, current,
-			"%ld.%ld %c (%d / %d pages)", node->id.fsid, node->id.inoid,
-			node->flags & INODE_FLAG_DIRTY ? 'D' : ' ', node->pages.hash.count, (node->length - 1) / arch_mm_page_size(0) + 1);
+			"%ld.%ld %c", node->id.fsid, node->id.inoid,
+			node->flags & INODE_FLAG_DIRTY ? 'D' : ' ');
 	return current;
 }
 
-static struct kobj_lru inode_lru;
 static struct kobj_lru_proc_info _proc_inode_lru_info = {
 	.lru = &inode_lru,
 	.options = 0,
@@ -120,7 +127,6 @@ static void _inode_release(void *obj, void *data)
 {
 	(void)data;
 	struct inode *node = obj;
-	kobj_lru_release_all(&node->pages);
 	if(node->flags & INODE_FLAG_DIRTY)
 		fs_update_inode(node);
 	if(node->fs) {
@@ -132,6 +138,7 @@ static void _inode_release(void *obj, void *data)
 __initializer static void _inode_init_lru(void)
 {
 	kobj_lru_create(&inode_lru, sizeof(struct inode_id), 0, &kobj_inode, _inode_initialize, _inode_release, NULL);
+	kobj_lru_create(&inodepage_lru, sizeof(struct inodepage_id), 0, &kobj_inode_page, _inode_page_initialize, _inode_page_release, NULL);
 }
 
 struct inode *inode_lookup(struct inode_id *id)
@@ -148,15 +155,15 @@ struct inodepage *inode_get_page(struct inode *node, int nodepage)
 {
 	if(!node->fs)
 		return NULL;
-	assert(node->_header._koh_refs > 0);
-	assert(node->_header._koh_initialized);
-	return kobj_lru_get(&node->pages, &nodepage);
+	
+	struct inodepage_id id = {.fsid = node->fs->id, .inoid = node->id.inoid, .page = nodepage };
+	return kobj_lru_get(&inodepage_lru, &id);
 }
 
 void inode_release_page(struct inode *node, struct inodepage *page)
 {
 	if(node->fs)
-		kobj_lru_put(&node->pages, page);
+		kobj_lru_put(&inodepage_lru, page);
 }
 
 static bool _do_inode_check_perm(struct inode *node, int type, int uid, int gid)

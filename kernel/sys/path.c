@@ -22,6 +22,9 @@ static void _stat(struct inode *node, struct stat *buf)
 	buf->st_gid = node->gid;
 	buf->st_size = node->length;
 	/* HACK */
+	if(S_ISFIFO(node->mode))
+		buf->st_size = 0x1000;
+	/* HACK */
 	buf->st_blksize = 512;
 	buf->st_blocks = node->length / 512;
 	buf->st_atim.tv_sec = node->atime;
@@ -140,6 +143,9 @@ sysret_t sys_fstatat(int dirfd, const char *path, struct stat *buf, int flags)
 		inode_put(node);
 	} else {
 		buf->st_mode = S_IFIFO;
+		/* HACK */
+		buf->st_size = 0x1000;
+		buf->st_blksize = 0x1000;
 	}
 	return 0;
 }
