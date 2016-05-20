@@ -27,7 +27,7 @@ static bool _inode_page_initialize(void *obj, void *_id, void *data)
 	ssize_t thispagelen = node->length - page->id.page * arch_mm_page_size(0);
 	if(thispagelen < 0) thispagelen = 0;
 	if((size_t)thispagelen > arch_mm_page_size(0)) thispagelen = arch_mm_page_size(0);
-	page->frame = frame_allocate();
+	page->frame = frame_allocate(0, FRAME_PERSIST | FRAME_NOCLEAR | FRAME_ZEROCOUNT);
 	assert(node->fs != NULL);
 	if(thispagelen && node->fs->driver->inode_ops->read_page(node, page->id.page, page->frame) < 0) {
 		kobj_lru_mark_error(&inodepage_lru, obj, &page->id);
@@ -51,7 +51,8 @@ static void _inode_page_release(void *obj, void *data)
 	/* TODO: should we write back pages in a more lazy way? (eg, during page_init?) */
 	if((page->flags & INODEPAGE_DIRTY) && node)
 		node->fs->driver->inode_ops->write_page(node, page->id.page, page->frame);
-	frame_release(page->frame);
+	assert(frame_get_from_address(page->frame)->count == 0);
+	mm_physical_deallocate(page->frame);
 	inode_put(node);
 }
 
@@ -112,7 +113,6 @@ static bool _inode_initialize(void *obj, void *id, void *data)
 	(void)data;
 	struct inode *node = obj;
 	node->mount = NULL;
-	assert(node->pages.hash.count == 0);
 	memcpy(&node->id, id, sizeof(node->id));
 	if(fs_load_inode(node->id.fsid, node->id.inoid, node) < 0) {
 		kobj_lru_mark_error(&inode_lru, obj, &node->id);

@@ -50,14 +50,22 @@ static void _ramfs_inode_create(void *obj)
 	_ramfs_inode_init(obj);
 }
 
+struct ramfs_data_block {
+	struct kobj_header _header;
+	struct hashelem elem;
+	uintptr_t phys;
+	int pagenum;
+};
+
 static void _ramfs_inode_destroy(void *obj)
 {
 	struct ramfs_inode *i = obj;
 	struct hashiter iter;
 	for(hash_iter_init(&iter, &i->data); !hash_iter_done(&iter); hash_iter_next(&iter)) {
-		struct frame *frame  = hash_iter_get(&iter);
-		hash_delete(&i->data, &frame->pagenr, sizeof(frame->pagenr));
-		frame_release(frame_get_physical(frame));
+		struct ramfs_data_block *block  = hash_iter_get(&iter);
+		hash_delete(&i->data, &block->pagenum, sizeof(int));
+		mm_physical_deallocate(block->phys);
+		kobj_putref(block);
 	}
 	hash_destroy(&i->data);
 	for(hash_iter_init(&iter, &i->dirents); !hash_iter_done(&iter); hash_iter_next(&iter)) {
@@ -81,6 +89,7 @@ struct ramfs_data {
 	struct hash inodes;
 	_Atomic uint64_t next_id;
 };
+struct kobj kobj_ramfs_data_block = KOBJ_DEFAULT(ramfs_data_block);
 
 static int _read_page(struct inode *node, int pagenumber, uintptr_t phys)
 {
@@ -90,13 +99,14 @@ static int _read_page(struct inode *node, int pagenumber, uintptr_t phys)
 	assert(ri != NULL);
 
 	mutex_acquire(&ri->lock);
-	struct frame *frame = hash_lookup(&ri->data, &pagenumber, sizeof(int));
-	if(!frame) {
-		frame = frame_get_from_address(frame_allocate());
-		frame->pagenr = pagenumber;
-		hash_insert(&ri->data, &frame->pagenr, sizeof(frame->pagenr), &frame->elem, frame);
+	struct ramfs_data_block *block = hash_lookup(&ri->data, &pagenumber, sizeof(int));
+	if(!block) {
+		block = kobj_allocate(&kobj_ramfs_data_block);
+		block->phys = mm_physical_allocate(arch_mm_page_size(0), true);
+		block->pagenum = pagenumber;
+		hash_insert(&ri->data, &block->pagenum, sizeof(int), &block->elem, block);
 	}
-	memcpy((void *)(phys + PHYS_MAP_START), (void *)(frame_get_physical(frame) + PHYS_MAP_START), arch_mm_page_size(0));
+	memcpy((void *)(phys + PHYS_MAP_START), (void *)(block->phys + PHYS_MAP_START), arch_mm_page_size(0));
 	mutex_release(&ri->lock);
 	return 0;
 }
@@ -109,13 +119,14 @@ static int _write_page(struct inode *node, int pagenumber, uintptr_t phys)
 	assert(ri != NULL);
 
 	mutex_acquire(&ri->lock);
-	struct frame *frame = hash_lookup(&ri->data, &pagenumber, sizeof(int));
-	if(!frame) {
-		frame = frame_get_from_address(frame_allocate());
-		frame->pagenr = pagenumber;
-		hash_insert(&ri->data, &frame->pagenr, sizeof(frame->pagenr), &frame->elem, frame);
+	struct ramfs_data_block *block = hash_lookup(&ri->data, &pagenumber, sizeof(int));
+	if(!block) {
+		block = kobj_allocate(&kobj_ramfs_data_block);
+		block->phys = mm_physical_allocate(arch_mm_page_size(0), true);
+		block->pagenum = pagenumber;
+		hash_insert(&ri->data, &block->pagenum, sizeof(int), &block->elem, block);
 	}
-	memcpy((void *)(frame_get_physical(frame) + PHYS_MAP_START), (void *)(phys + PHYS_MAP_START), arch_mm_page_size(0));
+	memcpy((void *)(block->phys + PHYS_MAP_START), (void *)(phys + PHYS_MAP_START), arch_mm_page_size(0));
 	mutex_release(&ri->lock);
 	return 0;
 }

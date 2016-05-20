@@ -56,11 +56,13 @@ struct kobj kobj_filesystem = {
 	.destroy = _filesystem_destroy,
 };
 
+#include <frame.h>
 static uintptr_t _fs_inode_map(struct file *file, struct map_region *map, ptrdiff_t d)
 {
 	struct inode *node = file_get_inode(file);
 	struct inodepage *page = inode_get_page(node, map->nodepage + d / arch_mm_page_size(0));
 	inode_put(node);
+	frame_acquire(page->frame);
 	return page->frame;
 }
 

@@ -84,8 +84,14 @@ void process_remove_mappings(struct process *proc, bool user_tls_too)
 				continue;
 			
 			linkedlist_remove(&proc->maps[i], entry);
-			for(uintptr_t v = reg->start;v < reg->start + reg->length;v += reg->psize)
-				arch_mm_virtual_unmap(proc->ctx, v);
+			for(uintptr_t v = reg->start;v < reg->start + reg->length;v += reg->psize) {
+				uintptr_t phys = arch_mm_virtual_unmap(proc->ctx, v);
+				if(phys != 0) {
+					//frame_release(phys);
+					//if(reg->file)
+					//	reg->file->f_ops->unmap(reg->file, reg, v - reg->start);
+				}
+			}
 		}
 	}
 	mutex_release(&proc->map_lock);
@@ -186,10 +192,10 @@ uintptr_t __get_phys_to_map(struct process *proc, struct map_region *reg, uintpt
 	int pg = (v - reg->start) / arch_mm_page_size(0);
 	if(reg->file) {
 		uintptr_t frame = reg->file->ops->map(reg->file, reg, v - reg->start);
-		frame_acquire(frame);
+		//frame_acquire(frame);
 		return frame;
 	} else {
-		return frame_allocate();
+		return frame_allocate(__get_pagelevel(reg->psize), 0);
 	}
 }
 
@@ -260,8 +266,9 @@ int mmu_mappings_handle_fault(uintptr_t addr, int flags)
 				assert(ps == reg->psize);
 
 				struct frame *frame = frame_get_from_address(phys);
+				assert(frame->count > 0);
 				if(frame->count > 1) {
-					uintptr_t newframe = frame_allocate();
+					uintptr_t newframe = frame_allocate(0, 0);
 					
 					memcpy((void *)(newframe + PHYS_MAP_START), (void *)(phys + PHYS_MAP_START), arch_mm_page_size(0));
 					uintptr_t r2 = arch_mm_virtual_unmap(proc->ctx, v);
@@ -277,7 +284,7 @@ int mmu_mappings_handle_fault(uintptr_t addr, int flags)
 				bool r = arch_mm_virtual_getmap(proc->ctx, v, &phys, NULL, NULL);
 				assert(r);
 
-				uintptr_t newframe = frame_allocate();
+				uintptr_t newframe = frame_allocate(0, 0);
 				memcpy((void *)(newframe + PHYS_MAP_START), (void *)(phys + PHYS_MAP_START), reg->psize);
 
 				arch_mm_virtual_unmap(proc->ctx, v);
