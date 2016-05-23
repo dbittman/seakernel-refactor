@@ -8,16 +8,6 @@ extern uintptr_t *initial_pml4;
 /* TODO (major) [dbittman]: Make these atomic */
 /* TODO (major) [dbittman]: Invalidation */
 /* TODO (major) [dbittman]: PAGE_PRESENT */
-__attribute__((const,pure)) size_t arch_mm_page_size(int level)
-{
-	if(level == 0)
-		return 0x1000; //4K
-	else if(level == 1)
-		return 2 * 1024 * 1024; //2M
-	else
-		return 1024 * 1024 * 1024; //1G
-}
-
 #define PML4_IDX(v) ((v >> 39) & 0x1FF)
 #define PDPT_IDX(v) ((v >> 30) & 0x1FF)
 #define PD_IDX(v)   ((v >> 21) & 0x1FF)
@@ -155,7 +145,7 @@ uintptr_t arch_mm_virtual_unmap(struct vm_context *ctx, uintptr_t virt)
 	}
 
 	uintptr_t *pt = (uintptr_t *)((pd[pd_idx] & MMU_PTE_PHYS_MASK) + PHYS_MAP_START);
-	uintptr_t ret = pt[pt_idx];
+	uintptr_t ret = pt[pt_idx] & MMU_PTE_PHYS_MASK;
 	pt[pt_idx] = 0;
 	__invalidate(virt);
 	return ret;

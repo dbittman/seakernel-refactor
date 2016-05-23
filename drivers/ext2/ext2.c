@@ -172,7 +172,7 @@ static int _readlink(struct inode *node, char *path, size_t len)
 	} else {
 		struct inodepage *inopage = inode_get_page(node, 0);
 		memcpy(path, (void *)(inopage->frame + PHYS_MAP_START), eno.size);
-		inode_release_page(node, inopage);
+		inode_release_page(inopage);
 	}
 	path[eno.size] = 0;
 	return 0;
@@ -189,7 +189,7 @@ static int _writelink(struct inode *node, const char *path)
 		struct inodepage *inopage = inode_get_page(node, 0);
 		memcpy((void *)(inopage->frame + PHYS_MAP_START), path, strlen(path));
 		inopage->flags |= INODEPAGE_DIRTY;
-		inode_release_page(node, inopage);
+		inode_release_page(inopage);
 	}
 	node->length = eno.size = strlen(path);
 	ext2_inode_write(ext2, node->id.inoid, &eno);
@@ -207,7 +207,7 @@ static int _lookup(struct inode *node, const char *name, size_t namelen, struct 
 		size_t pagelen = arch_mm_page_size(0);
 		while((uintptr_t)dir < inopage->frame + PHYS_MAP_START + pagelen && dirread < node->length) {
 			if(dir->record_len == 0) {
-				inode_release_page(node, inopage);
+				inode_release_page(inopage);
 				return -ENOENT;
 			}
 			if(dir->inode > 0
@@ -219,13 +219,13 @@ static int _lookup(struct inode *node, const char *name, size_t namelen, struct 
 					dirent->ino.inoid = dir->inode;
 					dirent->ino.fsid = node->fs->id;
 				}
-				inode_release_page(node, inopage);
+				inode_release_page(inopage);
 				return 0;
 			}
 			dirread += dir->record_len;
 			dir = (void *)((unsigned char *)dir + dir->record_len);
 		}
-		inode_release_page(node, inopage);
+		inode_release_page(inopage);
 	}
 	return -ENOENT;
 }
@@ -244,14 +244,14 @@ static size_t _getdents(struct inode *node, _Atomic size_t *start, struct gd_dir
 		struct ext2_dirent *dir = (void *)(inopage->frame + PHYS_MAP_START + offset);
 		while((uintptr_t)dir < inopage->frame + PHYS_MAP_START + arch_mm_page_size(0) && dirread < node->length) {
 			if(dir->record_len == 0) {
-				inode_release_page(node, inopage);
+				inode_release_page(inopage);
 				goto out;
 			}
 			if(dir->inode > 0) {
 				int reclen = dir->name_len + sizeof(struct gd_dirent) + 1;
 				reclen = (reclen & ~15) + 16;
 				if(read + reclen >= count) {
-					inode_release_page(node, inopage);
+					inode_release_page(inopage);
 					goto out;
 				}
 				struct gd_dirent *out = (void *)(rec + read);
@@ -268,7 +268,7 @@ static size_t _getdents(struct inode *node, _Atomic size_t *start, struct gd_dir
 			dir = (void *)((unsigned char *)dir + dir->record_len);
 		}
 
-		inode_release_page(node, inopage);
+		inode_release_page(inopage);
 		offset = 0;
 	}
 out:
@@ -347,7 +347,7 @@ static int _link(struct inode *node, const char *name, size_t namelen, struct in
 					dir->inode = target->id.inoid;
 					dir->type = _get_dirent_type(target);
 					inopage->flags |= INODEPAGE_DIRTY;
-					inode_release_page(node, inopage);
+					inode_release_page(inopage);
 					return 0;
 				}
 				else if(dir->record_len == 0) {
@@ -359,7 +359,7 @@ static int _link(struct inode *node, const char *name, size_t namelen, struct in
 					dir->type = _get_dirent_type(target);
 					assert(((uintptr_t)dir - (inopage->frame + PHYS_MAP_START)) + dir->record_len == ext2_sb_blocksize(&ext2->superblock));
 					inopage->flags |= INODEPAGE_DIRTY;
-					inode_release_page(node, inopage);
+					inode_release_page(inopage);
 					if(node->length < dir->record_len + dirread)
 						node->length = dir->record_len + dirread;
 					inode_mark_dirty(node);
@@ -375,7 +375,7 @@ static int _link(struct inode *node, const char *name, size_t namelen, struct in
 				nd->record_len = oldlen - dir->record_len;
 				nd->inode = target->id.inoid;
 				inopage->flags |= INODEPAGE_DIRTY;
-				inode_release_page(node, inopage);
+				inode_release_page(inopage);
 				//assert(((uintptr_t)nd - (inopage->frame + PHYS_MAP_START)) + nd->record_len == ext2_sb_blocksize(&ext2->superblock));
 				return 0;
 			}
@@ -383,7 +383,7 @@ static int _link(struct inode *node, const char *name, size_t namelen, struct in
 			thispageread += dir->record_len;
 			dir = (void *)((unsigned char *)dir + dir->record_len);
 		}
-		inode_release_page(node, inopage);
+		inode_release_page(inopage);
 	}
 }
 
@@ -396,7 +396,7 @@ static int _unlink(struct inode *node, const char *name, size_t namelen)
 		size_t pagelen = arch_mm_page_size(0);
 		while((uintptr_t)dir < inopage->frame + PHYS_MAP_START + pagelen && dirread < node->length) {
 			if(dir->record_len == 0) {
-				inode_release_page(node, inopage);
+				inode_release_page(inopage);
 				return -ENOENT;
 			}
 			if(dir->inode > 0
@@ -404,13 +404,13 @@ static int _unlink(struct inode *node, const char *name, size_t namelen)
 					&& dir->name_len == namelen) {
 				dir->inode = 0;
 				inopage->flags |= INODEPAGE_DIRTY;
-				inode_release_page(node, inopage);
+				inode_release_page(inopage);
 				return 0;
 			}
 			dirread += dir->record_len;
 			dir = (void *)((unsigned char *)dir + dir->record_len);
 		}
-		inode_release_page(node, inopage);
+		inode_release_page(inopage);
 	}
 	return -ENOENT;
 }

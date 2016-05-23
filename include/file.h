@@ -64,7 +64,7 @@ struct file_calls {
 	void (*close)(struct file *file);
 
 	uintptr_t (*map)(struct file *file, struct map_region *map, ptrdiff_t);
-	void (*unmap)(struct file *file, struct map_region *map, ptrdiff_t);
+	void (*unmap)(struct file *file, struct map_region *map, ptrdiff_t, uintptr_t);
 };
 
 extern struct file_calls fs_fops;

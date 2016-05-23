@@ -160,10 +160,9 @@ struct inodepage *inode_get_page(struct inode *node, int nodepage)
 	return kobj_lru_get(&inodepage_lru, &id);
 }
 
-void inode_release_page(struct inode *node, struct inodepage *page)
+void inode_release_page(struct inodepage *page)
 {
-	if(node->fs)
-		kobj_lru_put(&inodepage_lru, page);
+	kobj_lru_put(&inodepage_lru, page);
 }
 
 static bool _do_inode_check_perm(struct inode *node, int type, int uid, int gid)

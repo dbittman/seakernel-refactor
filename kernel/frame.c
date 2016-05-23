@@ -37,11 +37,13 @@ uintptr_t frame_allocate(int level, int flags)
 	return phys;
 }
 
-void frame_release(uintptr_t phys)
+long frame_release(uintptr_t phys)
 {
 	struct frame *frame = &frames[phys / arch_mm_page_size(0)];
 	assert(frame->count > 0);
-	if(--frame->count == 0 && !(frame->flags & FRAME_PERSIST))
+	long c = --frame->count;
+	if(c == 0 && !(frame->flags & FRAME_PERSIST))
 		mm_physical_deallocate(phys);
+	return c;
 }
 

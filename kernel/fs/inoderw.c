@@ -25,7 +25,7 @@ ssize_t inode_do_read_data(struct inode *ino, size_t off, size_t len, char *buf)
 			return amount;
 		}
 		memcpy(buf, (void *)(page->frame + PHYS_MAP_START + pageoff), thisread);
-		inode_release_page(ino, page);
+		inode_release_page(page);
 		buf += thisread;
 		pageoff = 0;
 		pagenum++;
@@ -63,7 +63,7 @@ ssize_t inode_do_write_data(struct inode *ino, size_t off, size_t len, const cha
 			ino->length = thiswrite + off + amount;
 			inode_mark_dirty(ino);
 		}
-		inode_release_page(ino, page);
+		inode_release_page(page);
 		buf += thiswrite;
 		pageoff = 0;
 		pagenum++;

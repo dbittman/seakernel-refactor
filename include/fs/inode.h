@@ -50,7 +50,7 @@ extern struct kobj kobj_inode_page;
 struct file;
 
 void inode_put(struct inode *inode);
-void inode_release_page(struct inode *node, struct inodepage *page);
+void inode_release_page(struct inodepage *page);
 uintptr_t inode_acquire_page(struct inode *node, int nodepage);
 struct inodepage *inode_get_page(struct inode *node, int nodepage);
 struct inode *inode_lookup(struct inode_id *id);
