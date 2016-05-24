@@ -7,9 +7,42 @@
 #include <errno.h>
 #include <fs/sys.h>
 #include <printk.h>
+#include <system.h>
+#include <frame.h>
+static struct file *zero_file;
+
+uintptr_t _zero_map(struct file *file, struct map_region *map, ptrdiff_t d)
+{
+	return frame_allocate(mm_get_pagelevel(map->psize), 0);
+}
+
+void _zero_unmap(struct file *file, struct map_region *map, ptrdiff_t d, uintptr_t phys)
+{
+	frame_release(phys);
+}
+
+static struct file_calls zero_calls = {
+	.read = 0,
+	.write = 0,
+	.create = 0, .destroy = 0, .ioctl = 0, .select = 0, .open = 0, .close = 0,
+	.map = _zero_map, .unmap = _zero_unmap,
+};
+
+__initializer void _init_zero(void)
+{
+	zero_file = kobj_allocate(&kobj_file);
+	zero_file->ops = &zero_calls;
+	zero_file->flags = F_WRITE | F_READ;
+}
 
 void map_mmap(struct process *proc, uintptr_t virt, size_t len, int prot, int flags, struct file *file, size_t off)
 {
+	/* the mapping system doesn't know about ANON, so instead
+	 * give it a "fake" file. */
+	if(flags & MMAP_MAP_ANON) {
+		flags &= ~MMAP_MAP_ANON;
+		file = zero_file;
+	}
 	map_region_setup(proc, virt, len, prot, flags, file, off / arch_mm_page_size(0), arch_mm_page_size(0), false);
 	/* TODO: if virt, off, and len are aligned such that we can make use of larger pages, do it
 	for(int i=MMU_NUM_PAGESIZE_LEVELS;i>=0;i--) {

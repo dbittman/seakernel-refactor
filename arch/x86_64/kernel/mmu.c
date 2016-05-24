@@ -231,6 +231,8 @@ bool arch_mm_virtual_chattr(struct vm_context *ctx, uintptr_t virt, int flags)
 	}
 
 	uintptr_t *pt = (uintptr_t *)((pd[pd_idx] & MMU_PTE_PHYS_MASK) + PHYS_MAP_START);
+	if(!pt[pt_idx])
+		return false;
 	pt[pt_idx] = (pt[pt_idx] & MMU_PTE_PHYS_MASK) | attr | MMU_PTE_PRESENT;
 	__invalidate(virt);
 	return true;

@@ -67,5 +67,14 @@ static inline uintptr_t page_mask(int l)
 	return ~(arch_mm_page_size(l) - 1);
 }
 
+static inline int mm_get_pagelevel(size_t len)
+{
+	for(int i=MMU_NUM_PAGESIZE_LEVELS-1;i>=0;i--) {
+		if(arch_mm_page_size(i) <= len)
+			return i;
+	}
+	return 0;
+}
+
 #endif
 

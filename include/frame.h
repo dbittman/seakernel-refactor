@@ -4,6 +4,7 @@
 #define FRAME_PERSIST 1
 #define FRAME_NOCLEAR 2
 #define FRAME_ZEROCOUNT 4
+#define FRAME_DIRTY 8
 struct frame {
 	_Atomic int flags;
 	_Atomic long count;

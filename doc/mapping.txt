@@ -1,0 +1,44 @@
+The mapping system handles mmap, munmap, mremap, etc. It is designed to be
+agnostic about what it is actually mapping, and instead focus on individual
+frames of data.
+
+A frame is a reference counted region of contiguous physical memory. The
+mapping system handles frames, and manages them as follows:
+
+When a region specified by mmap is faulted on, it calls the callback 'map'
+for the file associated with the region, passing it information about the
+region. This function passes back a physical address to map to. When a map
+is copied, the mapping system increments the refcount for any frame that is
+actually mapped. Note that any physical address is also a frame.
+
+When a mapping is destroyed, the mapping system iterates over it and unmaps
+all established mappings for that region (established meaning that they were
+actually loaded due to a fault or whatnot). For each one it finds, it calls
+the unmap function.
+
+Note that this means that the unmap function can be called more often then
+the map function for a given object! The implementations of map and unmap
+must track these themselves (likely using the frame's reference count).
+
+Example (map, unmap) implementation: Zero-file
+----------------------------------------------
+MAP_ANON is an important thing to support, but to reduce complexity, the
+mapping system can only deal with things that have an associated file
+object. Thus, if some code calls mmap with MAP_ANON, this is transformed
+into a call which uses a special zero-file, and the MAP_ANON flag is cleared.
+The map function for this simply allocates a frame and returns it, while the
+unmap function releases that frame.
+
+inode-backed map, unmap implementation
+--------------------------------------
+The map function here looks for the correct inode page structure and then
+returns the associated frame, after incrementing its reference count. The
+frames allocated for inodepage structures have a special property where
+they are not automatically released when the refs reach zero, and they are
+started at a reference count of zero (essentially telling the frame allocation
+system that the inodepage code will deal with them). The map function
+intentionally keeps a reference to the inodepage structure around, essentially
+giving ownership of this reference to the frame that is associated with it.
+
+The unmap function then decrements the frame count and if it is zero, it
+releases the inodepage structure.
