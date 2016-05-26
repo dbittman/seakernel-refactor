@@ -28,11 +28,6 @@ struct kobj kobj_map_region = {
 	.put = NULL, .destroy = NULL,
 };
 
-static inline size_t __get_pagesize(size_t len)
-{
-	return arch_mm_page_size(mm_get_pagelevel(len));
-}
-
 void map_region_remove(uintptr_t start, size_t len, bool locked)
 {
 	(void)start;
@@ -263,9 +258,8 @@ int map_change_protect(struct process *proc, uintptr_t virt, size_t len, int pro
 	return 0;
 }
 
-uintptr_t __get_phys_to_map(struct process *proc, struct map_region *reg, uintptr_t v)
+uintptr_t __get_phys_to_map(struct map_region *reg, uintptr_t v)
 {
-	int pg = (v - reg->start) / arch_mm_page_size(0);
 	return reg->file->ops->map(reg->file, reg, v - reg->start);
 }
 
@@ -314,7 +308,7 @@ int mmu_mappings_handle_fault(struct process *proc, uintptr_t addr, int flags)
 			goto next;
 		}
 
-		uintptr_t phys = __get_phys_to_map(proc, reg, v);
+		uintptr_t phys = __get_phys_to_map(reg, v);
 		struct frame *frame = frame_get_from_address(phys);
 		if((reg->flags & MMAP_MAP_PRIVATE) && ((frame->flags & FRAME_PERSIST) || frame->count > 1))
 			set &= ~MAP_WRITE;

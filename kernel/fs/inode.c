@@ -18,6 +18,7 @@ static struct kobj_lru inodepage_lru;
 
 static bool _inode_page_initialize(void *obj, void *_id, void *data)
 {
+	(void)data;
 	struct inodepage *page = obj;
 	memcpy(&page->id, _id, sizeof(page->id));
 
@@ -62,11 +63,6 @@ static void _inode_create(void *obj)
 	mutex_create(&node->lock);
 }
 
-static void _inode_destroy(void *obj)
-{
-	struct inode *node = obj;
-}
-
 static void _inode_put(void *obj)
 {
 	struct inode *node = obj;
@@ -83,7 +79,7 @@ static struct kobj kobj_inode = {
 	.init = NULL,
 	.create = _inode_create,
 	.put = _inode_put,
-	.destroy = _inode_destroy,
+	.destroy = NULL,
 };
 
 static ssize_t _inode_proc_lru_read_entry(void *item, size_t off, size_t len, char *buf)

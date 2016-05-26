@@ -26,9 +26,9 @@ endif
 
 # these warnings pop up if we define asserts to nothing, so remove them
 # # TODO
-#ifeq ($(CONFIG_DEBUG),n)
-CFLAGS+=-Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable
-#endif
+ifeq ($(CONFIG_DEBUG),n)
+CFLAGS+=-Wno-unknown-warning-option -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable
+endif
 
 ifeq ($(CONFIG_BUILD_WERROR),y)
 CFLAGS+=-Werror

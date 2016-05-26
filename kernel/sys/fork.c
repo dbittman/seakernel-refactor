@@ -50,6 +50,9 @@ static struct processor *select_processor(void)
 
 ssize_t _proc_read_maps(void *data, int rw, size_t off, size_t len, char *buf)
 {
+	(void)data;
+	if(rw != 0)
+		return -EINVAL;
 	struct process *proc = current_thread->process;
 	size_t current = 0;
 	/* we're taking map_lock so we can't afford page faults. Pre-fault on all the memory. */

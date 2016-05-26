@@ -13,11 +13,16 @@ static struct file *zero_file;
 
 uintptr_t _zero_map(struct file *file, struct map_region *map, ptrdiff_t d)
 {
+	(void)file;
+	(void)d;
 	return frame_allocate(mm_get_pagelevel(map->psize), 0);
 }
 
 void _zero_unmap(struct file *file, struct map_region *map, ptrdiff_t d, uintptr_t phys)
 {
+	(void)file;
+	(void)map;
+	(void)d;
 	frame_release(phys);
 }
 
