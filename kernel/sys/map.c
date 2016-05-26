@@ -141,31 +141,30 @@ uintptr_t sys_brk(void *nb)
 
 void *sys_mremap(void *old, size_t oldsz, size_t newsz, int flags, void *new)
 {
-	return NULL;
-#if 0
 	int err;
-	if(newsz == 0 || oldsz == 0 || ((uintptr_t)old != ((uintptr_t)old & page_mask(0))))
+	if(newsz == 0 || oldsz == 0 || ((uintptr_t)old != ((uintptr_t)old & page_mask(0))) || ((uintptr_t)new != ((uintptr_t)new & page_mask(0))))
 		return (void *)-EINVAL;
 	if((flags & MREMAP_FIXED) && !(MREMAP_MAYMOVE))
 		return (void *)-EINVAL;
 	if(!(flags & MREMAP_FIXED))
 		new = NULL;
-	if(!(flags & MREMAP_MAYMOVE)) {
+	if(!(flags & MREMAP_MAYMOVE) || oldsz > newsz) {
 		new = old;
-		err = mapping_try_expand((uintptr_t)old, oldsz, newsz);
+		err = mapping_resize(current_thread->process, (uintptr_t)old, oldsz, newsz);
 	} else {
-		if(new == NULL) {
-			if(oldsz < newsz)
+		/* try to resize first to save on faults */
+		if((err=mapping_resize(current_thread->process, (uintptr_t)old, oldsz, newsz)) < 0) {
+			if(new == NULL) {
 				new = (void *)process_allocate_mmap_region(current_thread->process, newsz);
-			else
-				new = old;
+			}
+			err = mapping_move(current_thread->process, (uintptr_t)old,
+					oldsz, newsz, (uintptr_t)new);
+		} else {
+			new = old;
 		}
-		err = mapping_move((uintptr_t)old, oldsz, newsz, (uintptr_t)new);
 	}
-
 	if(err < 0)
 		return (void *)(long)err;
 	return new;
-#endif
 }
 

@@ -51,9 +51,9 @@ void map_mmap(struct process *proc, uintptr_t virt, size_t len, int prot, int fl
 //struct mapping *mapping_establish(struct process *proc, uintptr_t virtual, int prot,
 //		int flags, struct file *, int nodepage);
 
-int mmu_mappings_handle_fault(uintptr_t addr, int flags);
+int mmu_mappings_handle_fault(struct process *proc, uintptr_t addr, int flags);
 //void map_unmap(uintptr_t virtual, size_t length);
-int mapping_try_expand(uintptr_t virt, size_t oldsz, size_t newsz);
-int mapping_move(uintptr_t virt, size_t oldsz, size_t newsz, uintptr_t new);
+int mapping_resize(struct process *proc, uintptr_t virt, size_t oldsz, size_t newsz);
+int mapping_move(struct process *proc, uintptr_t virt, size_t oldsz, size_t newsz, uintptr_t new);
 int map_change_protect(struct process *proc, uintptr_t virt, size_t len, int prot);
 
