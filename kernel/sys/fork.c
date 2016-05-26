@@ -48,82 +48,41 @@ static struct processor *select_processor(void)
 	}
 }
 
-/* TODO */
-#if 0
-static int _map_compar(const void *_a, const void *_b)
-{
-	const struct mapping *a = _a;
-	const struct mapping *b = _b;
-	if(a->vpage < b->vpage)
-		return -1;
-	else if(a->vpage > b->vpage)
-		return 1;
-	return 0;
-}
-
 ssize_t _proc_read_maps(void *data, int rw, size_t off, size_t len, char *buf)
 {
-	if(rw != 0)
-		return -EINVAL;
+	struct process *proc = current_thread->process;
 	size_t current = 0;
-	struct process *proc = data;
-	if(len < arch_mm_page_size(0))
-		len = arch_mm_page_size(0);
-	void *tmp = (void *)mm_virtual_allocate(__round_up_pow2(len), false);
+	/* we're taking map_lock so we can't afford page faults. Pre-fault on all the memory. */
+	for(uintptr_t tmp = (uintptr_t)buf;tmp < (uintptr_t)buf + len; tmp += arch_mm_page_size(0)) {
+		mmu_mappings_handle_fault(proc, tmp, FAULT_ERROR_PERM | FAULT_ERROR_PRES | FAULT_WRITE);
+	}
+	PROCFS_PRINTF(off, len, buf, current,
+			"      REGION START -         REGION END: L   FL   EWR - FILENAME\n");
 	mutex_acquire(&proc->map_lock);
-	size_t alloc = __round_up_pow2(proc->mappings.count * sizeof(struct mapping));
-	if(alloc < arch_mm_page_size(0))
-		alloc = arch_mm_page_size(0);
-	struct mapping *maps = (void *)mm_virtual_allocate(alloc, true);
 	
-	struct hashiter iter;
-	size_t num = 0;
-	for(hash_iter_init(&iter, &proc->mappings);
-			!hash_iter_done(&iter); hash_iter_next(&iter)) {
-		struct mapping *map = hash_iter_get(&iter);
-		memcpy(&maps[num++], map, sizeof(*map));
-	}
-
-	qsort(maps, num, sizeof(struct mapping), _map_compar);
-
-	/* now combine neighbors */
-	for(size_t i=0;i<num;i++) {
-		struct mapping *map = &maps[i];
-		size_t pagecount = 1;
-		if(map->vpage > 0) {
-			for(size_t j=1;j<(num-i);j++) {
-				struct mapping *next = &maps[i+j];
-				if(next->vpage == map->vpage + j
-						&& (map->flags & ~MMAP_MAP_MAPPED) == (map->flags & ~MMAP_MAP_MAPPED)
-						&& map->prot == map->prot) {
-					if((map->flags & MMAP_MAP_ANON)
-							|| (unsigned)next->nodepage == map->nodepage + j) {
-						/* merge */
-						next->vpage = 0; //mark as not here
-						pagecount++;
-					}
-				}
-			}
-			map->nodepage = pagecount;
-		}
-	}
-	PROCFS_PRINTF(off, len, tmp, current,
-			"         MAP BEGIN              MAP END      FLAGS   EWR (PROT)\n");
-	for(size_t i=0;i<num;i++) {
-		struct mapping *map = &maps[i];
-		if(map->vpage > 0) {
-			PROCFS_PRINTF(off, len, tmp, current,
-					"%16.16lx - %16.16lx %8.8lx %3.3b\n", map->vpage * arch_mm_page_size(0), (map->vpage + (uintptr_t)map->nodepage) * arch_mm_page_size(0), map->flags, map->prot);
+	for(int level = 0;level < MMU_NUM_PAGESIZE_LEVELS;level++) {
+		struct linkedentry *entry;
+		for(entry = linkedlist_iter_start(&proc->maps[level]);
+				entry != linkedlist_iter_end(&proc->maps[level]);
+				entry = linkedlist_iter_next(entry)) {
+			struct map_region *reg = linkedentry_obj(entry);
+			char name[256];
+			memset(name, 0, sizeof(name));
+			if(reg->file->dirent)
+				strncpy(name, reg->file->dirent->name, reg->file->dirent->namelen);
+			else
+				strncpy(name, "[zero]", 255);
+			PROCFS_PRINTF(off, len, buf, current,
+					"%16lx - %16lx: %1.1d %2.2lx %3.3b - %s\n",
+					reg->start, reg->start + reg->length, mm_get_pagelevel(reg->psize), reg->flags, reg->prot, name);
 		}
 	}
 
 	mutex_release(&proc->map_lock);
-	memcpy(buf, tmp, current > len ? len : current);
-	mm_virtual_deallocate((uintptr_t)maps);
-	mm_virtual_deallocate((uintptr_t)tmp);
 	return current;
 }
-#endif
+
+
 static void __create_proc_entries(struct process *proc)
 {
 	#define __proc_make(pid,name,call,data) do { char str[128]; snprintf(str, 128, "/proc/%d/%s", pid, name); proc_create(str, call, data); } while(0)
@@ -156,8 +115,8 @@ static void __create_proc_entries(struct process *proc)
 	__proc_make(proc->pid, "sgid", _proc_read_int, &proc->status);
 	kobj_getref(proc);
 	__proc_make(proc->pid, "brk", _proc_read_int, &proc->brk);
-	//kobj_getref(proc);
-	//__proc_make(proc->pid, "maps", _proc_read_maps, proc);
+	kobj_getref(proc);
+	__proc_make(proc->pid, "maps", _proc_read_maps, proc);
 
 }
 

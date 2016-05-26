@@ -311,16 +311,23 @@ int mmu_mappings_handle_fault(struct process *proc, uintptr_t addr, int flags)
 		if(arch_mm_virtual_getmap(proc->ctx, v, NULL, NULL, NULL)) {
 			/* another thread may have gotten here first */
 			success = true;
-			goto out;
+			goto next;
 		}
 
 		uintptr_t phys = __get_phys_to_map(proc, reg, v);
-		
-		if(reg->flags & MMAP_MAP_PRIVATE)
+		struct frame *frame = frame_get_from_address(phys);
+		if((reg->flags & MMAP_MAP_PRIVATE) && ((frame->flags & FRAME_PERSIST) || frame->count > 1))
 			set &= ~MAP_WRITE;
 
 		arch_mm_virtual_map(proc->ctx, v, phys, reg->psize, set);
-	} else {
+	}
+next:
+	/* this could have been cleared above */
+	if(reg->prot & PROT_WRITE)
+		set |= MAP_WRITE;
+	/* do this separately so that we can handle both PERM and PRES at once, since this function
+	 * can be called by normal kernel code, not just the fault handler. */
+	if(flags & FAULT_ERROR_PERM) {
 		if(flags & FAULT_EXEC) {
 			goto out;
 		}

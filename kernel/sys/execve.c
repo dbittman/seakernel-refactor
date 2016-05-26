@@ -157,7 +157,7 @@ sysret_t sys_execve(const char *path, char **arg, char **env)
 	}
 	
 	write_data(&aux, &argc, sizeof(long));
-	printk(":: base %lx\n", base);
+	//printk(":: base %lx\n", base);
 	arch_thread_usermode_jump(base == 0 ? header.entry : interp_entry + base, aux);
 
 out_close:
