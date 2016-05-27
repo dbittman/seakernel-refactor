@@ -1,0 +1,7 @@
+flex
+----
+* Flex defines a wrapper for malloc, rpl_malloc. This function ensures
+  that the size is non-zero. However, it is never prototyped, so C 
+  defaults to making it return an int. If malloc returns memory that is
+  above the 4GB mark, the returned value is simply truncated.
+
