@@ -43,7 +43,7 @@ tar xf $(basename $BINSRC)
 (
 	set -e
 	cd $(basename -s .tar.bz2 $GCCSRC)
-	#patch -p1 < $SRCDIR/tools/gcc-$GCCVER-seaos.patch
+	patch -p1 < $SRCDIR/tools/gcc-$GCCVER-seaos.patch
 )
 
 
