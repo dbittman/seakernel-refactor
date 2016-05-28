@@ -53,6 +53,7 @@ __initializer static void _init_restore_page(void)
 			(uintptr_t)&signal_restore_code_end - (uintptr_t)&signal_restore_code_start);
 }
 
+#include <processor.h>
 void mm_fault_entry(uintptr_t address, int flags, uintptr_t from)
 {
 	if((address & page_mask(0)) == SIGNAL_RESTORE_PAGE && (flags & FAULT_USER) && (flags & FAULT_ERROR_PRES)) {
@@ -63,8 +64,10 @@ void mm_fault_entry(uintptr_t address, int flags, uintptr_t from)
 		if(mmu_mappings_handle_fault(current_thread->process, address, flags))
 			return;
 		printk("SIGSEGV - process %d, addr %lx cause %x (tls %lx) from %lx\n", current_thread->process->pid, address, flags, current_thread->arch.fs, from);
-		panic(0, "debug panic");
-		thread_send_signal(current_thread, SIGSEGV);
+		current_thread->state = THREADSTATE_BLOCKED;
+		current_thread->processor->running = &current_thread->processor->idle_thread;
+		//panic(0, "debug panic");
+		//thread_send_signal(current_thread, SIGSEGV);
 		return;
 	}
 	panic(0, "PF [t%ld, p%d] - %lx %x, from %lx", current_thread->tid, current_thread->process->pid, address, flags, from);
