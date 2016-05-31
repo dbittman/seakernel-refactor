@@ -1,0 +1,19 @@
+diff -uprN coreutils-8.25/Makefile.in coreutils-8.25-patched/Makefile.in
+--- coreutils-8.25/Makefile.in	2016-01-20 02:55:18.000000000 -0800
++++ coreutils-8.25-patched/Makefile.in	2016-05-29 15:16:35.988989149 -0700
+@@ -14390,12 +14390,12 @@ $(ALL_MANS): $(mandeps)
+ 	  install) prog='ginstall'; argv=$$name;;			\
+ 	     test) prog='['; argv='[';;					\
+ 		*) prog=$$name; argv=$$prog;;				\
+-	esac;								\
+-	rm -f $@ $@-t							\
++	esac;								
++	-rm -f $@ $@-t							\
+ 	  && t=$*.td							\
+ 	  && rm -rf $$t							\
+ 	  && $(MKDIR_P) $$t						\
+-	  && (cd $$t && $(LN_S) '$(abs_top_builddir)/src/'$$prog$(EXEEXT) \
++	  && (cd $$t && $(LN_S) $$prog$(EXEEXT) \
+ 				$$argv$(EXEEXT))			\
+ 	&& : $${SOURCE_DATE_EPOCH=`cat $(srcdir)/.timestamp 2>/dev/null || :`} \
+ 	&& export SOURCE_DATE_EPOCH && $(run_help2man)			\

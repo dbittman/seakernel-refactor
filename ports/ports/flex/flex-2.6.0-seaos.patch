@@ -1,0 +1,27 @@
+diff -uprN flex-2.6.0/Makefile.in flex-2.6.0-patched/Makefile.in
+--- flex-2.6.0/Makefile.in	2015-11-17 08:19:45.000000000 -0800
++++ flex-2.6.0-patched/Makefile.in	2016-05-27 14:20:20.313563278 -0700
+@@ -450,7 +450,6 @@ SUBDIRS = \
+ 	doc \
+ 	examples \
+ 	po \
+-	tests \
+ 	tools
+ 
+ all: all-recursive
+diff -uprN flex-2.6.0/src/config.h.in flex-2.6.0-patched/src/config.h.in
+--- flex-2.6.0/src/config.h.in	2015-11-17 08:19:45.000000000 -0800
++++ flex-2.6.0-patched/src/config.h.in	2016-05-27 14:19:53.867217736 -0700
+@@ -215,3 +215,12 @@
+ 
+ /* Define as `fork' if `vfork' does not work. */
+ #undef vfork
++
++
++
++#include <sys/types.h>
++void *rpl_malloc(size_t);
++void rpl_free(void *);
++void *rpl_realloc(void *, size_t);
++
++
