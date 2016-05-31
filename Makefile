@@ -166,7 +166,7 @@ $(BUILDDIR)/hd.img: $(USRPROGS)
 	mke2fs -F $(BUILDDIR)/hd.img
 	mkdir -p $(BUILDDIR)/mnt
 	sudo mount $(BUILDDIR)/hd.img $(BUILDDIR)/mnt
-	sudo cp -r $(SYSROOT)/* $(SYSROOT)-install/* $(BUILDDIR)/mnt/
+	sudo cp -r $(SYSROOT)/* $(BUILDDIR)/mnt/
 	sudo mkdir -p $(BUILDDIR)/mnt/bin
 	sudo mkdir -p $(BUILDDIR)/mnt/dev
 	sudo mkdir -p $(BUILDDIR)/mnt/tmp

@@ -1,0 +1,159 @@
+diff -uprN ncurses-6.0/config.sub ncurses-6.0-patched/config.sub
+--- ncurses-6.0/config.sub	2015-05-02 04:52:04.000000000 -0700
++++ ncurses-6.0-patched/config.sub	2016-04-20 11:35:41.681648637 -0700
+@@ -1,8 +1,8 @@
+ #! /bin/sh
+ # Configuration validation subroutine script.
+-#   Copyright 1992-2015 Free Software Foundation, Inc.
++#   Copyright 1992-2016 Free Software Foundation, Inc.
+ 
+-timestamp='2015-03-08'
++timestamp='2016-01-01'
+ 
+ # This file is free software; you can redistribute it and/or modify it
+ # under the terms of the GNU General Public License as published by
+@@ -33,7 +33,7 @@ timestamp='2015-03-08'
+ # Otherwise, we print the canonical config type on stdout and succeed.
+ 
+ # You can get the latest version of this script from:
+-# http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD
++# http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub
+ 
+ # This file is supposed to be the same for all GNU packages
+ # and recognize all the CPU types, system types and aliases
+@@ -53,8 +53,7 @@ timestamp='2015-03-08'
+ me=`echo "$0" | sed -e 's,.*/,,'`
+ 
+ usage="\
+-Usage: $0 [OPTION] CPU-MFR-OPSYS
+-       $0 [OPTION] ALIAS
++Usage: $0 [OPTION] CPU-MFR-OPSYS or ALIAS
+ 
+ Canonicalize a configuration name.
+ 
+@@ -68,7 +67,7 @@ Report bugs and patches to <config-patch
+ version="\
+ GNU config.sub ($timestamp)
+ 
+-Copyright 1992-2015 Free Software Foundation, Inc.
++Copyright 1992-2016 Free Software Foundation, Inc.
+ 
+ This is free software; see the source for copying conditions.  There is NO
+ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+@@ -255,6 +254,7 @@ case $basic_machine in
+ 	| arc | arceb \
+ 	| arm | arm[bl]e | arme[lb] | armv[2-8] | armv[3-8][lb] | armv7[arm] \
+ 	| avr | avr32 \
++	| ba \
+ 	| be32 | be64 \
+ 	| bfin \
+ 	| c4x | c8051 | clipper \
+@@ -305,7 +305,7 @@ case $basic_machine in
+ 	| riscv32 | riscv64 \
+ 	| rl78 | rx \
+ 	| score \
+-	| sh | sh[1234] | sh[24]a | sh[24]aeb | sh[23]e | sh[34]eb | sheb | shbe | shle | sh[1234]le | sh3ele \
++	| sh | sh[1234] | sh[24]a | sh[24]aeb | sh[23]e | sh[234]eb | sheb | shbe | shle | sh[1234]le | sh3ele \
+ 	| sh64 | sh64le \
+ 	| sparc | sparc64 | sparc64b | sparc64v | sparc86x | sparclet | sparclite \
+ 	| sparcv8 | sparcv9 | sparcv9b | sparcv9v \
+@@ -376,6 +376,7 @@ case $basic_machine in
+ 	| alphapca5[67]-* | alpha64pca5[67]-* | arc-* | arceb-* \
+ 	| arm-*  | armbe-* | armle-* | armeb-* | armv*-* \
+ 	| avr-* | avr32-* \
++	| ba-* \
+ 	| be32-* | be64-* \
+ 	| bfin-* | bs2000-* \
+ 	| c[123]* | c30-* | [cjt]90-* | c4x-* \
+@@ -428,12 +429,13 @@ case $basic_machine in
+ 	| pdp10-* | pdp11-* | pj-* | pjl-* | pn-* | power-* \
+ 	| powerpc-* | powerpc64-* | powerpc64le-* | powerpcle-* \
+ 	| pyramid-* \
++	| riscv32-* | riscv64-* \
+ 	| rl78-* | romp-* | rs6000-* | rx-* \
+ 	| sh-* | sh[1234]-* | sh[24]a-* | sh[24]aeb-* | sh[23]e-* | sh[34]eb-* | sheb-* | shbe-* \
+ 	| shle-* | sh[1234]le-* | sh3ele-* | sh64-* | sh64le-* \
+ 	| sparc-* | sparc64-* | sparc64b-* | sparc64v-* | sparc86x-* | sparclet-* \
+ 	| sparclite-* \
+-	| sparcv8-* | sparcv9-* | sparcv9b-* | sparcv9v-* | sv1-* | sx?-* \
++	| sparcv8-* | sparcv9-* | sparcv9b-* | sparcv9v-* | sv1-* | sx*-* \
+ 	| tahoe-* \
+ 	| tic30-* | tic4x-* | tic54x-* | tic55x-* | tic6x-* | tic80-* \
+ 	| tile*-* \
+@@ -518,7 +520,7 @@ case $basic_machine in
+ 		basic_machine=i386-pc
+ 		os=-aros
+ 		;;
+-        asmjs)
++	asmjs)
+ 		basic_machine=asmjs-unknown
+ 		;;
+ 	aux)
+@@ -1376,7 +1378,7 @@ case $os in
+ 	      | -hpux* | -unos* | -osf* | -luna* | -dgux* | -auroraux* | -solaris* \
+ 	      | -sym* | -kopensolaris* | -plan9* \
+ 	      | -amigaos* | -amigados* | -msdos* | -newsos* | -unicos* | -aof* \
+-	      | -aos* | -aros* | -cloudabi* \
++	      | -aos* | -aros* | -cloudabi* | -sortix* \
+ 	      | -nindy* | -vxsim* | -vxworks* | -ebmon* | -hms* | -mvs* \
+ 	      | -clix* | -riscos* | -uniplus* | -iris* | -rtu* | -xenix* \
+ 	      | -hiux* | -386bsd* | -knetbsd* | -mirbsd* | -netbsd* \
+@@ -1396,7 +1398,8 @@ case $os in
+ 	      | -os2* | -vos* | -palmos* | -uclinux* | -nucleus* \
+ 	      | -morphos* | -superux* | -rtmk* | -rtmk-nova* | -windiss* \
+ 	      | -powermax* | -dnix* | -nx6 | -nx7 | -sei* | -dragonfly* \
+-	      | -skyos* | -haiku* | -rdos* | -toppers* | -drops* | -es* | -tirtos*)
++	      | -skyos* | -haiku* | -rdos* | -toppers* | -drops* | -es* \
++	      | -onefs* | -tirtos*)
+ 	# Remember, each alternative MUST END IN *, to match a version number.
+ 		;;
+ 	-qnx*)
+diff -uprN ncurses-6.0/misc/terminfo.src ncurses-6.0-patched/misc/terminfo.src
+--- ncurses-6.0/misc/terminfo.src	2015-07-25 12:27:20.000000000 -0700
++++ ncurses-6.0-patched/misc/terminfo.src	2016-04-20 11:30:31.788730649 -0700
+@@ -21281,6 +21281,45 @@ v3220|LANPAR Vision II model 3220/3221/3
+ 	kf8=\E[OR, kf9=\E[OS, khome=\E[H, ri=\EM, rmam=\E[?7l,
+ 	rmir=\E[4l, rmkx=\E>, rmso=\E[m, rmul=\E[m, sgr0=\E[m,
+ 	smam=\E[?7h, smir=\E[4h, smkx=\E=, smso=\E[7m, smul=\E[4m,
++
++
++
++seaos|SEAOS System Console,
++	mir, msgr, xon, am,
++	it#8, cols#80, colors#8, pairs#64,
++	bel=^G, blink=\E[5m, bold=\E[1m, civis=\E[3m,
++	clear=\E[H\E[J, cr=^M, cub=\E[%p1%dD, cub1=\E[D,
++	cud=\E[%p1%dB, cud1=\E[B, cuf=\E[%p1%dC, cuf1=\E[C,
++	cup=\E[%i%p1%d;%p2%dH, cuu=\E[%p1%dA, cuu1=\E[A,
++	dch=\E[%p1%dP, dch1=\E[1P, dim=\E[2m, dl=\E[%p1%dM,
++	dl1=\E[1M, ed=\E[1J, el=\E[0K, el1=\E[1K, home=\E[1;1H,
++	ht=^I, ind=\E[1F, indn=\E[%p1%dF, kbs=\177, kcub1=\E[D,
++	kcud1=\E[B, kcuf1=\E[C, kcuu1=\E[A, nel=\r\E[1F, rc=\E[S,
++	ri=\E[1R, rin=\E[%p1%dR, sc=\E[s, sgr0=\E[0m, smso=\E[7m,
++	smul=\E[4m, setaf=\E[3%p1%dm, setab=\E[4%p1%dm,
++		kDC=\E[^4~,
++    	kEND=\E[^5~, kHOM=\E[^2~, kIC=\E[^1~, kLFT=\E[1;2D,
++     	kcbt=\E[Z,
++        kdch1=\E[4~, kend=\E[5~,
++        khome=\E[2~, kich1=\E[1~,
++       	knp=\E[6~, kpp=\E[3~,
++		kf1=\E[1F,
++		kf2=\E[2F,
++		kf3=\E[3F,
++		kf4=\E[4F,
++		kf5=\E[5F,
++		kf6=\E[6F,
++		kf7=\E[7F,
++		kf8=\E[8F,
++		kf9=\E[9F,
++		kf10=\E[10F,
++		kf11=\E[11F,
++		kf12=\E[12F,
++
++
++
++
++
+ ######## ICH/ICH1 VERSUS RMIR/SMIR
+ #
+ # Some non-curses applications get confused if both ich/ich1 and rmir/smir

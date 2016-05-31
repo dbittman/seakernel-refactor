@@ -4,7 +4,7 @@ DESC='Curses Library'
 REQUIRES=()
 
 SOURCES=('ftp://ftp.gnu.org/gnu/ncurses/ncurses-6.0.tar.gz')
-PATCHES=()
+PATCHES=('ncurses-6.0-seaos.patch')
 ALLFILES=${PATCHES[@]}
 
 prepare() {
