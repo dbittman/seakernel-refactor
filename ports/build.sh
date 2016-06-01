@@ -1,6 +1,8 @@
 #!/bin/bash
 
-TARGET="x86_64-elf-linux-musl"
+if [[ "$TARGET" == "" ]]; then
+	TARGET="x86_64-elf-linux-musl"
+fi
 
 STDCONF="--prefix=/usr --host=$TARGET"
 STDMAKE=
@@ -20,9 +22,11 @@ contains_element () {
 
 download_all() {
 	for i in $@; do
-		if ! curl -L $i > $(basename $i); then
-			echo Downloading $i failed
-			return 1
+		if [[ ( ! -e $(basename $i) ) || ( "$DOWNLOAD" == "yes" ) ]]; then
+			if ! curl -L $i > $(basename $i); then
+				echo Downloading $i failed
+				return 1
+			fi
 		fi
 	done
 	return 0
@@ -82,11 +86,13 @@ do_package() {
 	PATCHES=()
 	SOURCES=()
 	source ports/$1/build.sh
-	for i in ${REQUIRES[@]}; do
-		echo "--- Installing $i as depend for $1"
-		do_package $i
-	done
-	source ports/$1/build.sh
+	if [[ "$NODEPS" != "yes" ]]; then
+		for i in ${REQUIRES[@]}; do
+			echo "--- Installing $i as depend for $1"
+			do_package $i
+		done
+		source ports/$1/build.sh
+	fi
 	mkdir -p build/
 	cp -r ports/$1 build/
 	cd build/$1
