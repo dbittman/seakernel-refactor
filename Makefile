@@ -176,6 +176,7 @@ $(BUILDDIR)/hd.img: $(USRPROGS)
 	sudo sed -s -i -e 's|CONFIG_BUILD_SYSROOT=.*|CONFIG_BUILD_SYSROOT=/|g' $(BUILDDIR)/mnt/usr/src/seakernel/config.cfg
 	sudo sed -s -i -e 's|CONFIG_BUILD_SYSTEM_COMPILER=.*|CONFIG_BUILD_SYSTEM_COMPILER=y|g' $(BUILDDIR)/mnt/usr/src/seakernel/config.cfg
 	sudo sed -s -i -e 's|CONFIG_BUILD_CLANG=.*|CONFIG_BUILD_CLANG=n|g' $(BUILDDIR)/mnt/usr/src/seakernel/config.cfg
+	echo "/lib:/usr/lib:/usr/lib64" | sudo tee $(BUILDDIR)/mnt/etc/ld-musl-$(ARCH).path > /dev/null
 	sudo umount $(BUILDDIR)/mnt
 
 newhd:

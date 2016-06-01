@@ -58,6 +58,7 @@ struct li_call {
 	struct linkedentry entry;
 };
 
+#include <charbuffer.h>
 static void init_worker(struct worker *worker)
 {
 	printk("[kernel]: doing late init calls\n");

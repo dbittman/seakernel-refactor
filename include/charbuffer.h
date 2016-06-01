@@ -9,16 +9,16 @@
 struct charbuffer {
 	_Atomic char *buffer;
 	size_t capacity;
-	_Atomic size_t head, tail;
+	_Atomic size_t head, tail, pending;
 	struct blocklist wait_write, wait_read;
 	struct spinlock write, read;
 	_Atomic bool term;
 	int eof;
 };
 
-static inline size_t charbuffer_pending(struct charbuffer *cb) { return cb->head - cb->tail; }
+static inline size_t charbuffer_pending(struct charbuffer *cb) { return cb->pending; }
 static inline size_t charbuffer_avail(struct charbuffer *cb)
-{ return cb->capacity - (cb->head - cb->tail); }
+{ return cb->capacity - cb->pending; }
 
 void charbuffer_create(struct charbuffer *cb, size_t cap);
 ssize_t charbuffer_write(struct charbuffer *cb, const char *buf, size_t len, int flags);
