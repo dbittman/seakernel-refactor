@@ -28,11 +28,95 @@ struct kobj kobj_map_region = {
 	.put = NULL, .destroy = NULL,
 };
 
-void map_region_remove(uintptr_t start, size_t len, bool locked)
+static void __unmap_page_if_mapped(struct process *proc, struct map_region *reg, uintptr_t v)
 {
-	(void)start;
-	(void)len;
-	(void)locked;
+	uintptr_t phys = arch_mm_virtual_unmap(proc->ctx, v);
+	if(phys != 0) {
+		if(reg->file->ops->unmap)
+			reg->file->ops->unmap(reg->file, reg, v - reg->start, phys);
+	}
+}
+
+static void __mapping_remove(struct process *proc, struct map_region *reg)
+{
+	linkedlist_remove(&proc->maps[mm_get_pagelevel(reg->psize)], &reg->entry);
+	for(uintptr_t v = reg->start;v < reg->start + reg->length;v += reg->psize) {
+		__unmap_page_if_mapped(proc, reg, v);
+	}
+	kobj_putref(reg->file);
+	kobj_putref(reg);
+}
+
+static struct map_region *__split_region(struct process *proc,
+		struct map_region *old, uintptr_t split)
+{
+	size_t oldlen = old->length;
+	split = ((split - 1) & ~(old->psize - 1)) + old->psize;
+	size_t newlen = split - old->start;
+	struct map_region *reg = kobj_allocate(&kobj_map_region);
+	reg->length = old->length - newlen;
+	old->length = newlen;
+	
+	reg->prot = old->prot;
+	reg->flags = old->flags;
+	reg->file = kobj_getref(old->file);
+	reg->nodepage = old->nodepage;
+	reg->start = split;
+	reg->psize = old->psize;
+
+	assert(reg->length + old->length == oldlen);
+	linkedlist_insert(&proc->maps[mm_get_pagelevel(old->psize)], &reg->entry, reg);
+
+	return reg;
+}
+
+static struct map_region *__find_region(struct process *proc, uintptr_t addr)
+{
+	for(int i=MMU_NUM_PAGESIZE_LEVELS-1;i>=0;i--) {
+		for(struct linkedentry *entry = linkedlist_iter_start(&proc->maps[i]);
+				entry != linkedlist_iter_end(&proc->maps[i]);
+				entry = linkedlist_iter_next(entry)) {
+			struct map_region *reg = linkedentry_obj(entry);
+			if(addr >= reg->start && addr < (reg->start + reg->length)) {
+				return reg;
+			}
+		}
+	}
+	return NULL;
+}
+
+void map_region_remove(struct process *proc, uintptr_t start, size_t len, bool locked)
+{
+	if(!locked)
+		mutex_acquire(&proc->map_lock);
+	for(uintptr_t v = start;v < start + len;v += arch_mm_page_size(0)) {
+		bool split = false;
+		do {
+			split = false;
+			struct map_region *reg = __find_region(proc, v);
+			if(reg) {
+				if(v == reg->start) {
+					__unmap_page_if_mapped(proc, reg, v);
+					reg->start += arch_mm_page_size(0); //TODO: edge case: mixing multiple page sizes should be done here too
+					if(reg->length < arch_mm_page_size(0))
+						reg->length = 0;
+					else
+						reg->length -= arch_mm_page_size(0);
+				} else if(v == ((reg->start + reg->length) & page_mask(0))) {
+					__unmap_page_if_mapped(proc, reg, v);
+					reg->length -= (reg->length & ~page_mask(0));
+				} else {
+					split = true;
+					__split_region(proc, reg, v);
+				}
+				if(reg->length == 0) {
+					__mapping_remove(proc, reg);
+				}
+			}
+		} while(split == true);
+	}
+	if(!locked)
+		mutex_release(&proc->map_lock);
 }
 
 void map_region_setup(struct process *proc, uintptr_t start, size_t len, int prot, int flags, struct file *file, int nodepage, size_t psize, bool locked)
@@ -50,24 +134,10 @@ void map_region_setup(struct process *proc, uintptr_t start, size_t len, int pro
 	if(!locked)
 		mutex_acquire(&proc->map_lock);
 	/* previous mappings are removed */
-	map_region_remove(start, len, true);
+	map_region_remove(proc, start, len, true);
 	linkedlist_insert(&proc->maps[pl], &reg->entry, reg);
 	if(!locked)
 		mutex_release(&proc->map_lock);
-}
-
-static void __mapping_remove(struct process *proc, struct map_region *reg)
-{
-	linkedlist_remove(&proc->maps[mm_get_pagelevel(reg->psize)], &reg->entry);
-	for(uintptr_t v = reg->start;v < reg->start + reg->length;v += reg->psize) {
-		uintptr_t phys = arch_mm_virtual_unmap(proc->ctx, v);
-		if(phys != 0) {
-			if(reg->file->ops->unmap)
-				reg->file->ops->unmap(reg->file, reg, v - reg->start, phys);
-		}
-	}
-	kobj_putref(reg->file);
-	kobj_putref(reg);
 }
 
 void process_remove_mappings(struct process *proc, bool user_tls_too)
@@ -117,44 +187,6 @@ void process_copy_mappings(struct process *from, struct process *to)
 		}
 	}
 	mutex_release(&from->map_lock);
-}
-
-static struct map_region *__split_region(struct process *proc,
-		struct map_region *old, uintptr_t split)
-{
-	size_t oldlen = old->length;
-	split = ((split - 1) & ~(old->psize - 1)) + old->psize;
-	size_t newlen = split - old->start;
-	struct map_region *reg = kobj_allocate(&kobj_map_region);
-	reg->length = old->length - newlen;
-	old->length = newlen;
-	
-	reg->prot = old->prot;
-	reg->flags = old->flags;
-	reg->file = kobj_getref(old->file);
-	reg->nodepage = old->nodepage;
-	reg->start = split;
-	reg->psize = old->psize;
-
-	assert(reg->length + old->length == oldlen);
-	linkedlist_insert(&proc->maps[mm_get_pagelevel(old->psize)], &reg->entry, reg);
-
-	return reg;
-}
-
-static struct map_region *__find_region(struct process *proc, uintptr_t addr)
-{
-	for(int i=MMU_NUM_PAGESIZE_LEVELS-1;i>=0;i--) {
-		for(struct linkedentry *entry = linkedlist_iter_start(&proc->maps[i]);
-				entry != linkedlist_iter_end(&proc->maps[i]);
-				entry = linkedlist_iter_next(entry)) {
-			struct map_region *reg = linkedentry_obj(entry);
-			if(addr >= reg->start && addr < (reg->start + reg->length)) {
-				return reg;
-			}
-		}
-	}
-	return NULL;
 }
 
 int mapping_resize(struct process *proc, uintptr_t virt, size_t oldlen, size_t newlen)

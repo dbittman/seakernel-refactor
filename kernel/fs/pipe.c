@@ -58,12 +58,15 @@ static ssize_t _pipe_read(struct file *file,
 {
 	(void)off;
 	struct pipe *pipe = file->devdata;
-	if(pipe->writers == 0 && charbuffer_pending(&pipe->buf) == 0)
+	if(pipe->writers == 0 && charbuffer_pending(&pipe->buf) == 0) {
 		return 0;
+	}
 	int flags = CHARBUFFER_DO_ANY;
 	if(file->flags & O_NONBLOCK)
 		flags |= CHARBUFFER_DO_NONBLOCK;
+	//printk("READING %p %lx (%lx)\n", pipe, len, charbuffer_pending(&pipe->buf));
 	size_t ret = charbuffer_read(&pipe->buf, buf, len, flags);
+	//printk("READING ret %lx\n", ret);
 	return ret;
 }
 
@@ -72,7 +75,9 @@ static ssize_t _pipe_write(struct file *file,
 {
 	(void)off;
 	struct pipe *pipe = file->devdata;
+	//printk("WRITING %p %lx\n", pipe, len);
 	if(pipe->readers == 0) {
+		//printk("BROKEN PIPE %p\n", pipe);
 		thread_send_signal(current_thread, SIGPIPE);
 		return -EPIPE;
 	}
@@ -91,11 +96,13 @@ static void _pipe_open(struct file *file)
 		pipe->writers++;
 	if(file->flags & F_READ)
 		pipe->readers++;
+//	printk("%d Opening pipe %p for %s\n", current_thread->process->pid, pipe, file->flags & F_WRITE ? "writing" : "reading");
 }
 
 static void _pipe_close(struct file *file)
 {
 	struct pipe *pipe = file->devdata;
+//	printk("%d Closing pipe %p for %s\n", current_thread->process->pid, pipe, file->flags & F_WRITE ? "writing" : "reading");
 	if(file->flags & F_WRITE)
 		pipe->writers--;
 	if(file->flags & F_READ)
@@ -173,6 +180,7 @@ sysret_t sys_pipe(int *fds)
 	fds[1] = wfd;
 
 	struct pipe *pipe = wf->devdata;
+	//printk("PIPE: %p\n", pipe);
 	assert(pipe->readers == 1);
 	assert(pipe->writers == 1);
 

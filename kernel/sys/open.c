@@ -375,31 +375,6 @@ sysret_t sys_fadvise(int fd, ssize_t offset, size_t len, int advice)
 	return 0;
 }
 
-sysret_t sys_fchown(int fd, int owner, int group)
-{
-	struct file *file = process_get_file(fd);
-	if(!file)
-		return -EBADF;
-	struct inode *node = file_get_inode(file);
-	kobj_putref(file);
-	if(!node) {
-		return -EINVAL;
-	}
-	
-	if(current_thread->process->euid != 0) {
-		inode_put(node);
-		return -EPERM;
-	}
-
-	if(owner != -1)
-		node->uid = owner;
-	if(group != -1)
-		node->gid = group;
-	inode_mark_dirty(node);
-	inode_put(node);
-	return 0;
-}
-
 sysret_t sys_fchmod(int fd, int mode)
 {
 	struct file *file = process_get_file(fd);

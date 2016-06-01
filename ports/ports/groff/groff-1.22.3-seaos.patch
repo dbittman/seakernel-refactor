@@ -1,0 +1,39 @@
+diff -uprN groff-1.22.3/Makefile.in groff-1.22.3-patched/Makefile.in
+--- groff-1.22.3/Makefile.in	2014-11-04 00:38:35.145524997 -0800
++++ groff-1.22.3-patched/Makefile.in	2016-06-01 00:12:08.592422897 -0700
+@@ -702,20 +702,6 @@ OTHERDIRS=\
+   src/utils/afmtodit \
+   font/devpdf \
+   arch/mingw \
+-  contrib/chem \
+-  contrib/eqn2graph \
+-  contrib/gdiffmk \
+-  contrib/glilypond \
+-  contrib/gperl \
+-  contrib/gpinyin \
+-  contrib/grap2graph \
+-  contrib/groff_filenames \
+-  contrib/groffer \
+-  contrib/hdtbl \
+-  contrib/mm \
+-  contrib/pdfmark \
+-  contrib/pic2graph \
+-  contrib/mom \
+   doc \
+   man \
+   src/roff/grog \
+@@ -741,14 +727,6 @@ EXTRADIRS=\
+ NOMAKEDIRS=\
+   m4 \
+   arch/djgpp \
+-  contrib/chem/examples \
+-  contrib/chem/examples/122 \
+-  contrib/hdtbl/examples \
+-  contrib/mm/examples \
+-  contrib/mm/mm \
+-  contrib/mom/examples \
+-  contrib/mom/momdoc \
+-  contrib/gdiffmk/tests \
+   src/libs/snprintf \
+   src/libs/gnulib/lib \
+   src/libs/gnulib/lib/uniwidth \

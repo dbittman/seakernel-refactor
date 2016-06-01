@@ -406,3 +406,46 @@ sysret_t sys_rename(const char *oldpath, const char *newpath)
 	return sys_renameat(AT_FDCWD, oldpath, AT_FDCWD, newpath);
 }
 
+sysret_t sys_fchownat(int dirfd, const char *path, int uid, int gid, int flags)
+{
+	struct inode *node, *start = __get_at_start(dirfd);
+	int err;
+	if(path == NULL) {
+		node = start;
+	} else {
+		err = fs_path_resolve(path, start, flags & AT_SYMLINK_NOFOLLOW ? PATH_NOFOLLOW : 0, 0, NULL, &node);
+		inode_put(start);
+		if(err < 0)
+			return err;
+	}
+
+	err = 0;
+	if(current_thread->process->euid == 0) {
+		node->uid = uid == -1 ? node->uid : uid;
+		node->gid = gid == -1 ? node->gid : gid;
+	} else {
+		if(uid != -1) {
+			err = -EPERM;
+		} else {
+			node->gid = gid == -1 ? node->gid : gid; //TODO: group membership
+		}
+	}
+	inode_put(node);
+	return err;
+}
+
+sysret_t sys_chown(const char *path, int uid, int gid)
+{
+	return sys_fchownat(AT_FDCWD, path, uid, gid, 0);
+}
+
+sysret_t sys_fchown(int fd, int uid, int gid)
+{
+	return sys_fchownat(fd, NULL, uid, gid, 0);
+}
+
+sysret_t sys_lchown(const char *path, int uid, int gid)
+{
+	return sys_fchownat(AT_FDCWD, path, uid, gid, AT_SYMLINK_NOFOLLOW);
+}
+

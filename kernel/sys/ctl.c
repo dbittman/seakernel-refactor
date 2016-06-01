@@ -29,6 +29,15 @@ sysret_t sys_fcntl(int fd, int cmd, long arg)
 			if(ret >= 0)
 				process_copy_proc_fd(current_thread->process, current_thread->process, fd, ret);
 			break;
+		case F_SETOWN: case F_GETOWN: break;
+
+		/* for now, pretend we can lock */
+		case F_GETLK: {
+			struct flock *flock = (void *)arg;
+			flock->l_type = F_UNLCK;
+		} break;
+
+		case F_SETLKW: case F_SETLK: break;
 		default:
 			ret = -EINVAL;
 	}

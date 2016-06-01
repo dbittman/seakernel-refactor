@@ -70,7 +70,7 @@ standard_build() {
 	if ! make $2; then
 		return 1
 	fi
-	if ! make install $3; then
+	if ! make $3; then
 		return 1
 	fi
 }
@@ -82,7 +82,7 @@ do_package() {
 	PATCHES=()
 	SOURCES=()
 	source ports/$1/build.sh
-	for i in $REQUIRES; do
+	for i in ${REQUIRES[@]}; do
 		echo "--- Installing $i as depend for $1"
 		do_package $i
 	done
@@ -90,7 +90,8 @@ do_package() {
 	mkdir -p build/
 	cp -r ports/$1 build/
 	cd build/$1
-	STDINSTALL="DESTDIR=$(pwd)/install-$TARGET/root"
+	STDDESTDIR="DESTDIR=$(pwd)/install-$TARGET/root"
+	STDINSTALL="install DESTDIR=$(pwd)/install-$TARGET/root"
 	echo Preparing $1...
 	if ! prepare > build-$TARGET.log; then
 		cd ../..
@@ -106,7 +107,7 @@ do_package() {
 	completed+=("$1")
 
 	cd ../install-$TARGET
-	(find '*.la' | xargs rm) 2>/dev/null
+	(find -name '*.la' | xargs rm) 2>/dev/null
 	echo Building manifest for $1...
 	find root | cut -c 5- > $NAME-$VERSION.manifest
 

@@ -50,14 +50,13 @@ static struct processor *select_processor(void)
 
 ssize_t _proc_read_maps(void *data, int rw, size_t off, size_t len, char *buf)
 {
-	(void)data;
 	if(rw != 0)
 		return -EINVAL;
-	struct process *proc = current_thread->process;
+	struct process *proc = data;
 	size_t current = 0;
 	/* we're taking map_lock so we can't afford page faults. Pre-fault on all the memory. */
 	for(uintptr_t tmp = (uintptr_t)buf;tmp < (uintptr_t)buf + len; tmp += arch_mm_page_size(0)) {
-		mmu_mappings_handle_fault(proc, tmp, FAULT_ERROR_PERM | FAULT_ERROR_PRES | FAULT_WRITE);
+		mmu_mappings_handle_fault(current_thread->process, tmp, FAULT_ERROR_PERM | FAULT_ERROR_PRES | FAULT_WRITE);
 	}
 	PROCFS_PRINTF(off, len, buf, current,
 			"      REGION START -         REGION END: L   FL   EWR - FILENAME\n");

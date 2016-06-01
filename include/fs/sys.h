@@ -24,10 +24,25 @@ int fs_link(struct inode *, const char *, size_t, struct inode *);
 #define F_SETFD 2
 #define F_GETFL 3
 #define F_SETFL 4
+#define F_GETLK 5
+#define F_SETLK 6
+#define F_SETLKW 7
+#define F_SETOWN 8
+#define F_GETOWN 9
 
+#define F_UNLCK 2
 struct iovec {
 	void *base;
 	size_t len;
+};
+
+struct flock
+{
+	short l_type;
+	short l_whence;
+	ssize_t l_start;
+	ssize_t l_len;
+	int l_pid;
 };
 
 sysret_t sys_open(const char *, int, int);
@@ -108,3 +123,7 @@ static inline struct inode *__get_at_start(int fd)
 
 #define AT_REMOVEDIR 0x200
 sysret_t sys_unlinkat(int dirfd, const char *_path, int flags);
+sysret_t sys_lchown(const char *path, int uid, int gid);
+sysret_t sys_fchown(int fd, int uid, int gid);
+sysret_t sys_chown(const char *path, int uid, int gid);
+sysret_t sys_fchownat(int dirfd, const char *path, int uid, int gid, int flags);
