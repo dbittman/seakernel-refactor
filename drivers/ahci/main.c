@@ -94,6 +94,7 @@ void ahci_interrupt_handler(int int_no, int flags)
 
 static int _ahci_init_device(struct pci_device *dev)
 {
+	printk("[ahci]: initializing...\n");
 	struct ahci_bus *ab = kobj_allocate(&kobj_ahci_bus);
 	ab->pcidev = dev;
 
@@ -120,6 +121,7 @@ static struct pci_driver pcidriver = {
 	.supported = {
 		{ 0x8086, 0x8c03},
 		{ 0x8086, 0x2922},
+		{ 0x8086, 0x2829},
 	},
 };
 
