@@ -24,13 +24,16 @@ TMPDIR=$(mktemp -d -t seaos-repo-download.XXXXXXXXXX) || exit 1
 
 install_package() {
 	set -e
-	grep "^$1:" repo.dat | tail -1
+	grep "^$1:" repo.dat | tail -1 > /dev/null
 	if [[ "${PIPESTATUS[0]}" != "0" ]]; then
 		echo $1 was not found!
 		exit 0
 	fi
 
 	LINE=$(grep "^$1:" repo.dat | tail -1)
+	local NAME
+	local VERSION
+	local REQ
 	IFS=: read NAME VERSION REQ <<< "$LINE"
 
 	for i in $REQ; do
@@ -38,7 +41,6 @@ install_package() {
 	done
 
 	if [ -e $SYSROOT/usr/packs/installed/$NAME-$VERSION.manifest ]; then
-		echo $1 already installed
 		return 0
 	fi
 
@@ -53,7 +55,8 @@ install_package() {
 		cd $NAME-$VERSION
 		tar xf ../$NAME-$VERSION.tar.xz
 	)
-	cp -a $NAME-$VERSION/root/* $SYSROOT/
+	cp -af $NAME-$VERSION/root/* $SYSROOT/
+	mkdir -p $SYSROOT/usr/packs/installed
 	cp $NAME-$VERSION/*.manifest $SYSROOT/usr/packs/installed/$NAME-$VERSION.manifest
 	
 	return 0
@@ -63,10 +66,17 @@ install_package() {
 	# exit the subshell on error, but still clean up
 	set -e
 	cd $TMPDIR
+	echo "Updating repo.dat..."
 	curl $REPO/repo.dat > repo.dat
-	for pkg in $@; do
-		install_package $pkg
-	done
+	if [[ "$1" == "--all" ]]; then
+		(while IFS=: read P J; do
+			install_package $P
+		done) < repo.dat
+	else
+		for pkg in $@; do
+			install_package $pkg
+		done
+	fi
 )
 
 echo cleaning up...
