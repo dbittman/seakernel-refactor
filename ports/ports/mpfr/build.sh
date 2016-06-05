@@ -12,5 +12,5 @@ prepare() {
 }
 
 build() {
-	standard_build "$STDCONF" "$STDMAKE" "$STDINSTALL"
+	standard_build "$STDCONF CC=$TARGET-gcc" "$STDMAKE" "$STDINSTALL"
 }

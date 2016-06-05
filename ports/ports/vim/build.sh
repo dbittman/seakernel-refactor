@@ -17,7 +17,7 @@ prepare() {
 
 build() {
 	cp -a ../vim-7.4/* .
-	if ! ./configure $STDCONF vim_cv_toupper_broken=no --with-tlib=ncurses vim_cv_terminfo=yes vim_cv_tty_mode=0620 vim_cv_tty_group=world vim_cv_getcwd_broken=no vim_cv_stat_ignores_slash=yes vim_cv_memmove_handles_overlap=yes --disable-sysmouse --disable-gpm --disable-xsmp --disable-xim LIBS="-lm -lncurses" X_PRE_LIBS= --disable-nls; then
+	if ! ./configure $STDCONF vim_cv_toupper_broken=no --with-tlib=ncursesw vim_cv_terminfo=yes vim_cv_tty_mode=0620 vim_cv_tty_group=world vim_cv_getcwd_broken=no vim_cv_stat_ignores_slash=yes vim_cv_memmove_handles_overlap=yes --disable-sysmouse --disable-gpm --disable-xsmp --disable-xim LIBS="-lm -lncursesw" X_PRE_LIBS= --disable-nls; then
 		return 1
 	fi
 	sed -i "s/\-lICE//g" src/auto/config.mk
