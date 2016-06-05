@@ -12,5 +12,5 @@ prepare() {
 }
 
 build() {
-	standard_build "$STDCONF --enable-languages=c,c++ --enable-lto --disable-nls --disable-werror --target=$TARGET --with-build-sysroot=$SYSROOT" "all-gcc all-target-libgcc all-target-libstdc++-v3" "install-gcc install-target-libgcc install-target-libstdc++-v3 $STDDESTDIR"
+	standard_build "$STDCONF --enable-host-shared --enable-shared enable_shared=yes --enable-languages=c,c++ --enable-lto --disable-nls --disable-werror --target=$TARGET --with-build-sysroot=$SYSROOT" "all-gcc all-target-libgcc all-target-libstdc++-v3" "install-gcc install-target-libgcc install-target-libstdc++-v3 $STDDESTDIR"
 }

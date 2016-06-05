@@ -114,6 +114,11 @@ do_package() {
 
 	cd ../install-$TARGET
 	(find -name '*.la' | xargs rm) 2>/dev/null
+	LIST=$(find . -executable -type f -exec file {} \; | grep -i elf | sed -r 's/^([^:]+):.*$/\1/p')
+	echo Stripping executables
+	for s in $LIST; do
+		$TARGET-strip --strip-all $s
+	done
 	echo Building manifest for $1...
 	find root | cut -c 5- > $NAME-$VERSION.manifest
 

@@ -12,6 +12,6 @@ prepare() {
 }
 
 build() {
-	standard_build "$STDCONF" "$STDMAKE -j4" "$STDINSTALL"
+	standard_build "$STDCONF --with-shared --enable-widec" "$STDMAKE -j4" "$STDINSTALL"
 }
 
