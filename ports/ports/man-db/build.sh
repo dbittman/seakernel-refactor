@@ -12,5 +12,7 @@ prepare() {
 }
 
 build() {
-	standard_build "$STDCONF" "$STDMAKE" "$STDINSTALL -i"
+	export PKG_CONFIG_PATH=$SYSROOT:$SYSROOT/usr
+	export PKG_CONFIG_LIBPATH=$SYSROOT/usr/lib
+	standard_build "$STDCONF libpipeline_CFLAGS= libpipeline_LIBS=" "$STDMAKE" "$STDINSTALL -i"
 }

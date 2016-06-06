@@ -1,6 +1,6 @@
 diff -uprN gcc-5.3.0/fixincludes/mkfixinc.sh gcc-5.3.0-patched/fixincludes/mkfixinc.sh
 --- gcc-5.3.0/fixincludes/mkfixinc.sh	2012-10-28 14:42:48.000000000 -0700
-+++ gcc-5.3.0-patched/fixincludes/mkfixinc.sh	2016-05-28 00:04:55.220492254 -0700
++++ gcc-5.3.0-patched/fixincludes/mkfixinc.sh	2016-06-05 15:26:17.638171957 -0700
 @@ -19,7 +19,8 @@ case $machine in
      powerpc-*-eabi*    | \
      powerpc-*-rtems*   | \
@@ -13,7 +13,7 @@ diff -uprN gcc-5.3.0/fixincludes/mkfixinc.sh gcc-5.3.0-patched/fixincludes/mkfix
  	(echo "#! /bin/sh" ; echo "exit 0" ) > ${target}
 diff -uprN gcc-5.3.0/gcc/config/aarch64/aarch64-linux.h gcc-5.3.0-patched/gcc/config/aarch64/aarch64-linux.h
 --- gcc-5.3.0/gcc/config/aarch64/aarch64-linux.h	2015-07-24 09:00:26.000000000 -0700
-+++ gcc-5.3.0-patched/gcc/config/aarch64/aarch64-linux.h	2016-05-28 00:04:55.220492254 -0700
++++ gcc-5.3.0-patched/gcc/config/aarch64/aarch64-linux.h	2016-06-05 15:26:17.638171957 -0700
 @@ -29,6 +29,8 @@
  #undef  CC1_SPEC
  #define CC1_SPEC GNU_USER_TARGET_CC1_SPEC ASAN_CC1_SPEC
@@ -25,7 +25,7 @@ diff -uprN gcc-5.3.0/gcc/config/aarch64/aarch64-linux.h gcc-5.3.0-patched/gcc/co
  #define LINUX_TARGET_LINK_SPEC  "%{h*}		\
 diff -uprN gcc-5.3.0/gcc/config/arm/linux-eabi.h gcc-5.3.0-patched/gcc/config/arm/linux-eabi.h
 --- gcc-5.3.0/gcc/config/arm/linux-eabi.h	2015-01-05 04:33:28.000000000 -0800
-+++ gcc-5.3.0-patched/gcc/config/arm/linux-eabi.h	2016-05-28 00:04:55.220492254 -0700
++++ gcc-5.3.0-patched/gcc/config/arm/linux-eabi.h	2016-06-05 15:26:17.638171957 -0700
 @@ -77,6 +77,23 @@
      %{mfloat-abi=soft*:" GLIBC_DYNAMIC_LINKER_SOFT_FLOAT "} \
      %{!mfloat-abi=*:" GLIBC_DYNAMIC_LINKER_DEFAULT "}"
@@ -52,7 +52,7 @@ diff -uprN gcc-5.3.0/gcc/config/arm/linux-eabi.h gcc-5.3.0-patched/gcc/config/ar
  #undef  LINK_SPEC
 diff -uprN gcc-5.3.0/gcc/config/i386/linux64.h gcc-5.3.0-patched/gcc/config/i386/linux64.h
 --- gcc-5.3.0/gcc/config/i386/linux64.h	2015-01-05 04:33:28.000000000 -0800
-+++ gcc-5.3.0-patched/gcc/config/i386/linux64.h	2016-05-28 00:04:55.220492254 -0700
++++ gcc-5.3.0-patched/gcc/config/i386/linux64.h	2016-06-05 15:26:17.638171957 -0700
 @@ -30,3 +30,7 @@ see the files COPYING3 and COPYING.RUNTI
  #define GLIBC_DYNAMIC_LINKER32 "/lib/ld-linux.so.2"
  #define GLIBC_DYNAMIC_LINKER64 "/lib64/ld-linux-x86-64.so.2"
@@ -63,7 +63,7 @@ diff -uprN gcc-5.3.0/gcc/config/i386/linux64.h gcc-5.3.0-patched/gcc/config/i386
 +#define MUSL_DYNAMIC_LINKERX32 "/lib/ld-musl-x32.so.1"
 diff -uprN gcc-5.3.0/gcc/config/i386/linux.h gcc-5.3.0-patched/gcc/config/i386/linux.h
 --- gcc-5.3.0/gcc/config/i386/linux.h	2015-01-05 04:33:28.000000000 -0800
-+++ gcc-5.3.0-patched/gcc/config/i386/linux.h	2016-05-28 00:04:55.220492254 -0700
++++ gcc-5.3.0-patched/gcc/config/i386/linux.h	2016-06-05 15:26:17.639171931 -0700
 @@ -21,3 +21,4 @@ along with GCC; see the file COPYING3.
  
  #define GNU_USER_LINK_EMULATION "elf_i386"
@@ -71,7 +71,7 @@ diff -uprN gcc-5.3.0/gcc/config/i386/linux.h gcc-5.3.0-patched/gcc/config/i386/l
 +#define MUSL_DYNAMIC_LINKER "/lib/ld-musl-i386.so.1"
 diff -uprN gcc-5.3.0/gcc/config/linux.h gcc-5.3.0-patched/gcc/config/linux.h
 --- gcc-5.3.0/gcc/config/linux.h	2015-01-05 04:33:28.000000000 -0800
-+++ gcc-5.3.0-patched/gcc/config/linux.h	2016-05-28 00:04:55.223825545 -0700
++++ gcc-5.3.0-patched/gcc/config/linux.h	2016-06-05 15:26:17.639171931 -0700
 @@ -32,10 +32,12 @@ see the files COPYING3 and COPYING.RUNTI
  #define OPTION_GLIBC  (DEFAULT_LIBC == LIBC_GLIBC)
  #define OPTION_UCLIBC (DEFAULT_LIBC == LIBC_UCLIBC)
@@ -214,7 +214,7 @@ diff -uprN gcc-5.3.0/gcc/config/linux.h gcc-5.3.0-patched/gcc/config/linux.h
     versions, because doing so would require *uclinux* targets to include
 diff -uprN gcc-5.3.0/gcc/config/linux.opt gcc-5.3.0-patched/gcc/config/linux.opt
 --- gcc-5.3.0/gcc/config/linux.opt	2015-01-05 04:33:28.000000000 -0800
-+++ gcc-5.3.0-patched/gcc/config/linux.opt	2016-05-28 00:04:55.223825545 -0700
++++ gcc-5.3.0-patched/gcc/config/linux.opt	2016-06-05 15:26:17.639171931 -0700
 @@ -30,3 +30,7 @@ Use GNU C library
  muclibc
  Target Report RejectNegative Var(linux_libc,LIBC_UCLIBC) Negative(mbionic)
@@ -225,7 +225,7 @@ diff -uprN gcc-5.3.0/gcc/config/linux.opt gcc-5.3.0-patched/gcc/config/linux.opt
 +Use musl C library
 diff -uprN gcc-5.3.0/gcc/config/microblaze/linux.h gcc-5.3.0-patched/gcc/config/microblaze/linux.h
 --- gcc-5.3.0/gcc/config/microblaze/linux.h	2015-05-28 07:08:19.000000000 -0700
-+++ gcc-5.3.0-patched/gcc/config/microblaze/linux.h	2016-05-28 00:04:55.223825545 -0700
++++ gcc-5.3.0-patched/gcc/config/microblaze/linux.h	2016-06-05 15:26:17.639171931 -0700
 @@ -28,7 +28,22 @@
  #undef TLS_NEEDS_GOT
  #define TLS_NEEDS_GOT 1
@@ -252,7 +252,7 @@ diff -uprN gcc-5.3.0/gcc/config/microblaze/linux.h gcc-5.3.0-patched/gcc/config/
    { "dynamic_linker", DYNAMIC_LINKER }
 diff -uprN gcc-5.3.0/gcc/config/microblaze/microblaze.h gcc-5.3.0-patched/gcc/config/microblaze/microblaze.h
 --- gcc-5.3.0/gcc/config/microblaze/microblaze.h	2015-01-05 04:33:28.000000000 -0800
-+++ gcc-5.3.0-patched/gcc/config/microblaze/microblaze.h	2016-05-28 00:04:55.223825545 -0700
++++ gcc-5.3.0-patched/gcc/config/microblaze/microblaze.h	2016-06-05 15:26:17.639171931 -0700
 @@ -218,6 +218,12 @@ extern enum pipeline_type microblaze_pip
  #undef PTRDIFF_TYPE
  #define PTRDIFF_TYPE "int"
@@ -268,7 +268,7 @@ diff -uprN gcc-5.3.0/gcc/config/microblaze/microblaze.h gcc-5.3.0-patched/gcc/co
     && (ALIGN) < BITS_PER_WORD						\
 diff -uprN gcc-5.3.0/gcc/config/mips/linux.h gcc-5.3.0-patched/gcc/config/mips/linux.h
 --- gcc-5.3.0/gcc/config/mips/linux.h	2015-01-05 04:33:28.000000000 -0800
-+++ gcc-5.3.0-patched/gcc/config/mips/linux.h	2016-05-28 00:04:55.223825545 -0700
++++ gcc-5.3.0-patched/gcc/config/mips/linux.h	2016-06-05 15:26:17.640171905 -0700
 @@ -31,6 +31,13 @@ along with GCC; see the file COPYING3.
  #undef UCLIBC_DYNAMIC_LINKER32
  #define UCLIBC_DYNAMIC_LINKER32 \
@@ -291,7 +291,7 @@ diff -uprN gcc-5.3.0/gcc/config/mips/linux.h gcc-5.3.0-patched/gcc/config/mips/l
 +                         BIONIC_DYNAMIC_LINKERN32, MUSL_DYNAMIC_LINKERN32)
 diff -uprN gcc-5.3.0/gcc/config/rs6000/linux64.h gcc-5.3.0-patched/gcc/config/rs6000/linux64.h
 --- gcc-5.3.0/gcc/config/rs6000/linux64.h	2015-03-09 16:18:57.000000000 -0700
-+++ gcc-5.3.0-patched/gcc/config/rs6000/linux64.h	2016-05-28 00:04:55.223825545 -0700
++++ gcc-5.3.0-patched/gcc/config/rs6000/linux64.h	2016-06-05 15:26:17.640171905 -0700
 @@ -365,17 +365,21 @@ extern int dot_symbols;
  #endif
  #define UCLIBC_DYNAMIC_LINKER32 "/lib/ld-uClibc.so.0"
@@ -320,7 +320,7 @@ diff -uprN gcc-5.3.0/gcc/config/rs6000/linux64.h gcc-5.3.0-patched/gcc/config/rs
  #if (TARGET_DEFAULT & MASK_LITTLE_ENDIAN)
 diff -uprN gcc-5.3.0/gcc/config/rs6000/secureplt.h gcc-5.3.0-patched/gcc/config/rs6000/secureplt.h
 --- gcc-5.3.0/gcc/config/rs6000/secureplt.h	2015-01-05 04:33:28.000000000 -0800
-+++ gcc-5.3.0-patched/gcc/config/rs6000/secureplt.h	2016-05-28 00:04:55.223825545 -0700
++++ gcc-5.3.0-patched/gcc/config/rs6000/secureplt.h	2016-06-05 15:26:17.640171905 -0700
 @@ -18,3 +18,4 @@ along with GCC; see the file COPYING3.
  <http://www.gnu.org/licenses/>.  */
  
@@ -328,7 +328,7 @@ diff -uprN gcc-5.3.0/gcc/config/rs6000/secureplt.h gcc-5.3.0-patched/gcc/config/
 +#define LINK_SECURE_PLT_DEFAULT_SPEC "--secure-plt"
 diff -uprN gcc-5.3.0/gcc/config/rs6000/sysv4.h gcc-5.3.0-patched/gcc/config/rs6000/sysv4.h
 --- gcc-5.3.0/gcc/config/rs6000/sysv4.h	2015-09-24 06:46:45.000000000 -0700
-+++ gcc-5.3.0-patched/gcc/config/rs6000/sysv4.h	2016-05-28 00:04:55.223825545 -0700
++++ gcc-5.3.0-patched/gcc/config/rs6000/sysv4.h	2016-06-05 15:26:17.640171905 -0700
 @@ -537,6 +537,9 @@ ENDIAN_SELECT(" -mbig", " -mlittle", DEF
  #ifndef CC1_SECURE_PLT_DEFAULT_SPEC
  #define CC1_SECURE_PLT_DEFAULT_SPEC ""
@@ -381,7 +381,7 @@ diff -uprN gcc-5.3.0/gcc/config/rs6000/sysv4.h gcc-5.3.0-patched/gcc/config/rs60
    { "cpp_os_mvme",		CPP_OS_MVME_SPEC },			\
 diff -uprN gcc-5.3.0/gcc/config/sh/linux.h gcc-5.3.0-patched/gcc/config/sh/linux.h
 --- gcc-5.3.0/gcc/config/sh/linux.h	2015-01-05 04:33:28.000000000 -0800
-+++ gcc-5.3.0-patched/gcc/config/sh/linux.h	2016-05-28 00:04:55.223825545 -0700
++++ gcc-5.3.0-patched/gcc/config/sh/linux.h	2016-06-05 15:26:17.641171880 -0700
 @@ -43,7 +43,14 @@ along with GCC; see the file COPYING3.
  
  #define TARGET_ASM_FILE_END file_end_indicate_exec_stack
@@ -399,7 +399,7 @@ diff -uprN gcc-5.3.0/gcc/config/sh/linux.h gcc-5.3.0-patched/gcc/config/sh/linux
  #define SUBTARGET_LINK_EMUL_SUFFIX "_linux"
 diff -uprN gcc-5.3.0/gcc/config.gcc gcc-5.3.0-patched/gcc/config.gcc
 --- gcc-5.3.0/gcc/config.gcc	2015-09-10 07:17:53.000000000 -0700
-+++ gcc-5.3.0-patched/gcc/config.gcc	2016-05-28 00:04:55.223825545 -0700
++++ gcc-5.3.0-patched/gcc/config.gcc	2016-06-05 15:26:17.642171854 -0700
 @@ -575,7 +575,7 @@ case ${target} in
  esac
  
@@ -432,7 +432,7 @@ diff -uprN gcc-5.3.0/gcc/config.gcc gcc-5.3.0-patched/gcc/config.gcc
  	fi
 diff -uprN gcc-5.3.0/gcc/configure gcc-5.3.0-patched/gcc/configure
 --- gcc-5.3.0/gcc/configure	2015-11-19 05:32:10.000000000 -0800
-+++ gcc-5.3.0-patched/gcc/configure	2016-05-28 00:04:55.227158836 -0700
++++ gcc-5.3.0-patched/gcc/configure	2016-06-05 15:29:34.224120967 -0700
 @@ -27802,6 +27802,9 @@ if test "${gcc_cv_libc_provides_ssp+set}
  else
    gcc_cv_libc_provides_ssp=no
@@ -451,7 +451,20 @@ diff -uprN gcc-5.3.0/gcc/configure gcc-5.3.0-patched/gcc/configure
  	 gcc_cv_libc_provides_ssp=yes;;
         *-*-darwin* | *-*-freebsd*)
  	 ac_fn_c_check_func "$LINENO" "__stack_chk_fail" "ac_cv_func___stack_chk_fail"
-@@ -27930,6 +27934,9 @@ case "$target" in
+@@ -27861,12 +27865,6 @@ fi
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking sys/sdt.h in the target C library" >&5
+ $as_echo_n "checking sys/sdt.h in the target C library... " >&6; }
+ have_sys_sdt_h=no
+-if test -f $target_header_dir/sys/sdt.h; then
+-  have_sys_sdt_h=yes
+-
+-$as_echo "#define HAVE_SYS_SDT_H 1" >>confdefs.h
+-
+-fi
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_sys_sdt_h" >&5
+ $as_echo "$have_sys_sdt_h" >&6; }
+ 
+@@ -27930,6 +27928,9 @@ case "$target" in
        gcc_cv_target_dl_iterate_phdr=no
      fi
      ;;
@@ -463,7 +476,7 @@ diff -uprN gcc-5.3.0/gcc/configure gcc-5.3.0-patched/gcc/configure
  if test x$gcc_cv_target_dl_iterate_phdr = xyes; then
 diff -uprN gcc-5.3.0/gcc/configure.ac gcc-5.3.0-patched/gcc/configure.ac
 --- gcc-5.3.0/gcc/configure.ac	2015-11-19 05:32:10.000000000 -0800
-+++ gcc-5.3.0-patched/gcc/configure.ac	2016-05-28 00:04:55.230492128 -0700
++++ gcc-5.3.0-patched/gcc/configure.ac	2016-06-05 15:26:17.647171726 -0700
 @@ -5282,6 +5282,9 @@ AC_CACHE_CHECK(__stack_chk_fail in targe
        gcc_cv_libc_provides_ssp,
        [gcc_cv_libc_provides_ssp=no
@@ -494,7 +507,7 @@ diff -uprN gcc-5.3.0/gcc/configure.ac gcc-5.3.0-patched/gcc/configure.ac
  if test x$gcc_cv_target_dl_iterate_phdr = xyes; then
 diff -uprN gcc-5.3.0/gcc/cp/cfns.gperf gcc-5.3.0-patched/gcc/cp/cfns.gperf
 --- gcc-5.3.0/gcc/cp/cfns.gperf	2015-01-05 04:33:28.000000000 -0800
-+++ gcc-5.3.0-patched/gcc/cp/cfns.gperf	2016-05-28 00:04:49.477231077 -0700
++++ gcc-5.3.0-patched/gcc/cp/cfns.gperf	2016-06-05 15:26:17.647171726 -0700
 @@ -22,6 +22,9 @@ __inline
  static unsigned int hash (const char *, unsigned int);
  #ifdef __GNUC__
@@ -507,7 +520,7 @@ diff -uprN gcc-5.3.0/gcc/cp/cfns.gperf gcc-5.3.0-patched/gcc/cp/cfns.gperf
  %}
 diff -uprN gcc-5.3.0/gcc/cp/cfns.h gcc-5.3.0-patched/gcc/cp/cfns.h
 --- gcc-5.3.0/gcc/cp/cfns.h	2015-01-05 04:33:28.000000000 -0800
-+++ gcc-5.3.0-patched/gcc/cp/cfns.h	2016-05-28 00:04:49.477231077 -0700
++++ gcc-5.3.0-patched/gcc/cp/cfns.h	2016-06-05 15:26:17.648171700 -0700
 @@ -53,6 +53,9 @@ __inline
  static unsigned int hash (const char *, unsigned int);
  #ifdef __GNUC__
@@ -520,7 +533,7 @@ diff -uprN gcc-5.3.0/gcc/cp/cfns.h gcc-5.3.0-patched/gcc/cp/cfns.h
  /* maximum key range = 391, duplicates = 0 */
 diff -uprN gcc-5.3.0/gcc/gcc.c gcc-5.3.0-patched/gcc/gcc.c
 --- gcc-5.3.0/gcc/gcc.c	2015-03-10 02:37:41.000000000 -0700
-+++ gcc-5.3.0-patched/gcc/gcc.c	2016-05-28 00:04:55.230492128 -0700
++++ gcc-5.3.0-patched/gcc/gcc.c	2016-06-05 15:26:17.649171674 -0700
 @@ -729,7 +729,7 @@ proper position among the other output f
  #ifndef LINK_SSP_SPEC
  #ifdef TARGET_LIBC_PROVIDES_SSP
@@ -532,7 +545,7 @@ diff -uprN gcc-5.3.0/gcc/gcc.c gcc-5.3.0-patched/gcc/gcc.c
  		       "|fstack-protector-strong|fstack-protector-explicit" \
 diff -uprN gcc-5.3.0/gcc/ginclude/stddef.h gcc-5.3.0-patched/gcc/ginclude/stddef.h
 --- gcc-5.3.0/gcc/ginclude/stddef.h	2015-01-05 04:33:28.000000000 -0800
-+++ gcc-5.3.0-patched/gcc/ginclude/stddef.h	2016-05-28 00:04:55.230492128 -0700
++++ gcc-5.3.0-patched/gcc/ginclude/stddef.h	2016-06-05 15:26:17.649171674 -0700
 @@ -184,6 +184,7 @@ typedef __PTRDIFF_TYPE__ ptrdiff_t;
  #ifndef _GCC_SIZE_T
  #ifndef _SIZET_
@@ -583,7 +596,7 @@ diff -uprN gcc-5.3.0/gcc/ginclude/stddef.h gcc-5.3.0-patched/gcc/ginclude/stddef
  #endif
 diff -uprN gcc-5.3.0/libgcc/gthr.h gcc-5.3.0-patched/libgcc/gthr.h
 --- gcc-5.3.0/libgcc/gthr.h	2015-01-05 04:33:28.000000000 -0800
-+++ gcc-5.3.0-patched/libgcc/gthr.h	2016-05-28 00:04:55.230492128 -0700
++++ gcc-5.3.0-patched/libgcc/gthr.h	2016-06-05 15:26:17.649171674 -0700
 @@ -136,10 +136,8 @@ see the files COPYING3 and COPYING.RUNTI
  /* The pe-coff weak support isn't fully compatible to ELF's weak.
     For static libraries it might would work, but as we need to deal
@@ -597,7 +610,7 @@ diff -uprN gcc-5.3.0/libgcc/gthr.h gcc-5.3.0-patched/libgcc/gthr.h
  #define GTHREAD_USE_WEAK 1
 diff -uprN gcc-5.3.0/libgcc/unwind-dw2-fde-dip.c gcc-5.3.0-patched/libgcc/unwind-dw2-fde-dip.c
 --- gcc-5.3.0/libgcc/unwind-dw2-fde-dip.c	2015-01-27 02:02:26.000000000 -0800
-+++ gcc-5.3.0-patched/libgcc/unwind-dw2-fde-dip.c	2016-05-28 00:04:55.230492128 -0700
++++ gcc-5.3.0-patched/libgcc/unwind-dw2-fde-dip.c	2016-06-05 15:26:17.650171649 -0700
 @@ -46,6 +46,10 @@
  #include "unwind-compat.h"
  #include "gthr.h"
@@ -611,7 +624,7 @@ diff -uprN gcc-5.3.0/libgcc/unwind-dw2-fde-dip.c gcc-5.3.0-patched/libgcc/unwind
  	|| (__GLIBC__ == 2 && __GLIBC_MINOR__ == 2 && defined(DT_CONFIG)))
 diff -uprN gcc-5.3.0/libgomp/config/posix/time.c gcc-5.3.0-patched/libgomp/config/posix/time.c
 --- gcc-5.3.0/libgomp/config/posix/time.c	2015-01-10 11:10:37.000000000 -0800
-+++ gcc-5.3.0-patched/libgomp/config/posix/time.c	2016-05-28 00:04:55.230492128 -0700
++++ gcc-5.3.0-patched/libgomp/config/posix/time.c	2016-06-05 15:26:17.650171649 -0700
 @@ -29,6 +29,8 @@
     The following implementation uses the most simple POSIX routines.
     If present, POSIX 4 clocks should be used instead.  */
@@ -623,7 +636,7 @@ diff -uprN gcc-5.3.0/libgomp/config/posix/time.c gcc-5.3.0-patched/libgomp/confi
  #if TIME_WITH_SYS_TIME
 diff -uprN gcc-5.3.0/libitm/config/arm/hwcap.cc gcc-5.3.0-patched/libitm/config/arm/hwcap.cc
 --- gcc-5.3.0/libitm/config/arm/hwcap.cc	2015-01-05 04:33:28.000000000 -0800
-+++ gcc-5.3.0-patched/libitm/config/arm/hwcap.cc	2016-05-28 00:04:55.230492128 -0700
++++ gcc-5.3.0-patched/libitm/config/arm/hwcap.cc	2016-06-05 15:26:17.650171649 -0700
 @@ -40,7 +40,11 @@ int GTM_hwcap HIDDEN = 0
  
  #ifdef __linux__
@@ -638,7 +651,7 @@ diff -uprN gcc-5.3.0/libitm/config/arm/hwcap.cc gcc-5.3.0-patched/libitm/config/
  static void __attribute__((constructor))
 diff -uprN gcc-5.3.0/libitm/config/linux/x86/tls.h gcc-5.3.0-patched/libitm/config/linux/x86/tls.h
 --- gcc-5.3.0/libitm/config/linux/x86/tls.h	2015-01-05 04:33:28.000000000 -0800
-+++ gcc-5.3.0-patched/libitm/config/linux/x86/tls.h	2016-05-28 00:04:55.230492128 -0700
++++ gcc-5.3.0-patched/libitm/config/linux/x86/tls.h	2016-06-05 15:26:17.650171649 -0700
 @@ -25,16 +25,19 @@
  #ifndef LIBITM_X86_TLS_H
  #define LIBITM_X86_TLS_H 1
@@ -668,9 +681,24 @@ diff -uprN gcc-5.3.0/libitm/config/linux/x86/tls.h gcc-5.3.0-patched/libitm/conf
 +#endif
  
  #endif // LIBITM_X86_TLS_H
+diff -uprN gcc-5.3.0/libstdc++-v3/configure gcc-5.3.0-patched/libstdc++-v3/configure
+--- gcc-5.3.0/libstdc++-v3/configure	2015-11-26 05:51:04.000000000 -0800
++++ gcc-5.3.0-patched/libstdc++-v3/configure	2016-06-05 15:29:48.980742028 -0700
+@@ -20889,11 +20889,6 @@ ac_compile='$CC -c $CFLAGS $CPPFLAGS con
+ ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
+ ac_compiler_gnu=$ac_cv_c_compiler_gnu
+ 
+-  if test $glibcxx_cv_sys_sdt_h = yes; then
+-
+-$as_echo "#define HAVE_SYS_SDT_H 1" >>confdefs.h
+-
+-  fi
+   { $as_echo "$as_me:${as_lineno-$LINENO}: result: $glibcxx_cv_sys_sdt_h" >&5
+ $as_echo "$glibcxx_cv_sys_sdt_h" >&6; }
+ 
 diff -uprN gcc-5.3.0/libstdc++-v3/configure.host gcc-5.3.0-patched/libstdc++-v3/configure.host
 --- gcc-5.3.0/libstdc++-v3/configure.host	2015-06-24 02:59:28.000000000 -0700
-+++ gcc-5.3.0-patched/libstdc++-v3/configure.host	2016-05-28 00:04:55.230492128 -0700
++++ gcc-5.3.0-patched/libstdc++-v3/configure.host	2016-06-05 15:26:17.651171623 -0700
 @@ -274,6 +274,13 @@ case "${host_os}" in
      os_include_dir="os/bsd/freebsd"
      ;;
