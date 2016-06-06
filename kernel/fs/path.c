@@ -16,7 +16,7 @@ int __resolve_symlink(struct inode *node, struct inode *parent, int depth, struc
 	assert(S_ISLNK(node->mode));
 	char path[256];
 	int err;
-	if((err=node->fs->driver->inode_ops->readlink(node, path, 255) != 0))
+	if(((err=node->fs->driver->inode_ops->readlink(node, path, 255)) != 0))
 		return err;
 	TRACE(&path_trace, "symlink %ld contained %s. Lookup %x", node->id.inoid, path, (depth+1) << 16);
 	return fs_path_resolve(path, parent, (depth + 1) << 16, 0, dir_out, ino_out);
