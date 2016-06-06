@@ -274,8 +274,9 @@ ssize_t sys_pwrite(int fd, void *buf, size_t count, size_t off)
 ssize_t sys_pwritev(int fd, struct iovec *iov, int iovc, size_t off)
 {
 	struct file *file = process_get_file(fd);
-	if(!file)
+	if(!file) {
 		return -EBADF;
+	}
 	if(!(file->flags & F_WRITE)) {
 		kobj_putref(file);
 		return -EACCES;

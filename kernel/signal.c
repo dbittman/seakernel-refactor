@@ -17,6 +17,7 @@ bool thread_send_signal(struct thread *thread, int signal)
 		if(thread != current_thread)
 			thread_unblock(thread);
 	}
+	thread->flags |= THREAD_RESCHEDULE;
 	spinlock_release(&thread->signal_lock);
 	return ret;
 }
@@ -41,43 +42,45 @@ bool thread_check_status_retuser(struct thread *thread)
 		preempt();
 
 		int signal = thread->signal;
-		struct process *process = thread->process;
-		if(signal != SIGKILL && signal != SIGSTOP && signal_is_userspace_handler(process->actions[signal].handler)) {
-			/* user-handled */
-			ret = true;
-		} else if(signal == SIGKILL || signal == SIGSTOP || process->actions[signal].handler == SIG_DFL) {
-			/* default actions */
-			thread->signal = 0;
-			bool core = false;
-			switch(signal) {
-				case SIGSEGV: case SIGQUIT: case SIGFPE: case SIGABRT: case SIGILL:
-					core = true;
-					/* fall through */
-				case SIGALRM: case SIGBUS: case SIGHUP: 
-				case SIGINT: case SIGKILL: case SIGPIPE: 
-				case SIGTERM: case SIGUSR1: case SIGUSR2: case SIGPOLL: case SIGPROF:
-				case SIGSYS: case SIGTRAP:
-					/* kill */
-					thread->flags |= THREAD_EXIT;
-					thread->process->status = process_make_status(0, signal, false, core);
-					thread->process->flags |= PROC_STATUS_CHANGED;
-					break;
-				case SIGCONT:
-					thread->process->status = 0xffff;
-					thread->process->flags |= PROC_STATUS_CHANGED;
-					/* TODO: stopping and continuing */
-					break;
-				case SIGSTOP: case SIGTSTP: case SIGTTIN: case SIGTTOU:
-					thread->process->status = 0x7f;
-					thread->process->flags |= PROC_STATUS_CHANGED;
-					break;
+		if(signal) {
+			struct process *process = thread->process;
+			if(signal != SIGKILL && signal != SIGSTOP && signal_is_userspace_handler(process->actions[signal].handler)) {
+				/* user-handled */
+				ret = true;
+			} else if(signal == SIGKILL || signal == SIGSTOP || process->actions[signal].handler == SIG_DFL) {
+				/* default actions */
+				thread->signal = 0;
+				bool core = false;
+				switch(signal) {
+					case SIGSEGV: case SIGQUIT: case SIGFPE: case SIGABRT: case SIGILL:
+						core = true;
+						/* fall through */
+					case SIGALRM: case SIGBUS: case SIGHUP: 
+					case SIGINT: case SIGKILL: case SIGPIPE: 
+					case SIGTERM: case SIGUSR1: case SIGUSR2: case SIGPOLL: case SIGPROF:
+					case SIGSYS: case SIGTRAP:
+						/* kill */
+						thread->flags |= THREAD_EXIT;
+						thread->process->status = process_make_status(0, signal, false, core);
+						thread->process->flags |= PROC_STATUS_CHANGED;
+						break;
+					case SIGCONT:
+						thread->process->status = 0xffff;
+						thread->process->flags |= PROC_STATUS_CHANGED;
+						/* TODO: stopping and continuing */
+						break;
+					case SIGSTOP: case SIGTSTP: case SIGTTIN: case SIGTTOU:
+						thread->process->status = 0x7f;
+						thread->process->flags |= PROC_STATUS_CHANGED;
+						break;
+				}
+				blocklist_unblock_all(&thread->process->wait);
+			} else if(process->actions[signal].handler == SIG_IGN) {
+				thread->signal = 0;
 			}
-			blocklist_unblock_all(&thread->process->wait);
-		} else if(process->actions[signal].handler == SIG_IGN) {
-			thread->signal = 0;
 		}
 	}
-	
+
 	if(thread->flags & THREAD_EXIT) {
 		sys_do_exit(thread->exit_code);
 	}

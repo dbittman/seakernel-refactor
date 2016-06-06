@@ -64,7 +64,7 @@ static ssize_t _pipe_read(struct file *file,
 	int flags = CHARBUFFER_DO_ANY;
 	if(file->flags & O_NONBLOCK)
 		flags |= CHARBUFFER_DO_NONBLOCK;
-	size_t ret = charbuffer_read(&pipe->buf, buf, len, flags);
+	ssize_t ret = charbuffer_read(&pipe->buf, buf, len, flags);
 	return ret;
 }
 
@@ -81,7 +81,7 @@ static ssize_t _pipe_write(struct file *file,
 	int flags = CHARBUFFER_DO_ANY;
 	if(file->flags & O_NONBLOCK)
 		flags |= CHARBUFFER_DO_NONBLOCK;
-	size_t ret = charbuffer_write(&pipe->buf, buf, len, flags);
+	ssize_t ret = charbuffer_write(&pipe->buf, buf, len, flags);
 	return ret;
 }
 
