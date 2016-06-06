@@ -97,13 +97,14 @@ do_package() {
 	cp -r ports/$1 build/
 	cd build/$1
 	STDDESTDIR="DESTDIR=$(pwd)/install-$TARGET/root"
+	INSTALLDIR="$(pwd)/install-$TARGET/root"
 	STDINSTALL="install DESTDIR=$(pwd)/install-$TARGET/root"
 	echo Preparing $1...
 	if ! prepare > build-$TARGET.log; then
 		cd ../..
 		return 1
 	fi
-	mkdir -p build-$TARGET
+	mkdir -p build-$TARGET install-$TARGET/root
 	cd build-$TARGET
 	echo Building $1...
 	if ! build >> ../build-$TARGET.log 2>&1; then
