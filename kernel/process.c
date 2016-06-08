@@ -138,7 +138,7 @@ static void __remove_proc_entries(struct process *proc)
 	assert(r == 0);
 	snprintf(str, 128, "/proc/%d", proc->pid);
 	r = sys_rmdir(str);
-	assert(r == 0);
+	assertmsg(r == 0, "%d", r);
 }
 
 void process_exit(struct process *proc, int code)

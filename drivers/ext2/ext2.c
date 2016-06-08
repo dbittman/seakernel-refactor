@@ -7,6 +7,8 @@
 #include <errno.h>
 #include <fs/filesystem.h>
 
+/* TODO: release blocks on inode release */
+
 static struct kobj kobj_ext2 = KOBJ_DEFAULT(ext2);
 
 static int ext2_read_blockdev(struct ext2 *fs, uint32_t fsblock, int count, uintptr_t phys, bool cache)
@@ -54,6 +56,7 @@ static size_t ext2_write_data(struct ext2 *fs, size_t off, size_t len, void *buf
 	return len;
 }
 
+static int __alloc_block(struct ext2 *fs, uint32_t *out_id);
 static int ext2_get_indirection(struct ext2 *ext2, uint32_t blknum, uint32_t *direct, uint32_t *indirect)
 {
 	unsigned int num_ptrs = ext2_sb_blocksize(&ext2->superblock) / 4;
@@ -139,6 +142,59 @@ int ext2_inode_write(struct ext2 *ext2, uint64_t extid, struct ext2_inode *eno)
 	ext2_write_data(ext2, group.inode_table * ext2_sb_blocksize(&ext2->superblock) + inosz * (intid % ext2->superblock.inodes_per_group),
 			sizeof(struct ext2_inode), eno);
 
+	return 0;
+}
+
+static int ext2_inode_set_block(struct ext2 *ext2, struct ext2_inode *eno, uint32_t blknum, uint32_t setblock)
+{
+	uint32_t direct, indirect;
+	int level = ext2_get_indirection(ext2, blknum, &direct, &indirect);
+
+	unsigned int blksz = ext2_sb_blocksize(&ext2->superblock);
+	uintptr_t phys = mm_physical_allocate(blksz < arch_mm_page_size(0) ? arch_mm_page_size(0) : blksz, false);
+	char *buf = (char *)(phys + PHYS_MAP_START);
+
+	int num_ptrs = ext2_sb_blocksize(&ext2->superblock) / 4;
+	uint32_t block = eno->blocks[direct];
+	int prev = direct;
+	uint32_t prev_block = 0;
+	if(level == 0)
+		eno->blocks[direct] = setblock;
+
+	for(int i=0;i<level;i++) {
+		if(block == 0) {
+			if(__alloc_block(ext2, &block) != 0) {
+				mm_physical_deallocate(phys);
+				return -ENOSPC;
+			}
+			if(i == 0) {
+				eno->blocks[direct] = block;
+			} else {
+				((uint32_t *)buf)[prev] = block;
+				assert(prev_block != 0);
+				ext2_write_blockdev(ext2, prev_block, 1, phys);
+			}
+
+		}
+		uint32_t div = 1;
+		if(level - i == 3)
+			div = num_ptrs * num_ptrs;
+		else if(level - i == 2)
+			div = num_ptrs;
+		
+		int entry = indirect / div;
+		prev = entry;
+		indirect %= div;
+		
+		prev_block = block;
+		ext2_read_blockdev(ext2, block, 1, phys, true);
+		if(i == level - 1) {
+			((uint32_t *)buf)[entry] = setblock;
+			ext2_write_blockdev(ext2, block, 1, phys);
+		}
+		block = ((uint32_t *)buf)[entry];
+	}
+	mm_physical_deallocate(phys);
 	return 0;
 }
 
@@ -276,21 +332,6 @@ out:
 	return read;
 }
 
-static int _write_page(struct inode *node, int pagenr, uintptr_t phys)
-{
-	struct ext2 *ext2 = node->fs->fsdata;
-	int blocknr = pagenr * arch_mm_page_size(0) / ext2_sb_blocksize(&ext2->superblock);
-	int count = arch_mm_page_size(0) / ext2_sb_blocksize(&ext2->superblock);
-
-	struct ext2_inode eno;
-	ext2_inode_get(ext2, node->id.inoid, &eno);
-
-	/* TODO: allocate... */
-	uint32_t block = ext2_inode_get_block(ext2, &eno, blocknr);
-	ext2_write_blockdev(ext2, block, count, phys);
-	return 0;
-}
-
 static int _load_inode(struct filesystem *fs, uint64_t inoid, struct inode *node)
 {
 	struct ext2 *ext2 = fs->fsdata;
@@ -330,6 +371,7 @@ static int _get_dirent_type(struct inode *node)
 	}
 }
 
+/* TODO: are directories as compact as possible? */
 static int _link(struct inode *node, const char *name, size_t namelen, struct inode *target)
 {
 	struct ext2 *ext2 = node->fs->fsdata;
@@ -359,9 +401,9 @@ static int _link(struct inode *node, const char *name, size_t namelen, struct in
 					dir->type = _get_dirent_type(target);
 					assert(((uintptr_t)dir - (inopage->frame + PHYS_MAP_START)) + dir->record_len == ext2_sb_blocksize(&ext2->superblock));
 					inopage->flags |= INODEPAGE_DIRTY;
-					inode_release_page(inopage);
 					if(node->length < dir->record_len + dirread)
 						node->length = dir->record_len + dirread;
+					inode_release_page(inopage);
 					inode_mark_dirty(node);
 					return 0;
 				}
@@ -413,6 +455,70 @@ static int _unlink(struct inode *node, const char *name, size_t namelen)
 		inode_release_page(inopage);
 	}
 	return -ENOENT;
+}
+
+/* TODO: allocate block and allocate inode need locks? */
+static uint32_t __allocate_block_from_group(struct ext2 *ext2, int gid, struct ext2_blockgroup *group)
+{
+	uintptr_t phys = mm_physical_allocate(ext2_sb_blocksize(&ext2->superblock), false);
+	ext2_read_blockdev(ext2, group->block_bitmap, 1, phys, true);
+	char *bitmap = (char *)(phys + PHYS_MAP_START);
+	for(unsigned i=0;i<ext2->superblock.blocks_per_group;i++) {
+		int offset = i / 8;
+		int bit = i % 8;
+		if(!(bitmap[offset] & (1 << bit))) {
+			bitmap[offset] |= 1 << bit;
+			ext2_write_blockdev(ext2, group->block_bitmap, 1, phys);
+			group->free_blocks--;
+			ext2_write_data(ext2, (ext2->superblock.first_data_block + 1) * ext2_sb_blocksize(&ext2->superblock) + 
+					(gid * sizeof(struct ext2_blockgroup)), sizeof(*group), group);
+			mm_physical_deallocate(phys);
+			return i;
+		}
+	}
+	mm_physical_deallocate(phys);
+	return 0;
+}
+
+static int __alloc_block(struct ext2 *ext2, uint32_t *out_id)
+{
+	for(unsigned i=0;i<ext2_sb_bgcount(&ext2->superblock);i++) {
+		struct ext2_blockgroup group;
+		ext2_read_data(ext2, (ext2->superblock.first_data_block + 1) * ext2_sb_blocksize(&ext2->superblock) + 
+				(i * sizeof(struct ext2_blockgroup)), sizeof(group), &group);
+		if(group.free_blocks > 0) {
+			*out_id = (__allocate_block_from_group(ext2, i, &group) + i * ext2->superblock.blocks_per_group);
+			return *out_id == 0 ? -EIO : 0;
+		}
+	}
+
+	return -ENOSPC;
+}
+
+static int _write_page(struct inode *node, int pagenr, uintptr_t phys)
+{
+	struct ext2 *ext2 = node->fs->fsdata;
+	int blocknr = pagenr * arch_mm_page_size(0) / ext2_sb_blocksize(&ext2->superblock);
+	int count = arch_mm_page_size(0) / ext2_sb_blocksize(&ext2->superblock);
+
+	struct ext2_inode eno;
+	ext2_inode_get(ext2, node->id.inoid, &eno);
+
+	uint32_t block = ext2_inode_get_block(ext2, &eno, blocknr);
+	if(block == 0) {
+		int err = __alloc_block(ext2, &block);
+		if(err != 0)
+			return err;
+		if(ext2_inode_set_block(ext2, &eno, blocknr, block) != 0)
+			return -ENOSPC;
+		ext2_inode_write(ext2, node->id.inoid, &eno);
+#if CONFIG_DEBUG
+		uint32_t b = ext2_inode_get_block(ext2, &eno, blocknr);
+		assertmsg(b == block, "%d %d", b, block);
+#endif
+	}
+	ext2_write_blockdev(ext2, block, count, phys);
+	return 0;
 }
 
 static uint32_t __allocate_inode_from_group(struct ext2 *ext2, int gid, struct ext2_blockgroup *group)
@@ -485,7 +591,30 @@ static int _mount(struct filesystem *fs, struct blockdev *bd, unsigned long flag
 		kobj_putref(ext2);
 		return -EIO;
 	}
+	if(ext2_sb_blocksize(&ext2->superblock) < arch_mm_page_size(0)) {
+		printk("TODO: support block sizes that are less than page size\n");
+		return -EIO;
+	}
 	printk("mounting ext2 fs: blksz %ld, ino/grp %d\n", ext2_sb_blocksize(&ext2->superblock), ext2->superblock.inodes_per_group);
+	return 0;
+}
+
+static int _update_inode(struct filesystem *fs, struct inode *node)
+{
+	struct ext2 *ext2 = fs->fsdata;
+	struct ext2_inode eno;
+	ext2_inode_get(ext2, node->id.inoid, &eno);
+
+	eno.uid = node->uid;
+	eno.mode = node->mode;
+	eno.link_count = node->links;
+	eno.gid = node->gid;
+	eno.access_time = node->atime;
+	eno.modification_time = node->mtime;
+	eno.change_time = node->ctime;
+	eno.size = node->length;
+	ext2_inode_write(ext2, node->id.inoid, &eno);
+	
 	return 0;
 }
 
@@ -505,7 +634,7 @@ static struct inode_ops ext2_inode_ops = {
 static struct fs_ops ext2_fs_ops = {
 	.load_inode = _load_inode,
 	.alloc_inode = _alloc_inode,
-	.update_inode = 0,
+	.update_inode = _update_inode,
 	.unmount = 0,
 	.mount = _mount,
 	.release_inode = _release_inode,

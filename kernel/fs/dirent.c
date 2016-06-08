@@ -5,6 +5,8 @@
 #include <string.h>
 #include <fs/filesystem.h>
 
+/* TODO: dirent cache? */
+
 struct kobj kobj_dirent = KOBJ_DEFAULT(dirent);
 
 struct inode *dirent_get_inode(struct dirent *dir)

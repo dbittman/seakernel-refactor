@@ -96,7 +96,12 @@ int fs_mount(struct inode *point, struct filesystem *fs)
 	struct filesystem *exp = NULL;
 	fs->up_mount.fsid = point->id.fsid;
 	fs->up_mount.inoid = point->id.inoid;
-	return atomic_compare_exchange_strong(&point->mount, &exp, fs) ? 0 : -EBUSY;
+	bool succ = atomic_compare_exchange_strong(&point->mount, &exp, fs);
+	if(!succ)
+		return -EBUSY;
+	
+	kobj_getref(point);
+	return 0;
 }
 
 void fs_unload_filesystem(struct filesystem *fs)

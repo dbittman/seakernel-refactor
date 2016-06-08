@@ -107,6 +107,7 @@ struct kobj_lru {
 	void *data;
 	bool (*init)(void *, void *, void *);
 	void (*release)(void *, void *);
+	void (*drop)(void *, void *);
 };
 
 #define KOBJ_LRU_PROC_OPT_SHORT 1
@@ -184,7 +185,7 @@ static inline void *kobj_idmap_iter_get(struct hashiter *iter)
 }
 
 void kobj_lru_create(struct kobj_lru *lru, size_t idlen, size_t max, struct kobj *kobj,
-		bool (*init)(void *obj, void *id, void *data), void (*release)(void *, void *), void *data);
+		bool (*init)(void *obj, void *id, void *data), void (*release)(void *, void *), void (*)(void *, void *), void *data);
 void kobj_lru_mark_ready(struct kobj_lru *lru, void *obj, void *id);
 void kobj_lru_mark_error(struct kobj_lru *lru, void *obj, void *id);
 ssize_t kobj_lru_proc_read(void *data, int rw, size_t off, size_t len, char *buf);

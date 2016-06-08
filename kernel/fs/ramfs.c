@@ -22,6 +22,7 @@ struct ramfs_inode {
 	int uid, gid;
 	struct hashelem elem;
 	uint64_t id;
+	uint32_t major, minor;
 	struct mutex lock;
 	_Atomic size_t length;
 };
@@ -38,6 +39,7 @@ static void _ramfs_inode_init(void *obj)
 {
 	struct ramfs_inode *i = obj;
 	i->length = 0;
+	i->major = i->minor = 0;
 	i->links = 0;
 }
 
@@ -69,7 +71,7 @@ static void _ramfs_inode_put(void *obj)
 	struct ramfs_inode *i = obj;
 	struct hashiter iter;
 	for(hash_iter_init(&iter, &i->data); !hash_iter_done(&iter); hash_iter_next(&iter)) {
-		struct ramfs_data_block *block  = hash_iter_get(&iter);
+		struct ramfs_data_block *block = hash_iter_get(&iter);
 		hash_delete(&i->data, &block->pagenum, sizeof(int));
 		mm_physical_deallocate(block->phys);
 		kobj_putref(block);
@@ -141,7 +143,8 @@ static int _load_inode(struct filesystem *fs, uint64_t ino, struct inode *node)
 	struct ramfs_data *rfs = fs->fsdata;
 	struct ramfs_inode *ri = hash_lookup(&rfs->inodes, &ino, sizeof(uint64_t));
 
-	assert(ri != NULL);
+	if(ri == NULL)
+		return -ENOENT;
 
 	mutex_acquire(&ri->lock);
 	node->mode = ri->mode;
@@ -153,6 +156,8 @@ static int _load_inode(struct filesystem *fs, uint64_t ino, struct inode *node)
 	node->uid = ri->uid;
 	node->gid = ri->gid;
 	node->id.inoid = ino;
+	node->major = ri->major;
+	node->minor = ri->minor;
 	mutex_release(&ri->lock);
 	
 	return 0;
@@ -341,11 +346,36 @@ static void _ramfs_destroy(void *obj)
 	hash_destroy(&ramfs_data->inodes);
 }
 
+static int _update_inode(struct filesystem *fs, struct inode *node)
+{
+	struct ramfs_data *rfs = fs->fsdata;
+	struct ramfs_inode *ri = hash_lookup(&rfs->inodes, &node->id.inoid, sizeof(uint64_t));
+
+	if(ri == NULL)
+		return -ENOENT;
+
+	mutex_acquire(&ri->lock);
+	ri->mode = node->mode;
+	ri->atime = node->atime;
+	ri->mtime = node->mtime;
+	ri->ctime = node->ctime;
+	ri->links = node->links;
+	ri->length = node->length;
+	ri->uid = node->uid;
+	ri->gid = node->gid;
+	ri->major = node->major;
+	ri->minor = node->minor;
+	mutex_release(&ri->lock);
+	
+	return 0;
+}
+
 static void _release_inode(struct filesystem *fs, struct inode *node)
 {
-	struct ramfs_data *rfs = node->fs->fsdata;
+	struct ramfs_data *rfs = fs->fsdata;
 	struct ramfs_inode *ri = hash_lookup(&rfs->inodes, &node->id.inoid, sizeof(uint64_t));
-	int r = hash_delete(&rfs->inodes, &ri->id, sizeof(ri->id));
+	assert(ri != NULL);
+	int r = hash_delete(&rfs->inodes, &node->id.inoid, sizeof(uint64_t));
 	assert(r == 0);
 	kobj_putref(ri);
 }
@@ -377,6 +407,7 @@ static struct fs_ops ramfs_fs_ops = {
 	.load_inode = _load_inode,
 	.alloc_inode = _alloc_inode,
 	.release_inode = _release_inode,
+	.update_inode = _update_inode,
 	.mount = _mount,
 };
 

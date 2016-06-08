@@ -63,6 +63,7 @@ ssize_t inode_do_write_data(struct inode *ino, size_t off, size_t len, const cha
 			ino->length = thiswrite + off + amount;
 			inode_mark_dirty(ino);
 		}
+		page->flags |= INODEPAGE_DIRTY;
 		inode_release_page(page);
 		buf += thiswrite;
 		pageoff = 0;

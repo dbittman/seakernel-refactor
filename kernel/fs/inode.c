@@ -24,10 +24,12 @@ static bool _inode_page_initialize(void *obj, void *_id, void *data)
 
 	struct inode_id nodeid = {.fsid = page->id.fsid, .inoid = page->id.inoid };
 	struct inode *node = inode_lookup(&nodeid);
+	//printk("Loading page for %s:%ld (%ld)\n", node->fs->driver->name, page->id.inoid, page->id.page);
 
 	ssize_t thispagelen = node->length - page->id.page * arch_mm_page_size(0);
 	if(thispagelen < 0) thispagelen = 0;
 	if((size_t)thispagelen > arch_mm_page_size(0)) thispagelen = arch_mm_page_size(0);
+	/* TODO: do we need to reallocate a frame if we're reclaiming an old page? */
 	page->frame = frame_allocate(0, FRAME_PERSIST | FRAME_NOCLEAR | FRAME_ZEROCOUNT);
 	assert(node->fs != NULL);
 	if(thispagelen && node->fs->driver->inode_ops->read_page(node, page->id.page, page->frame) < 0) {
@@ -36,8 +38,8 @@ static bool _inode_page_initialize(void *obj, void *_id, void *data)
 		return false;
 	} else {
 		memset((void *)(page->frame + PHYS_MAP_START + thispagelen), 0, arch_mm_page_size(0) - thispagelen);
+		page->node = node;
 		kobj_lru_mark_ready(&inodepage_lru, obj, &page->id);
-		inode_put(node);
 		return true;
 	}
 }
@@ -46,15 +48,14 @@ static void _inode_page_release(void *obj, void *data)
 {
 	(void)data;
 	struct inodepage *page = obj;
-	struct inode_id nodeid = {.fsid = page->id.fsid, .inoid = page->id.inoid };
-	struct inode *node = inode_lookup(&nodeid);
 
 	/* TODO: should we write back pages in a more lazy way? (eg, during page_init?) */
-	if((page->flags & INODEPAGE_DIRTY) && node)
-		node->fs->driver->inode_ops->write_page(node, page->id.page, page->frame);
+	if(page->flags & INODEPAGE_DIRTY)
+		page->node->fs->driver->inode_ops->write_page(page->node, page->id.page, page->frame);
 	assert(frame_get_from_address(page->frame)->count == 0);
 	mm_physical_deallocate(page->frame);
-	inode_put(node);
+	inode_put(page->node);
+	page->node = NULL;
 }
 
 static void _inode_create(void *obj)
@@ -66,8 +67,7 @@ static void _inode_create(void *obj)
 static void _inode_put(void *obj)
 {
 	struct inode *node = obj;
-	(void)node;
-	if(node->links == 0 && node->fs) {
+	if(node->links == 0 && node->fs && !(atomic_fetch_or(&node->flags, INODE_FLAG_UNLINKED) & INODE_FLAG_UNLINKED)) {
 		mutex_acquire(&node->fs->lock);
 		node->fs->driver->fs_ops->release_inode(node->fs, node);
 		mutex_release(&node->fs->lock);
@@ -108,7 +108,10 @@ static bool _inode_initialize(void *obj, void *id, void *data)
 {
 	(void)data;
 	struct inode *node = obj;
+	node->flags = 0;
 	node->mount = NULL;
+	node->fs = NULL;
+	node->major = node->minor = 0;
 	memcpy(&node->id, id, sizeof(node->id));
 	if(fs_load_inode(node->id.fsid, node->id.inoid, node) < 0) {
 		kobj_lru_mark_error(&inode_lru, obj, &node->id);
@@ -123,7 +126,7 @@ static void _inode_release(void *obj, void *data)
 {
 	(void)data;
 	struct inode *node = obj;
-	if(node->flags & INODE_FLAG_DIRTY)
+	if((node->flags & INODE_FLAG_DIRTY) && node->links && node->fs)
 		fs_update_inode(node);
 	if(node->fs) {
 		kobj_putref(node->fs);
@@ -133,8 +136,8 @@ static void _inode_release(void *obj, void *data)
 
 __initializer static void _inode_init_lru(void)
 {
-	kobj_lru_create(&inode_lru, sizeof(struct inode_id), 0, &kobj_inode, _inode_initialize, _inode_release, NULL);
-	kobj_lru_create(&inodepage_lru, sizeof(struct inodepage_id), 0, &kobj_inode_page, _inode_page_initialize, _inode_page_release, NULL);
+	kobj_lru_create(&inode_lru, sizeof(struct inode_id), 100, &kobj_inode, _inode_initialize, _inode_release, NULL, NULL);
+	kobj_lru_create(&inodepage_lru, sizeof(struct inodepage_id), 1000, &kobj_inode_page, _inode_page_initialize, _inode_page_release, NULL, NULL);
 }
 
 struct inode *inode_lookup(struct inode_id *id)

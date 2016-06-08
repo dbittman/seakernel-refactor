@@ -342,7 +342,11 @@ int mmu_mappings_handle_fault(struct process *proc, uintptr_t addr, int flags)
 
 		uintptr_t phys = __get_phys_to_map(reg, v);
 		struct frame *frame = frame_get_from_address(phys);
-		if((reg->flags & MMAP_MAP_PRIVATE) && ((frame->flags & FRAME_PERSIST) || frame->count > 1))
+		/* TODO: issue with sync here: how do we keep track of pages that are synced (and therefore "not dirty") but
+		 * are still writable by others? Can we even clear the dirty bit in this case?  I think that writes may not propegate
+		 * to the underlying device until everything is unmaped (or msync is called) */
+		if(((reg->flags & MMAP_MAP_PRIVATE) && ((frame->flags & FRAME_PERSIST) || frame->count > 1))
+				|| (!(frame->flags & FRAME_DIRTY) && (reg->flags & MMAP_MAP_SHARED)))
 			set &= ~MAP_WRITE;
 
 		arch_mm_virtual_map(proc->ctx, v, phys, reg->psize, set);

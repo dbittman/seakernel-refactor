@@ -73,7 +73,7 @@ void process_create_proc_fd(struct process *proc, int fd, const char *path)
 	char str[128];
 	snprintf(str, 128, "/proc/%d/fd/%d", proc->pid, fd);
 	int r = sys_symlink(path, str);
-	assert(r == 0);
+	assertmsg(r == 0, "%d", r);
 }
 
 void process_copy_proc_fd(struct process *from, struct process *to, int fromfd, int tofd)

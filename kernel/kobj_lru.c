@@ -6,12 +6,14 @@
 #include <errno.h>
 #include <fs/proc.h>
 void kobj_lru_create(struct kobj_lru *lru, size_t idlen, size_t max, struct kobj *kobj,
-		bool (*init)(void *obj, void *id, void *), void (*release)(void *obj, void *), void *data)
+		bool (*init)(void *obj, void *id, void *), void (*release)(void *obj, void *), 
+		void (*drop)(void *obj, void *data), void *data)
 {
 	lru->kobj = kobj;
 	lru->init = init;
 	lru->max = max;
 	lru->idlen = idlen;
+	lru->drop = drop;
 	lru->data = data;
 	lru->release = release;
 	hash_create(&lru->hash, HASH_LOCKLESS, max > 0 ? max * 4 : 0x4000);
@@ -45,6 +47,7 @@ void kobj_lru_release_all(struct kobj_lru *lru)
 		linkedlist_remove(&lru->lru, &header->lruentry);
 
 		lru->release(obj, lru->data);
+		header->flags = KOBJ_LRU;
 
 		__kobj_putref(obj);
 		__kobj_putref(obj);
@@ -121,13 +124,14 @@ void kobj_lru_mark_error(struct kobj_lru *lru, void *obj, void *id)
 
 static void *_do_kobj_lru_reclaim(struct kobj_lru *lru)
 {
-	panic(0, "untested");
 	void *obj;
 	obj = linkedlist_remove_tail(&lru->lru);
 	if(obj) {
 		struct kobj_header *header = obj;
 		assert(header->_koh_refs == 2);
-		hash_delete(&lru->hash, header->id, lru->idlen);
+		int r = hash_delete(&lru->hash, header->id, lru->idlen);
+		assert(r == 0);
+		header->flags = KOBJ_LRU;
 		__kobj_putref(obj);
 	}
 	return obj;
@@ -139,16 +143,20 @@ void kobj_lru_reclaim(struct kobj_lru *lru)
 	spinlock_acquire(&lru->lock);
 	obj = _do_kobj_lru_reclaim(lru);
 	spinlock_release(&lru->lock);
-	if(obj)
+	if(obj) {
+		lru->release(obj, lru->data);
 		__kobj_putref(obj);
+	}
 }
 
 /* gets an object, and if not active, it moves off the LRU */
 void *kobj_lru_get(struct kobj_lru *lru, void *id)
 {
+	bool already_tried_to_reclaim = false;
+	void *obj;
+try_again:
 	spinlock_acquire(&lru->lock);
-
-	void *obj = hash_lookup(&lru->hash, id, lru->idlen);
+	obj = hash_lookup(&lru->hash, id, lru->idlen);
 	if(obj) {
 		struct kobj_header *header = obj;
 		assert(header->magic == KOBJ_HEADER_MAGIC);
@@ -185,14 +193,15 @@ void *kobj_lru_get(struct kobj_lru *lru, void *id)
 		}
 		spinlock_release(&lru->lock);
 	} else {
-		if(lru->hash.count >= lru->max && lru->max > 0) {
-			panic(0, "untested");
-			obj = _do_kobj_lru_reclaim(lru);
+		//printk("%ld / %ld\n", lru->hash.count, lru->max);
+		if(lru->hash.count >= lru->max && lru->max > 0 && !already_tried_to_reclaim) {
+			spinlock_release(&lru->lock);
+			kobj_lru_reclaim(lru);
+			already_tried_to_reclaim = true;
+			goto try_again;
 		}
 
-		if(obj == NULL) {
-			obj = kobj_allocate(lru->kobj);
-		}
+		obj = kobj_allocate(lru->kobj);
 		struct kobj_header *header = obj;
 		header->flags = KOBJ_LRU;
 		blocklist_create(&header->wait);
@@ -224,8 +233,8 @@ void kobj_lru_put(struct kobj_lru *lru, void *obj)
 		linkedlist_remove(&lru->active, &header->lruentry);
 		linkedlist_insert(&lru->lru, &header->lruentry, obj);
 		spinlock_release(&lru->lock);
-		if(header->_koh_kobj->put)
-			header->_koh_kobj->put(obj);
+		if(lru->drop)
+			lru->drop(obj, lru->data);
 	} else {
 		spinlock_release(&lru->lock);
 	}

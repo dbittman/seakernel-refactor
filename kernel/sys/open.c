@@ -26,6 +26,8 @@ sysret_t sys_openat(int dirfd, const char *path, int flags, int mode)
 	inode_put(start);
 	if(res < 0)
 		return res;
+	assert(dir != NULL);
+	assert(node != NULL);
 
 	if((flags & O_NOFOLLOW) && (S_ISLNK(node->mode))) {
 		kobj_putref(dir);

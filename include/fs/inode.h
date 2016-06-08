@@ -23,9 +23,11 @@ struct inodepage {
 	struct inodepage_id id;
 	uintptr_t frame;
 	_Atomic int flags;
+	struct inode *node;
 };
 
 #define INODE_FLAG_DIRTY 1
+#define INODE_FLAG_UNLINKED 2
 struct inode {
 	struct kobj_header _header;
 	_Atomic int flags;
