@@ -64,7 +64,8 @@ ssize_t kobj_lru_proc_read(void *data, int rw, size_t off, size_t len, char *buf
 	struct kobj_lru_proc_info *opt = data;
 
 	spinlock_acquire(&opt->lru->lock);
-	
+	PROCFS_PRINTF(off, len, buf, current,
+			"LOAD: %ld / %ld; max = %ld\n", opt->lru->hash.count, opt->lru->hash.length, opt->lru->max);
 	struct hashiter iter;
 	for(hash_iter_init(&iter, &opt->lru->hash);
 			!hash_iter_done(&iter); hash_iter_next(&iter)) {

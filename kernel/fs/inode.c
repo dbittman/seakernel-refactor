@@ -77,7 +77,7 @@ static ssize_t _inode_proc_lru_read_entry(void *item, size_t off, size_t len, ch
 	size_t current = 0;
 	struct inode *node = item;
 	PROCFS_PRINTF(off, len, buf, current,
-			"%ld.%ld %c", node->id.fsid, node->id.inoid,
+			"%ld(%s).%ld %c", node->id.fsid, node->fs ? node->fs->driver->name : "none", node->id.inoid,
 			(node->flags & INODE_FLAG_DIRTY) ? 'D' : ' ');
 	return current;
 }
