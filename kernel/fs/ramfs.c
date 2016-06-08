@@ -60,6 +60,13 @@ struct ramfs_data_block {
 static void _ramfs_inode_destroy(void *obj)
 {
 	struct ramfs_inode *i = obj;
+	hash_destroy(&i->dirents);
+	hash_destroy(&i->data);
+}
+
+static void _ramfs_inode_put(void *obj)
+{
+	struct ramfs_inode *i = obj;
 	struct hashiter iter;
 	for(hash_iter_init(&iter, &i->data); !hash_iter_done(&iter); hash_iter_next(&iter)) {
 		struct ramfs_data_block *block  = hash_iter_get(&iter);
@@ -67,18 +74,16 @@ static void _ramfs_inode_destroy(void *obj)
 		mm_physical_deallocate(block->phys);
 		kobj_putref(block);
 	}
-	hash_destroy(&i->data);
 	for(hash_iter_init(&iter, &i->dirents); !hash_iter_done(&iter); hash_iter_next(&iter)) {
 		struct ramfs_dirent *d = hash_iter_get(&iter);
 		hash_delete(&i->dirents, d->name, d->namelen);
 		kobj_putref(d);
 	}
-	hash_destroy(&i->dirents);
 }
 
 struct kobj kobj_ramfs_inode = {
 	KOBJ_DEFAULT_ELEM(ramfs_inode),
-	.put = NULL, .destroy = _ramfs_inode_destroy,
+	.put = _ramfs_inode_put, .destroy = _ramfs_inode_destroy,
 	.create = _ramfs_inode_create, .init = _ramfs_inode_init,
 };
 
@@ -338,8 +343,11 @@ static void _ramfs_destroy(void *obj)
 
 static void _release_inode(struct filesystem *fs, struct inode *node)
 {
-	(void)fs;
-	(void)node;
+	struct ramfs_data *rfs = node->fs->fsdata;
+	struct ramfs_inode *ri = hash_lookup(&rfs->inodes, &node->id.inoid, sizeof(uint64_t));
+	int r = hash_delete(&rfs->inodes, &ri->id, sizeof(ri->id));
+	assert(r == 0);
+	kobj_putref(ri);
 }
 
 static struct kobj kobj_ramfs = {
