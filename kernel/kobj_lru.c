@@ -193,7 +193,7 @@ try_again:
 		}
 		spinlock_release(&lru->lock);
 	} else {
-		//printk("%ld / %ld\n", lru->hash.count, lru->max);
+		/* printk("%ld / %ld\n", lru->hash.count, lru->max); */
 		if(lru->hash.count >= lru->max && lru->max > 0 && !already_tried_to_reclaim) {
 			spinlock_release(&lru->lock);
 			kobj_lru_reclaim(lru);

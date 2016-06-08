@@ -64,21 +64,11 @@ static void _inode_create(void *obj)
 	mutex_create(&node->lock);
 }
 
-static void _inode_put(void *obj)
-{
-	struct inode *node = obj;
-	if(node->links == 0 && node->fs && !(atomic_fetch_or(&node->flags, INODE_FLAG_UNLINKED) & INODE_FLAG_UNLINKED)) {
-		mutex_acquire(&node->fs->lock);
-		node->fs->driver->fs_ops->release_inode(node->fs, node);
-		mutex_release(&node->fs->lock);
-	}
-}
-
 static struct kobj kobj_inode = {
 	KOBJ_DEFAULT_ELEM(inode),
 	.init = NULL,
 	.create = _inode_create,
-	.put = _inode_put,
+	.put = NULL,
 	.destroy = NULL,
 };
 
@@ -128,16 +118,22 @@ static void _inode_release(void *obj, void *data)
 	struct inode *node = obj;
 	if((node->flags & INODE_FLAG_DIRTY) && node->links && node->fs)
 		fs_update_inode(node);
+	if(node->links == 0 && node->fs && !(atomic_fetch_or(&node->flags, INODE_FLAG_UNLINKED) & INODE_FLAG_UNLINKED)) {
+		mutex_acquire(&node->fs->lock);
+		node->fs->driver->fs_ops->release_inode(node->fs, node);
+		mutex_release(&node->fs->lock);
+	}
+	
 	if(node->fs) {
 		kobj_putref(node->fs);
-		node->fs = NULL;
 	}
 }
 
 __initializer static void _inode_init_lru(void)
 {
-	kobj_lru_create(&inode_lru, sizeof(struct inode_id), 100, &kobj_inode, _inode_initialize, _inode_release, NULL, NULL);
-	kobj_lru_create(&inodepage_lru, sizeof(struct inodepage_id), 1000, &kobj_inode_page, _inode_page_initialize, _inode_page_release, NULL, NULL);
+	/* TODO: sane defaults for these maximums? */
+	kobj_lru_create(&inode_lru, sizeof(struct inode_id), 1000, &kobj_inode, _inode_initialize, _inode_release, NULL, NULL);
+	kobj_lru_create(&inodepage_lru, sizeof(struct inodepage_id), 10000, &kobj_inode_page, _inode_page_initialize, _inode_page_release, NULL, NULL);
 }
 
 struct inode *inode_lookup(struct inode_id *id)
