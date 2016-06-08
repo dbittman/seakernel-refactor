@@ -82,6 +82,7 @@ void proc_create(const char *path, ssize_t (*call)(void *data, int, size_t, size
 
 	int r = sys_mknod(path, S_IFCHR | 0600, makedev(dev.devnr, pe->id));
 	assert(r == 0);
+	kobj_putref(pe);
 }
 
 void proc_destroy(const char *path)
