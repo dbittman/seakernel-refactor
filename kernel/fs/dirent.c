@@ -6,8 +6,6 @@
 #include <fs/filesystem.h>
 #include <printk.h>
 
-/* TODO: dirent cache? */
-
 /*
  * Dirents are keyed with parent ID, name length, and name. When looked up, they
  * are returned from the LRU cache. Unlink operation sets a flag and removes them
@@ -66,7 +64,8 @@ static bool _dirent_initialize(void *obj, void *id, void *data)
 
 __initializer static void _init_dirent_cache(void)
 {
-	kobj_lru_create(&dirent_lru, DIRENT_ID_LEN, 10, &kobj_dirent, _dirent_initialize, NULL, NULL, NULL);
+	/* TODO: sane default for max here */
+	kobj_lru_create(&dirent_lru, DIRENT_ID_LEN, 1000, &kobj_dirent, _dirent_initialize, NULL, NULL, NULL);
 }
 
 struct inode *dirent_get_inode(struct dirent *dir)

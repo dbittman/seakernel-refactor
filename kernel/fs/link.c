@@ -73,14 +73,14 @@ static bool __directory_empty(struct inode *node)
 	struct gd_dirent *gd = (void *)buffer;
 	while((char *)gd < buffer + ret) {
 		struct dirent *dir = dirent_lookup_cached(node, gd->d_name, strlen(gd->d_name));
-		if(dir && !(dir->flags & DIRENT_UNLINK)) {
+		bool real = dir && !(dir->flags & DIRENT_UNLINK);
+		if(dir)
 			dirent_put(dir);
+		if(real) {
 			if(strcmp(gd->d_name, ".")
 					&& strcmp(gd->d_name, ".."))
 				return false;
 		}
-		if(dir)
-			dirent_put(dir);
 		gd = (void *)((char *)gd + gd->d_reclen);
 	}
 	return true;
