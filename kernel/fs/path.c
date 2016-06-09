@@ -29,7 +29,10 @@ static struct dirent *inode_lookup_dirent(struct inode *node, const char *name, 
 		*err = -ENOTDIR;
 		return NULL;
 	}
-	struct dirent *dir = kobj_allocate(&kobj_dirent);
+	struct dirent *dir = dirent_lookup(node, name, namelen);
+	*err = dir == NULL ? -ENOENT : 0;
+	return dir;
+	/*struct dirent *dir = kobj_allocate(&kobj_dirent);
 	mutex_acquire(&node->lock);
 	if((*err = node->fs->driver->inode_ops->lookup(node, name, namelen, dir)) == 0) {
 		mutex_release(&node->lock);
@@ -39,6 +42,7 @@ static struct dirent *inode_lookup_dirent(struct inode *node, const char *name, 
 	}
 	mutex_release(&node->lock);
 	kobj_putref(dir);
+	*/
 	return NULL;
 }
 
@@ -105,6 +109,7 @@ int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode,
 		if(!*path) {
 			if(dir_out) {
 				dir = kobj_allocate(&kobj_dirent);
+				dir->flags |= DIRENT_UNCACHED;
 				dir->name[0] = '/';
 				dir->namelen = 1;
 				dir->ino.fsid = start->fs->id;
@@ -133,7 +138,7 @@ int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode,
 		if(sep != name) {
 			int err;
 			if(dir)
-				kobj_putref(dir);
+				dirent_put(dir);
 
 			if(!inode_check_perm(node, PERM_READ)) {
 				inode_put(node);
@@ -158,7 +163,7 @@ int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode,
 			if(S_ISLNK(next->mode) && (*sep || !(flags & PATH_NOFOLLOW))) {
 				if(flags >> 16 >= 64) {
 					inode_put(node);
-					kobj_putref(dir);
+					dirent_put(dir);
 					inode_put(next);
 					return -ELOOP;
 				}
@@ -168,7 +173,7 @@ int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode,
 				err = __resolve_symlink(next, node, flags >> 16, &dirlnk, &lnk);
 				TRACE(&path_trace, "resolve sym ret: %d\n", err);
 				inode_put(next);
-				kobj_putref(dir);
+				dirent_put(dir);
 				if(err) {
 					inode_put(node);
 					return err;
@@ -187,7 +192,7 @@ int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode,
 	if(dir_out)
 		*dir_out = dir;
 	else if(dir)
-		kobj_putref(dir);
+		dirent_put(dir);
 
 	if(ino_out)
 		*ino_out = node;

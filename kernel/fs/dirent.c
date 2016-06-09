@@ -4,6 +4,7 @@
 #include <system.h>
 #include <string.h>
 #include <fs/filesystem.h>
+#include <printk.h>
 
 /* TODO: dirent cache? */
 
@@ -18,17 +19,27 @@
  * are dropped, it will actually decrement the link count on the inode as well.
  */
 
+static void _dirent_put(void *obj)
+{
+	struct dirent *dir = obj;
+	if(dir->flags & DIRENT_UNLINK) {
+		struct inode *node = inode_lookup(&dir->ino);
+		node->links--;
+		inode_mark_dirty(node);
+		inode_put(node);
+	}
+}
 
 static void _dirent_init(void *obj)
 {
 	struct dirent *dir = obj;
-	memset(dir->name, 0, sizeof(dir->name));
+	dir->flags = 0;
 }
 
 struct kobj kobj_dirent = {
 	KOBJ_DEFAULT_ELEM(dirent),
 	.init = _dirent_init,
-	.create = NULL, .destroy = NULL, .put = NULL,
+	.create = NULL, .destroy = NULL, .put = _dirent_put,
 };
 
 struct kobj_lru dirent_lru;
@@ -44,6 +55,7 @@ static bool _dirent_initialize(void *obj, void *id, void *data)
 	mutex_acquire(&parent->lock);
 	int res = parent->fs->driver->inode_ops->lookup(parent, dir->name, dir->namelen, dir);
 	mutex_release(&parent->lock);
+	inode_put(parent);
 	if(res != 0) {
 		kobj_lru_mark_error(&dirent_lru, obj, &dir->parent);
 		return false;
@@ -52,20 +64,9 @@ static bool _dirent_initialize(void *obj, void *id, void *data)
 	return true;
 }
 
-static void _dirent_release(void *obj, void *data)
-{
-	(void)data;
-
-}
-
-static void _dirent_drop(void *obj, void *data)
-{
-
-}
-
 __initializer static void _init_dirent_cache(void)
 {
-	kobj_lru_create(&dirent_lru, DIRENT_ID_LEN, 0, &kobj_dirent, _dirent_initialize, _dirent_release, _dirent_drop, NULL);
+	kobj_lru_create(&dirent_lru, DIRENT_ID_LEN, 10, &kobj_dirent, _dirent_initialize, NULL, NULL, NULL);
 }
 
 struct inode *dirent_get_inode(struct dirent *dir)
@@ -82,5 +83,47 @@ struct inode *dirent_get_inode(struct dirent *dir)
 		node = up;
 	}
 	return node;
+}
+
+struct dirent *dirent_lookup(struct inode *node, const char *name, size_t namelen)
+{
+	struct dirent d;
+	memcpy(&d.parent, &node->id, sizeof(node->id));
+	d.namelen = namelen;
+	memset(d.name, 0, sizeof(d.name));
+	memcpy(d.name, name, namelen);
+
+	return kobj_lru_get(&dirent_lru, &d.parent);
+}
+
+struct dirent *dirent_lookup_cached(struct inode *node, const char *name, size_t namelen)
+{
+	struct dirent d;
+	memcpy(&d.parent, &node->id, sizeof(node->id));
+	d.namelen = namelen;
+	memset(d.name, 0, sizeof(d.name));
+	memcpy(d.name, name, namelen);
+
+	return kobj_lru_lookup_cached(&dirent_lru, &d.parent);
+}
+
+void dirent_put(struct dirent *dir)
+{
+	if(dir->flags & DIRENT_UNLINK) {
+		struct inode *parent = inode_lookup(&dir->parent);
+		mutex_acquire(&parent->lock);
+		if(!(atomic_fetch_or(&dir->flags, DIRENT_UNCACHED) & DIRENT_UNCACHED)) {
+			kobj_lru_remove(&dirent_lru, dir);
+			if(parent->fs->driver->inode_ops->unlink)
+				parent->fs->driver->inode_ops->unlink(parent, dir->name, dir->namelen);
+		}
+		mutex_release(&parent->lock);
+		inode_put(parent);
+		__kobj_putref(dir);
+	} else if(dir->flags & DIRENT_UNCACHED) {
+		__kobj_putref(dir);
+	} else {
+		kobj_lru_put(&dirent_lru, dir);
+	}
 }
 

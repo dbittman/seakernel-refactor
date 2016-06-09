@@ -38,7 +38,7 @@ ssize_t _slab_proc_read(void *data, int rw, size_t off, size_t len, char *buf)
 	if(rw != 0)
 		return -EINVAL;
 	PROCFS_PRINTF(off, len, buf, current,
-			"                NAME    INUSE    TOTAL\n");
+			"                NAME    INUSE    TOTAL OBJECTS\n");
 	__linkedlist_lock(&cache_list);
 	struct linkedentry *entry;
 	for(entry = linkedlist_iter_start(&cache_list);
@@ -47,7 +47,7 @@ ssize_t _slab_proc_read(void *data, int rw, size_t off, size_t len, char *buf)
 		struct cache *cache = linkedentry_obj(entry);
 
 		PROCFS_PRINTF(off, len, buf, current,
-				"%20s %8d %8d\n", cache->kobj->name, cache->total_inuse, cache->total_slabs);
+				"%20s %8d %8d %d\n", cache->kobj->name, cache->total_inuse, cache->total_slabs, cache->allocated_objects);
 	}
 	__linkedlist_unlock(&cache_list);
 	return current;
@@ -72,7 +72,7 @@ static void initialize_cache(struct kobj *ko)
 	linkedlist_create(&cache->empty, LINKEDLIST_LOCKLESS);
 	linkedlist_create(&cache->partial, LINKEDLIST_LOCKLESS);
 	linkedlist_create(&cache->full, LINKEDLIST_LOCKLESS);
-	cache->total_slabs = cache->total_inuse = 0;
+	cache->total_slabs = cache->total_inuse = cache->allocated_objects = 0;
 
 	linkedlist_insert(&cache_list, &cache->listelem, cache);
 }
@@ -137,6 +137,7 @@ static void *allocate_from_cache(struct cache *cache)
 	/* now that we have a slab that we want to use, pop and object
 	 * from the stack and return it */
 	void *obj = stack_pop(&slab->objects);
+	cache->allocated_objects++;
 	assert(obj != NULL);
 	return obj;
 }
@@ -145,6 +146,7 @@ static void deallocate_object(void *obj)
 {
 	struct kobj_header *header = obj;
 	struct slab *slab = header->_koh_slab;
+	header->_koh_kobj->cache.allocated_objects--;
 	stack_push(&slab->objects, &header->_koh_elem, obj);
 	spinlock_acquire(&header->_koh_kobj->lock);
 	size_t count = atomic_fetch_sub(&slab->count, 1);

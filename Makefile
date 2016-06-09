@@ -170,6 +170,8 @@ $(BUILDDIR)/hd.img: $(USRPROGS)
 	sudo mkdir -p $(BUILDDIR)/mnt/bin
 	sudo mkdir -p $(BUILDDIR)/mnt/dev
 	sudo mkdir -p $(BUILDDIR)/mnt/tmp
+	sudo mkdir -p $(BUILDDIR)/mnt/sys
+	sudo cp $(BUILDDIR)/kernel.elf $(BUILDDIR)/initrd.tar $(BUILDDIR)/mnt/sys/
 	sudo cp $(USRPROGS) $(BUILDDIR)/mnt/bin
 	sudo mkdir -p $(BUILDDIR)/mnt/usr/src/seakernel
 	sudo cp -r arch drivers include kernel lib machine tests tools config.cfg Makefile README.md $(BUILDDIR)/mnt/usr/src/seakernel

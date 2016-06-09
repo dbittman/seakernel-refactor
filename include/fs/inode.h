@@ -27,7 +27,7 @@ struct inodepage {
 };
 
 #define INODE_FLAG_DIRTY 1
-#define INODE_FLAG_UNLINKED 2
+#define INODE_FLAG_UNCACHED 2
 struct inode {
 	struct kobj_header _header;
 	_Atomic int flags;

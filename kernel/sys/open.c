@@ -30,25 +30,25 @@ sysret_t sys_openat(int dirfd, const char *path, int flags, int mode)
 	assert(node != NULL);
 
 	if((flags & O_NOFOLLOW) && (S_ISLNK(node->mode))) {
-		kobj_putref(dir);
+		dirent_put(dir);
 		inode_put(node);
 		return -ELOOP;
 	}
 
 	if((flags & O_EXCL) && (flags & O_CREAT) && !(res & PATH_DID_CREATE)) {
-		kobj_putref(dir);
+		dirent_put(dir);
 		inode_put(node);
 		return -EEXIST;
 	}
 
 	if((flags & F_WRITE) && !inode_check_perm(node, PERM_WRITE)) {
-		kobj_putref(dir);
+		dirent_put(dir);
 		inode_put(node);
 		return -EACCES;
 	}
 
 	if((flags & F_READ) && !inode_check_perm(node, PERM_READ)) {
-		kobj_putref(dir);
+		dirent_put(dir);
 		inode_put(node);
 		return -EACCES;
 	}

@@ -46,7 +46,8 @@ void kobj_lru_release_all(struct kobj_lru *lru)
 
 		linkedlist_remove(&lru->lru, &header->lruentry);
 
-		lru->release(obj, lru->data);
+		if(lru->release)
+			lru->release(obj, lru->data);
 		header->flags = KOBJ_LRU;
 
 		__kobj_putref(obj);
@@ -145,7 +146,8 @@ void kobj_lru_reclaim(struct kobj_lru *lru)
 	obj = _do_kobj_lru_reclaim(lru);
 	spinlock_release(&lru->lock);
 	if(obj) {
-		lru->release(obj, lru->data);
+		if(lru->release)
+			lru->release(obj, lru->data);
 		__kobj_putref(obj);
 	}
 }
@@ -218,6 +220,51 @@ try_again:
 	return obj;
 }
 
+/* TODO: there's a lot of duplicated code here */
+void *kobj_lru_lookup_cached(struct kobj_lru *lru, void *id)
+{
+	void *obj;
+	spinlock_acquire(&lru->lock);
+	obj = hash_lookup(&lru->hash, id, lru->idlen);
+	if(obj) {
+		struct kobj_header *header = obj;
+		assert(header->magic == KOBJ_HEADER_MAGIC);
+		assert(header->flags & KOBJ_LRU);
+		ssize_t ref = header->_koh_refs++;
+		if(!(header->flags & KOBJ_LRU_INIT)) {
+			struct blockpoint bp;
+			blockpoint_create(&bp, BLOCK_UNINTERRUPT, 0);
+			blockpoint_startblock(&header->wait, &bp);
+			if(!(header->flags & KOBJ_LRU_INIT)) {
+				spinlock_release(&lru->lock);
+				schedule();
+				spinlock_acquire(&lru->lock);
+			}
+			enum block_result res = blockpoint_cleanup(&bp);
+			assert(res == BLOCK_RESULT_UNBLOCKED);
+		}
+		if(!(header->flags & KOBJ_LRU_INIT)) {
+			panic(0, "failed to wait for init state on %p: %x\n", obj, header->flags);
+		}
+		if(header->flags & KOBJ_LRU_ERR) {
+			__kobj_putref(obj);
+			spinlock_release(&lru->lock);
+			return NULL;
+		}
+		/* in hash and lru (and the inc we just did) -> no one else has reference -> in LRU */
+		assert(header->_koh_refs > 2);
+		if(ref == 2) {
+			if(lru->lru.count == 0) {
+				panic(0, "failed to move object off of LRU: LRU has no entries %d %d %ld %x (%p %p %p)", *(int *)id, *(int *)header->id, header->_koh_refs, header->flags, header->lruentry.list, &lru->lru, &lru->active);
+			}
+			linkedlist_remove(&lru->lru, &header->lruentry);
+			linkedlist_insert(&lru->active, &header->lruentry, obj);
+		}
+	}
+	spinlock_release(&lru->lock);
+	return obj;
+}
+
 void kobj_lru_remove(struct kobj_lru *lru, void *obj)
 {
 	spinlock_acquire(&lru->lock);
@@ -225,6 +272,8 @@ void kobj_lru_remove(struct kobj_lru *lru, void *obj)
 	hash_delete(&lru->hash, header->id, lru->idlen);
 	linkedlist_remove(&lru->active, &header->lruentry);
 	header->flags &= ~KOBJ_LRU;
+	__kobj_putref(obj);
+	__kobj_putref(obj);
 	spinlock_release(&lru->lock);
 }
 
@@ -233,11 +282,11 @@ void kobj_lru_put(struct kobj_lru *lru, void *obj)
 	spinlock_acquire(&lru->lock);
 	struct kobj_header *header = obj;
 	assert(header->magic == KOBJ_HEADER_MAGIC);
-	assert(header->flags & KOBJ_LRU);
 	int ref = __kobj_putref(obj);
 	if(header->_koh_refs < 2 || ref < 2)
 		panic(0, "double free");
-	if(ref == 2) {
+	/* check for the KOBJ_LRU flag because we may have gotten here around the time a call to lru_remove happened */
+	if(ref == 2 && (header->flags & KOBJ_LRU)) {
 		if(lru->active.count == 0) {
 			panic(0, "failed to move object onto LRU: active has no entries %d %ld %x (%p %p %p)", *(int *)header->id, header->_koh_refs, header->flags, header->lruentry.list, &lru->lru, &lru->active);
 		}

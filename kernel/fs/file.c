@@ -14,7 +14,7 @@ static void _file_put(void *obj)
 {
 	struct file *file = obj;
 	if(file->dirent)
-		kobj_putref(file->dirent);
+		dirent_put(file->dirent);
 	if(file->ops && file->ops->destroy)
 		file->ops->destroy(file);
 }
