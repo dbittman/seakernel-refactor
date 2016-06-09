@@ -218,6 +218,16 @@ try_again:
 	return obj;
 }
 
+void kobj_lru_remove(struct kobj_lru *lru, void *obj)
+{
+	spinlock_acquire(&lru->lock);
+	struct kobj_header *header = obj;
+	hash_delete(&lru->hash, header->id, lru->idlen);
+	linkedlist_remove(&lru->active, &header->lruentry);
+	header->flags &= ~KOBJ_LRU;
+	spinlock_release(&lru->lock);
+}
+
 void kobj_lru_put(struct kobj_lru *lru, void *obj)
 {
 	spinlock_acquire(&lru->lock);

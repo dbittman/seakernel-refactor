@@ -194,11 +194,7 @@ void *kobj_lru_get(struct kobj_lru *lru, void *id);
 void kobj_lru_put(struct kobj_lru *lru, void *obj);
 void kobj_lru_release_all(struct kobj_lru *lru);
 void kobj_lru_destroy(struct kobj_lru *lru);
-
-
-
-
-
+void kobj_lru_remove(struct kobj_lru *lru, void *obj);
 
 #endif
 
