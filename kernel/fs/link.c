@@ -31,12 +31,10 @@ int fs_link(struct inode *node, const char *name, size_t namelen, struct inode *
 	return ret;
 }
 
-static bool __directory_empty(struct inode *node, bool lock)
+static bool __directory_empty(struct inode *node)
 {
 	char buffer[512];
 	_Atomic size_t zero = 0;
-	if(lock)
-		mutex_acquire(&node->lock);
 	int ret = node->fs->driver->inode_ops->getdents(node, &zero, (void *)buffer, 512);
 	struct gd_dirent *gd = (void *)buffer;
 	while((char *)gd < buffer + ret) {
@@ -47,19 +45,15 @@ static bool __directory_empty(struct inode *node, bool lock)
 		if(real) {
 			if(strcmp(gd->d_name, ".")
 					&& strcmp(gd->d_name, "..")) {
-				if(lock)
-					mutex_release(&node->lock);
 				return false;
 			}
 		}
 		gd = (void *)((char *)gd + gd->d_reclen);
 	}
-	if(lock)
-		mutex_release(&node->lock);
 	return true;
 }
 
-static int __unlink(struct inode *node, struct dirent *dir, bool allow_dir)
+static int __unlink(struct dirent *dir, bool allow_dir, bool check_empty)
 {
 	int ret = 0;
 	struct inode *target = dirent_get_inode(dir);
@@ -70,7 +64,7 @@ static int __unlink(struct inode *node, struct dirent *dir, bool allow_dir)
 		ret = -EISDIR;
 	else if(!S_ISDIR(target->mode) && allow_dir)
 		ret = -ENOTDIR;
-	else if(S_ISDIR(target->mode) && !__directory_empty(target, target != node))
+	else if(S_ISDIR(target->mode) && check_empty && !__directory_empty(target))
 		ret = -ENOTEMPTY;
 	else
 		dir->flags |= DIRENT_UNLINK;
@@ -90,10 +84,10 @@ int fs_unlink(struct inode *node, const char *name, size_t namelen)
 		return -ENOENT;
 	}
 	mutex_acquire(&node->lock);
-	int ret = __unlink(node, dir, false);
+	int ret = __unlink(dir, false, false);
 	mutex_release(&node->lock);
 	dirent_put(dir);
-	return 0;
+	return ret;
 }
 
 int fs_rmdir(struct inode *node, const char *name, size_t namelen)
@@ -118,9 +112,9 @@ int fs_rmdir(struct inode *node, const char *name, size_t namelen)
 		if(!sp) {
 			ret = -EIO;
 		} else {
-			if((ret = __unlink(node, dir, true)) == 0) {
-				__unlink(target, pp, true);
-				__unlink(target, sp, true);
+			if((ret = __unlink(dir, true, true)) == 0) {
+				__unlink(pp, true, false);
+				__unlink(sp, true, false);
 			}
 			dirent_put(sp);
 		}

@@ -110,7 +110,7 @@ void dirent_put(struct dirent *dir)
 {
 	if(dir->flags & DIRENT_UNLINK) {
 		struct inode *parent = inode_lookup(&dir->parent);
-		assert(parent);
+		assert(parent != NULL);
 		mutex_acquire(&parent->lock);
 		if(!(atomic_fetch_or(&dir->flags, DIRENT_UNCACHED) & DIRENT_UNCACHED)) {
 			kobj_lru_remove(&dirent_lru, dir);
