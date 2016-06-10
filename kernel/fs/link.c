@@ -31,6 +31,54 @@ int fs_link(struct inode *node, const char *name, size_t namelen, struct inode *
 	return ret;
 }
 
+static bool __directory_empty(struct inode *node, bool lock)
+{
+	char buffer[512];
+	_Atomic size_t zero = 0;
+	if(lock)
+		mutex_acquire(&node->lock);
+	int ret = node->fs->driver->inode_ops->getdents(node, &zero, (void *)buffer, 512);
+	struct gd_dirent *gd = (void *)buffer;
+	while((char *)gd < buffer + ret) {
+		struct dirent *dir = dirent_lookup_cached(node, gd->d_name, strlen(gd->d_name));
+		bool real = dir && !(dir->flags & DIRENT_UNLINK);
+		if(dir)
+			dirent_put(dir);
+		if(real) {
+			if(strcmp(gd->d_name, ".")
+					&& strcmp(gd->d_name, "..")) {
+				if(lock)
+					mutex_release(&node->lock);
+				return false;
+			}
+		}
+		gd = (void *)((char *)gd + gd->d_reclen);
+	}
+	if(lock)
+		mutex_release(&node->lock);
+	return true;
+}
+
+static int __unlink(struct inode *node, struct dirent *dir, bool allow_dir)
+{
+	int ret = 0;
+	struct inode *target = dirent_get_inode(dir);
+	if(!target)
+		return -EIO;
+	
+	if(S_ISDIR(target->mode) && !allow_dir)
+		ret = -EISDIR;
+	else if(!S_ISDIR(target->mode) && allow_dir)
+		ret = -ENOTDIR;
+	else if(S_ISDIR(target->mode) && !__directory_empty(target, target != node))
+		ret = -ENOTEMPTY;
+	else
+		dir->flags |= DIRENT_UNLINK;
+
+	inode_put(target);
+	return ret;
+}
+
 int fs_unlink(struct inode *node, const char *name, size_t namelen)
 {
 	if(!inode_check_perm(node, PERM_WRITE))
@@ -42,48 +90,10 @@ int fs_unlink(struct inode *node, const char *name, size_t namelen)
 		return -ENOENT;
 	}
 	mutex_acquire(&node->lock);
-	struct inode *target = dirent_get_inode(dir);
-	if(!target) {
-		mutex_release(&node->lock);
-		dirent_put(dir);
-		return -EIO;
-	}
-	if(S_ISDIR(target->mode)) {
-		mutex_release(&node->lock);
-		inode_put(target);
-		dirent_put(dir);
-		return -EISDIR;
-	}
-	if(target != node)
-		mutex_acquire(&target->lock);
-	dir->flags |= DIRENT_UNLINK;
-	if(target != node)
-		mutex_release(&target->lock);
+	int ret = __unlink(node, dir, false);
 	mutex_release(&node->lock);
-	inode_put(target);
 	dirent_put(dir);
 	return 0;
-}
-
-static bool __directory_empty(struct inode *node)
-{
-	char buffer[512];
-	_Atomic size_t zero = 0;
-	int ret = node->fs->driver->inode_ops->getdents(node, &zero, (void *)buffer, 512);
-	struct gd_dirent *gd = (void *)buffer;
-	while((char *)gd < buffer + ret) {
-		struct dirent *dir = dirent_lookup_cached(node, gd->d_name, strlen(gd->d_name));
-		bool real = dir && !(dir->flags & DIRENT_UNLINK);
-		if(dir)
-			dirent_put(dir);
-		if(real) {
-			if(strcmp(gd->d_name, ".")
-					&& strcmp(gd->d_name, ".."))
-				return false;
-		}
-		gd = (void *)((char *)gd + gd->d_reclen);
-	}
-	return true;
 }
 
 int fs_rmdir(struct inode *node, const char *name, size_t namelen)
@@ -92,58 +102,34 @@ int fs_rmdir(struct inode *node, const char *name, size_t namelen)
 		return -EACCES;
 	if(!S_ISDIR(node->mode))
 		return -ENOTDIR;
+
+	int ret = 0;
 	struct dirent *dir = dirent_lookup(node, name, namelen);
-	mutex_acquire(&node->lock);
+	if(!dir)
+		return -ENOENT;
 	struct inode *target = dirent_get_inode(dir);
-	if(!S_ISDIR(target->mode)) {
-		inode_put(target);
-		mutex_release(&node->lock);
-		dirent_put(dir);
-		return -ENOTDIR;
+	mutex_acquire(&node->lock);
+
+	struct dirent *pp = dirent_lookup(target, "..", 2);
+	if(!pp) {
+		ret = -EIO; //TODO: whats the actual error here?
+	} else {
+		struct dirent *sp = dirent_lookup(target, ".", 1);
+		if(!sp) {
+			ret = -EIO;
+		} else {
+			if((ret = __unlink(node, dir, true)) == 0) {
+				__unlink(target, pp, true);
+				__unlink(target, sp, true);
+			}
+			dirent_put(sp);
+		}
+		dirent_put(pp);
 	}
-	
-	if(target != node)
-		mutex_acquire(&target->lock);
-	if(!__directory_empty(target)) {
-		if(target != node)
-			mutex_release(&target->lock);
-		inode_put(target);
-		mutex_release(&node->lock);
-		dirent_put(dir);
-		return -ENOTEMPTY;
-	}
-	int ret = -ENOTSUP;
-	if(target->fs->driver->inode_ops->unlink)
-		ret = target->fs->driver->inode_ops->unlink(target, ".", 1);
-	
-	if(ret != 0) {
-		if(target != node)
-			mutex_release(&target->lock);
-		inode_put(target);
-		mutex_release(&node->lock);
-		dirent_put(dir);
-		return ret;
-	}
-	target->links--;
-	inode_mark_dirty(target);
-	if(target->fs->driver->inode_ops->unlink)
-		ret = target->fs->driver->inode_ops->unlink(target, "..", 2);
-	if(ret != 0) {
-		if(target != node)
-			mutex_release(&target->lock);
-		inode_put(target);
-		mutex_release(&node->lock);
-		dirent_put(dir);
-		return ret;
-	}
-	node->links--;
-	dir->flags |= DIRENT_UNLINK;
-	inode_mark_dirty(node);
-	if(target != node)
-		mutex_release(&target->lock);
-	inode_put(target);
+
 	mutex_release(&node->lock);
+	inode_put(target);
 	dirent_put(dir);
-	return 0;
+	return ret;
 }
 
