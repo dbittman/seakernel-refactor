@@ -11,6 +11,7 @@ struct dirent {
 
 	_Atomic int flags;
 	struct inode_id ino;
+	struct inode *pnode;
 	struct inode_id parent;
 	size_t namelen;
 	char name[256];

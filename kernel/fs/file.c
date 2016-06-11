@@ -63,7 +63,7 @@ void process_remove_proc_fd(struct process *proc, int fd)
 	int r = sys_unlink(str);
 	/* TODO: we need to seriously evaluate things like this.
 	 * This could totally fail, for real reasons (EINTR). */
-	assert(r == 0);
+	assertmsg(r == 0, "%d", r);
 }
 
 void process_create_proc_fd(struct process *proc, int fd, const char *path)
@@ -87,9 +87,9 @@ void process_copy_proc_fd(struct process *from, struct process *to, int fromfd, 
 
 	char link[256];
 	int r = sys_readlink(fp, link, 256);
-	assert(r >= 0);
+	assertmsg(r >= 0, "%d", r);
 	r = sys_symlink(link, tp);
-	assert(r == 0);
+	assertmsg(r == 0, "%d", r);
 }
 
 struct file *file_create(struct dirent *dir, enum file_device_type type)

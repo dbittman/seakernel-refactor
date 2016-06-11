@@ -25,13 +25,25 @@ static void _dirent_put(void *obj)
 		node->links--;
 		inode_mark_dirty(node);
 		inode_put(node);
+		dir->flags = 0;
 	}
+	if(dir->pnode) {
+		inode_put(dir->pnode);
+		dir->pnode = NULL;
+	}
+}
+
+static void _dirent_release(void *obj, void *data)
+{
+	(void)data;
+	_dirent_put(obj);
 }
 
 static void _dirent_init(void *obj)
 {
 	struct dirent *dir = obj;
 	dir->flags = 0;
+	dir->pnode = NULL;
 }
 
 struct kobj kobj_dirent = {
@@ -53,11 +65,12 @@ static bool _dirent_initialize(void *obj, void *id, void *data)
 	mutex_acquire(&parent->lock);
 	int res = parent->fs->driver->inode_ops->lookup(parent, dir->name, dir->namelen, dir);
 	mutex_release(&parent->lock);
-	inode_put(parent);
 	if(res != 0) {
+		inode_put(parent);
 		kobj_lru_mark_error(&dirent_lru, obj, &dir->parent);
 		return false;
 	}
+	dir->pnode = parent;
 	kobj_lru_mark_ready(&dirent_lru, obj, &dir->parent);
 	return true;
 }
@@ -65,7 +78,7 @@ static bool _dirent_initialize(void *obj, void *id, void *data)
 __initializer static void _init_dirent_cache(void)
 {
 	/* TODO: sane default for max here */
-	kobj_lru_create(&dirent_lru, DIRENT_ID_LEN, 1000, &kobj_dirent, _dirent_initialize, NULL, NULL, NULL);
+	kobj_lru_create(&dirent_lru, DIRENT_ID_LEN, 100, &kobj_dirent, _dirent_initialize, _dirent_release, NULL, NULL);
 }
 
 struct inode *dirent_get_inode(struct dirent *dir)
@@ -110,15 +123,17 @@ void dirent_put(struct dirent *dir)
 {
 	if(dir->flags & DIRENT_UNLINK) {
 		struct inode *parent = inode_lookup(&dir->parent);
-		assert(parent != NULL);
-		mutex_acquire(&parent->lock);
 		if(!(atomic_fetch_or(&dir->flags, DIRENT_UNCACHED) & DIRENT_UNCACHED)) {
 			kobj_lru_remove(&dirent_lru, dir);
-			if(parent->fs->driver->inode_ops->unlink)
-				parent->fs->driver->inode_ops->unlink(parent, dir->name, dir->namelen);
+			if(parent) {
+				mutex_acquire(&parent->lock);
+				if(parent->fs->driver->inode_ops->unlink)
+					parent->fs->driver->inode_ops->unlink(parent, dir->name, dir->namelen);
+				mutex_release(&parent->lock);
+			}
 		}
-		mutex_release(&parent->lock);
-		inode_put(parent);
+		if(parent)
+			inode_put(parent);
 		__kobj_putref(dir);
 	} else if(dir->flags & DIRENT_UNCACHED) {
 		__kobj_putref(dir);

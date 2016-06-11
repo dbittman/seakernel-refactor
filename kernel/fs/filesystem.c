@@ -165,9 +165,7 @@ int fs_load_inode(uint64_t fsid, uint64_t inoid, struct inode *node)
 
 void fs_update_inode(struct inode *node)
 {
-	mutex_acquire(&node->fs->lock);
 	node->fs->driver->fs_ops->update_inode(node->fs, node);
-	mutex_release(&node->fs->lock);
 }
 
 int filesystem_register(struct fsdriver *driver)

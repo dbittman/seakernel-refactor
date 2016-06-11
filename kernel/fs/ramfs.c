@@ -38,6 +38,7 @@ struct ramfs_dirent {
 static void _ramfs_inode_init(void *obj)
 {
 	struct ramfs_inode *i = obj;
+	i->mode = 0;
 	i->length = 0;
 	i->major = i->minor = 0;
 	i->links = 0;
@@ -351,6 +352,7 @@ static int _update_inode(struct filesystem *fs, struct inode *node)
 	struct ramfs_data *rfs = fs->fsdata;
 	struct ramfs_inode *ri = hash_lookup(&rfs->inodes, &node->id.inoid, sizeof(uint64_t));
 
+	assert(ri != NULL);
 	if(ri == NULL)
 		return -ENOENT;
 

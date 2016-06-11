@@ -26,24 +26,13 @@ static struct dirent *inode_lookup_dirent(struct inode *node, const char *name, 
 {
 	TRACE(&path_trace, "lookup dirent: %ld, %s %d", node->id.inoid, name, namelen);
 	if(!S_ISDIR(node->mode)) {
+		printk(":%s: %ld %ld %o %d %x\n", name, node->id.inoid, node->_header._koh_refs, node->mode, node->links, node->flags);
 		*err = -ENOTDIR;
 		return NULL;
 	}
 	struct dirent *dir = dirent_lookup(node, name, namelen);
 	*err = dir == NULL ? -ENOENT : 0;
 	return dir;
-	/*struct dirent *dir = kobj_allocate(&kobj_dirent);
-	mutex_acquire(&node->lock);
-	if((*err = node->fs->driver->inode_ops->lookup(node, name, namelen, dir)) == 0) {
-		mutex_release(&node->lock);
-		strncpy(dir->name, name, namelen);
-		dir->namelen = namelen;
-		return dir;
-	}
-	mutex_release(&node->lock);
-	kobj_putref(dir);
-	*/
-	return NULL;
 }
 
 struct dirent *__create_last(struct inode *node, const char *name, size_t namelen, int mode, int *err)
@@ -74,16 +63,17 @@ struct dirent *__create_last(struct inode *node, const char *name, size_t namele
 	target->length = 0;
 	inode_mark_dirty(target);
 
-	if((*err = fs_link(node, name, namelen, target)) < 0) {
-		inode_put(target);
-		return NULL;
-	}
-
 	if(S_ISDIR(mode)) {
 		fs_link(target, ".", 1, target);
 		fs_link(target, "..", 2, node);
 	}
 	
+	if((*err = fs_link(node, name, namelen, target)) < 0) {
+		inode_put(target);
+		return NULL;
+	}
+
+
 	struct dirent *dir = inode_lookup_dirent(node, name, namelen, err);
 	inode_put(target);
 	return dir;
@@ -114,6 +104,7 @@ int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode,
 				dir->namelen = 1;
 				dir->ino.fsid = start->fs->id;
 				dir->ino.inoid = start->id.inoid;
+				dir->pnode = kobj_getref(start);
 				*dir_out = dir;
 			}
 			if(ino_out)

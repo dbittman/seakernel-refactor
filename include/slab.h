@@ -48,6 +48,7 @@ struct kobj {
 #define KOBJ_LRU_INIT 1
 #define KOBJ_LRU_ERR  2
 #define KOBJ_LRU 1024
+#define KOBJ_LRU_DESTROY 4
 
 #define KOBJ_HEADER_MAGIC 0x66883322CAFEBEEFull
 struct kobj_header {

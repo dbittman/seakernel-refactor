@@ -124,32 +124,30 @@ void kobj_lru_mark_error(struct kobj_lru *lru, void *obj, void *id)
 	__kobj_putref(obj);
 }
 
-static void *_do_kobj_lru_reclaim(struct kobj_lru *lru)
-{
-	void *obj;
-	obj = linkedlist_remove_tail(&lru->lru);
-	if(obj) {
-		struct kobj_header *header = obj;
-		assert(header->_koh_refs == 2);
-		int r = hash_delete(&lru->hash, header->id, lru->idlen);
-		assert(r == 0);
-		header->flags = KOBJ_LRU;
-		__kobj_putref(obj);
-	}
-	return obj;
-}
-
 void kobj_lru_reclaim(struct kobj_lru *lru)
 {
 	void *obj;
 	spinlock_acquire(&lru->lock);
-	obj = _do_kobj_lru_reclaim(lru);
-	spinlock_release(&lru->lock);
-	if(obj) {
-		if(lru->release)
-			lru->release(obj, lru->data);
-		__kobj_putref(obj);
+	obj = linkedlist_remove_tail(&lru->lru);
+	if(obj == NULL) {
+		spinlock_release(&lru->lock);
+		return;
 	}
+
+	struct kobj_header *header = obj;
+	header->flags = KOBJ_LRU;
+	assert(header->_koh_refs == 2);
+	header->flags |= KOBJ_LRU_DESTROY;
+	__kobj_putref(obj);
+	spinlock_release(&lru->lock);
+	if(lru->release)
+		lru->release(obj, lru->data);
+	spinlock_acquire(&lru->lock);
+	header->flags &= ~KOBJ_LRU_DESTROY;
+	int r = hash_delete(&lru->hash, header->id, lru->idlen);
+	assert(r == 0);
+	spinlock_release(&lru->lock);
+	__kobj_putref(obj);
 }
 
 /* gets an object, and if not active, it moves off the LRU */
@@ -164,6 +162,11 @@ try_again:
 		struct kobj_header *header = obj;
 		assert(header->magic == KOBJ_HEADER_MAGIC);
 		assert(header->flags & KOBJ_LRU);
+		if(header->flags & KOBJ_LRU_DESTROY) {
+			spinlock_release(&lru->lock);
+			schedule();
+			goto try_again;
+		}
 		ssize_t ref = header->_koh_refs++;
 		if(!(header->flags & KOBJ_LRU_INIT)) {
 			struct blockpoint bp;
@@ -180,13 +183,21 @@ try_again:
 		if(!(header->flags & KOBJ_LRU_INIT)) {
 			panic(0, "failed to wait for init state on %p: %x\n", obj, header->flags);
 		}
-		if(header->flags & KOBJ_LRU_ERR) {
-			__kobj_putref(obj);
+
+		if(header->flags & KOBJ_LRU_DESTROY) {
 			spinlock_release(&lru->lock);
+			__kobj_putref(obj);
+			schedule();
+			goto try_again;
+		}
+
+		if(header->flags & KOBJ_LRU_ERR) {
+			spinlock_release(&lru->lock);
+			__kobj_putref(obj);
 			return NULL;
 		}
 		/* in hash and lru (and the inc we just did) -> no one else has reference -> in LRU */
-		assert(header->_koh_refs > 2);
+		assertmsg(header->_koh_refs > 2, "%ld", header->_koh_refs);
 		if(ref == 2) {
 			if(lru->lru.count == 0) {
 				panic(0, "failed to move object off of LRU: LRU has no entries %d %d %ld %x (%p %p %p)", *(int *)id, *(int *)header->id, header->_koh_refs, header->flags, header->lruentry.list, &lru->lru, &lru->active);
@@ -224,12 +235,20 @@ try_again:
 void *kobj_lru_lookup_cached(struct kobj_lru *lru, void *id)
 {
 	void *obj;
+try_again:
 	spinlock_acquire(&lru->lock);
 	obj = hash_lookup(&lru->hash, id, lru->idlen);
 	if(obj) {
 		struct kobj_header *header = obj;
 		assert(header->magic == KOBJ_HEADER_MAGIC);
 		assert(header->flags & KOBJ_LRU);
+
+		if(header->flags & KOBJ_LRU_DESTROY) {
+			spinlock_release(&lru->lock);
+			schedule();
+			goto try_again;
+		}
+
 		ssize_t ref = header->_koh_refs++;
 		if(!(header->flags & KOBJ_LRU_INIT)) {
 			struct blockpoint bp;
@@ -246,9 +265,16 @@ void *kobj_lru_lookup_cached(struct kobj_lru *lru, void *id)
 		if(!(header->flags & KOBJ_LRU_INIT)) {
 			panic(0, "failed to wait for init state on %p: %x\n", obj, header->flags);
 		}
-		if(header->flags & KOBJ_LRU_ERR) {
-			__kobj_putref(obj);
+
+		if(header->flags & KOBJ_LRU_DESTROY) {
 			spinlock_release(&lru->lock);
+			__kobj_putref(obj);
+			schedule();
+			goto try_again;
+		}
+		if(header->flags & KOBJ_LRU_ERR) {
+			spinlock_release(&lru->lock);
+			__kobj_putref(obj);
 			return NULL;
 		}
 		/* in hash and lru (and the inc we just did) -> no one else has reference -> in LRU */
