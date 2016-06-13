@@ -13,10 +13,10 @@
 static void _file_put(void *obj)
 {
 	struct file *file = obj;
-	if(file->dirent)
-		dirent_put(file->dirent);
 	if(file->ops && file->ops->destroy)
 		file->ops->destroy(file);
+	if(file->dirent)
+		dirent_put(file->dirent);
 }
 
 static void _file_init(void *obj)
@@ -127,7 +127,7 @@ struct file *file_create(struct dirent *dir, enum file_device_type type)
 			case FDT_CHAR: case FDT_BLOCK:
 				panic(0, "cannot set file_device_type to char or block without node");
 			case FDT_UNKNOWN:
-				__builtin_unreachable();
+				panic(0, "shouldn't get here");
 		}
 	}
 	file->flags = 0;

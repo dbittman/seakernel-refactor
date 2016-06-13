@@ -144,6 +144,7 @@ static void __remove_proc_entries(struct process *proc)
 void process_exit(struct process *proc, int code)
 {
 	proc->exit_code = code;
+	process_remove_mappings(proc, true);
 	process_close_files(proc, true);
 	if(WIFEXITED(proc->status)) {
 		proc->status = process_make_status(code, 0, true, false);
@@ -170,7 +171,6 @@ void process_exit(struct process *proc, int code)
 		}
 	}
 	kobj_idmap_unlock(&processids);
-	process_remove_mappings(proc, true);
 
 	kobj_putref(init);
 }

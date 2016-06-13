@@ -124,7 +124,7 @@ static int _write_page(struct inode *node, int pagenumber, uintptr_t phys)
 	struct ramfs_data *rfs = node->fs->fsdata;
 	struct ramfs_inode *ri = hash_lookup(&rfs->inodes, &node->id.inoid, sizeof(uint64_t));
 
-	assert(ri != NULL);
+	assertmsg(ri != NULL, "%ld", node->id.inoid);
 
 	mutex_acquire(&ri->lock);
 	struct ramfs_data_block *block = hash_lookup(&ri->data, &pagenumber, sizeof(int));

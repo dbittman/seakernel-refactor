@@ -25,7 +25,6 @@ static void _dirent_put(void *obj)
 		node->links--;
 		inode_mark_dirty(node);
 		inode_put(node);
-		dir->flags = 0;
 	}
 	struct inode *pnode = atomic_exchange(&dir->pnode, NULL);
 	if(pnode) {
@@ -123,7 +122,9 @@ struct dirent *dirent_lookup_cached(struct inode *node, const char *name, size_t
 
 void dirent_put(struct dirent *dir)
 {
-	if(dir->flags & DIRENT_UNLINK) {
+	if(dir->flags & DIRENT_UNCACHED) {
+		__kobj_putref(dir);
+	} else if(dir->flags & DIRENT_UNLINK) {
 		struct inode *parent = dir->pnode;
 		if(!(atomic_fetch_or(&dir->flags, DIRENT_UNCACHED) & DIRENT_UNCACHED)) {
 			if(parent) {
@@ -136,8 +137,6 @@ void dirent_put(struct dirent *dir)
 			}
 			kobj_lru_remove(&dirent_lru, dir);
 		}
-		__kobj_putref(dir);
-	} else if(dir->flags & DIRENT_UNCACHED) {
 		__kobj_putref(dir);
 	} else {
 		kobj_lru_put(&dirent_lru, dir);
