@@ -20,16 +20,16 @@
 static void _dirent_put(void *obj)
 {
 	struct dirent *dir = obj;
-	if(dir->flags & DIRENT_UNLINK) {
+	if(atomic_fetch_and(&dir->flags, ~DIRENT_UNLINK) & DIRENT_UNLINK) {
 		struct inode *node = inode_lookup(&dir->ino);
 		node->links--;
 		inode_mark_dirty(node);
 		inode_put(node);
 		dir->flags = 0;
 	}
-	if(dir->pnode) {
-		inode_put(dir->pnode);
-		dir->pnode = NULL;
+	struct inode *pnode = atomic_exchange(&dir->pnode, NULL);
+	if(pnode) {
+		inode_put(pnode);
 	}
 }
 
@@ -84,6 +84,8 @@ __initializer static void _init_dirent_cache(void)
 struct inode *dirent_get_inode(struct dirent *dir)
 {
 	struct inode *node = inode_lookup(&dir->ino);
+	if(node == NULL)
+		return NULL;
 	if(node->mount) {
 		struct inode_id id = {.fsid = node->mount->id, .inoid = node->mount->driver->rootid};
 		inode_put(node);
@@ -122,18 +124,18 @@ struct dirent *dirent_lookup_cached(struct inode *node, const char *name, size_t
 void dirent_put(struct dirent *dir)
 {
 	if(dir->flags & DIRENT_UNLINK) {
-		struct inode *parent = inode_lookup(&dir->parent);
+		struct inode *parent = dir->pnode;
 		if(!(atomic_fetch_or(&dir->flags, DIRENT_UNCACHED) & DIRENT_UNCACHED)) {
-			kobj_lru_remove(&dirent_lru, dir);
 			if(parent) {
 				mutex_acquire(&parent->lock);
-				if(parent->fs->driver->inode_ops->unlink)
-					parent->fs->driver->inode_ops->unlink(parent, dir->name, dir->namelen);
+				if(parent->fs->driver->inode_ops->unlink) {
+					int r = parent->fs->driver->inode_ops->unlink(parent, dir->name, dir->namelen);
+					assert(r == 0);
+				}
 				mutex_release(&parent->lock);
 			}
+			kobj_lru_remove(&dirent_lru, dir);
 		}
-		if(parent)
-			inode_put(parent);
 		__kobj_putref(dir);
 	} else if(dir->flags & DIRENT_UNCACHED) {
 		__kobj_putref(dir);

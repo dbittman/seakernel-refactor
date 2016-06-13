@@ -14,6 +14,7 @@ sysret_t sys_openat(int dirfd, const char *path, int flags, int mode)
 {
 	flags++;
 	struct inode *start = __get_at_start(dirfd);
+	if(start == AT_GAS_FAILED) return -EIO;
 	mode = (mode & ~0xFFF) | ((mode & 0xFFF) & (~(current_thread->process->cmask & 0xFFF)));
 	struct dirent *dir;
 	struct inode *node;
@@ -54,6 +55,11 @@ sysret_t sys_openat(int dirfd, const char *path, int flags, int mode)
 	}
 
 	struct file *file = file_create(dir, FDT_UNKNOWN);
+	if(!file) {
+		dirent_put(dir);
+		inode_put(node);
+		return -EIO;
+	}
 	file->pos = 0;
 	file->flags = flags;
 
@@ -182,12 +188,16 @@ sysret_t sys_lseek(int fd, ssize_t off, int whence)
 		case SEEK_END: 
 			{
 				struct inode *node = file_get_inode(file);
-				pos = node->length;
-				if((ssize_t)pos + off < 0)
-					ret = -EINVAL;
-				else
-					file->pos = pos + off;
-				inode_put(node);
+				if(node) { 
+					pos = node->length;
+					if((ssize_t)pos + off < 0)
+						ret = -EINVAL;
+					else
+						file->pos = pos + off;
+					inode_put(node);
+				} else {
+					ret = -EIO;
+				}
 			} break;
 	}
 	kobj_putref(file);
@@ -405,6 +415,7 @@ sysret_t sys_fchmod(int fd, int mode)
 sysret_t sys_fchmodat(int dirfd, const char *path, int mode)
 {
 	struct inode *start = __get_at_start(dirfd), *node;
+	if(start == AT_GAS_FAILED) return -EIO;
 	int err = fs_path_resolve(path, start, 0, 0, NULL, &node);
 	inode_put(start);
 	if(err < 0)

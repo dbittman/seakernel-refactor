@@ -150,6 +150,11 @@ int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode,
 				}
 			}
 			struct inode *next = dirent_get_inode(dir);
+			if(!next) {
+				inode_put(node);
+				dirent_put(dir);
+				return -EIO;
+			}
 
 			if(S_ISLNK(next->mode) && (*sep || !(flags & PATH_NOFOLLOW))) {
 				if(flags >> 16 >= 64) {

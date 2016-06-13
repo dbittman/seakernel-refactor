@@ -76,7 +76,6 @@ int fs_unlink(struct inode *node, const char *name, size_t namelen)
 	if(!inode_check_perm(node, PERM_WRITE))
 		return -EACCES;
 	if(!S_ISDIR(node->mode)) {
-		printk("::%ld %ld %o %d %x\n", node->id.inoid, node->_header._koh_refs, node->mode, node->links, node->flags);
 		return -ENOTDIR;
 	}
 	struct dirent *dir = dirent_lookup(node, name, namelen);
@@ -102,6 +101,10 @@ int fs_rmdir(struct inode *node, const char *name, size_t namelen)
 	if(!dir)
 		return -ENOENT;
 	struct inode *target = dirent_get_inode(dir);
+	if(!target) {
+		dirent_put(dir);
+		return -EIO;
+	}
 	if(!S_ISDIR(target->mode)) {
 		inode_put(target);
 		dirent_put(dir);

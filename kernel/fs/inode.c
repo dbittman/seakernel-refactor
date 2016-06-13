@@ -49,7 +49,6 @@ static void _inode_page_release(void *obj, void *data)
 	(void)data;
 	struct inodepage *page = obj;
 
-	/* TODO: should we write back pages in a more lazy way? (eg, during page_init?) */
 	if(page->flags & INODEPAGE_DIRTY)
 		page->node->fs->driver->inode_ops->write_page(page->node, page->id.page, page->frame);
 	assert(frame_get_from_address(page->frame)->count == 0);
@@ -69,7 +68,7 @@ static void _inode_put(void *obj)
 	struct inode *node = obj;
 	assert(node != NULL);
 	if(node->fs) {
-		if((node->flags & INODE_FLAG_DIRTY)) {
+		if(atomic_fetch_and(&node->flags, ~INODE_FLAG_DIRTY) & INODE_FLAG_DIRTY) {
 			fs_update_inode(node);
 		}
 		if(node->links == 0) {
@@ -85,9 +84,10 @@ static void _inode_release(void *obj, void *data)
 {
 	(void)data;
 	struct inode *node = obj;
-	if(node->fs && (node->flags & INODE_FLAG_DIRTY)) {
-		node->flags &= ~INODE_FLAG_DIRTY;
-		fs_update_inode(node);
+	if(node->fs) {
+		if(atomic_fetch_and(&node->flags, ~INODE_FLAG_DIRTY) & INODE_FLAG_DIRTY) {
+			fs_update_inode(node);
+		}
 	}
 }
 

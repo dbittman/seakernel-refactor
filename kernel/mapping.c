@@ -290,7 +290,7 @@ int map_change_protect(struct process *proc, uintptr_t virt, size_t len, int pro
 	return 0;
 }
 
-uintptr_t __get_phys_to_map(struct map_region *reg, uintptr_t v)
+static inline uintptr_t __get_phys_to_map(struct map_region *reg, uintptr_t v)
 {
 	return reg->file->ops->map(reg->file, reg, v - reg->start);
 }
@@ -341,6 +341,9 @@ int mmu_mappings_handle_fault(struct process *proc, uintptr_t addr, int flags)
 		}
 
 		uintptr_t phys = __get_phys_to_map(reg, v);
+		if(phys == 0) {
+			goto out;
+		}
 		struct frame *frame = frame_get_from_address(phys);
 		/* TODO: issue with sync here: how do we keep track of pages that are synced (and therefore "not dirty") but
 		 * are still writable by others? Can we even clear the dirty bit in this case?  I think that writes may not propegate

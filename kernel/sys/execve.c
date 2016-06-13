@@ -48,6 +48,9 @@ sysret_t sys_execve(const char *path, char **arg, char **env)
 	struct file *file = process_get_file(fd);
 	struct inode *node = file_get_inode(file);
 	kobj_putref(file);
+	if(node == NULL)
+		goto out_close;
+
 
 	if(node->mode & S_ISUID) {
 		current_thread->process->suid = current_thread->process->euid;

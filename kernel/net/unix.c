@@ -171,6 +171,11 @@ static int _unix_bind(struct socket *sock, const struct sockaddr *_addr, socklen
 
 	struct file *anchor = process_get_file(fd);
 	struct inode *node = file_get_inode(anchor);
+	if(!node) {
+		kobj_putref(anchor);
+		sys_close(fd);
+		return -EIO;
+	}
 	memcpy(&sock->unix.loc, &node->id, sizeof(node->id));
 	inode_put(node);
 	kobj_putref(anchor);

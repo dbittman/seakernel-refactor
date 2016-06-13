@@ -221,6 +221,8 @@ static void _pty_fops_open(struct file *file)
 static void _pty_fops_create(struct file *file)
 {
 	struct inode *node = file_get_inode(file);
+	if(!node)
+		return; //TODO: error handling?
 	struct pty_file *pf = kobj_allocate(&kobj_pty_file);
 	if(node->minor != 0 && node->minor != 1) {
 		long id = node->minor;

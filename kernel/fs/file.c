@@ -73,7 +73,12 @@ void process_create_proc_fd(struct process *proc, int fd, const char *path)
 	char str[128];
 	snprintf(str, 128, "/proc/%d/fd/%d", proc->pid, fd);
 	int r = sys_symlink(path, str);
-	assertmsg(r == 0, "%d", r);
+	if(r == -17) {
+		char tmp[256];
+		int x = sys_readlink(str, tmp, 255);
+		printk(":: %s %d %s\n", str, x, tmp);
+	}
+	assertmsg(r == 0, "%d (%d)", r, fd);
 }
 
 void process_copy_proc_fd(struct process *from, struct process *to, int fromfd, int tofd)
@@ -101,6 +106,9 @@ struct file *file_create(struct dirent *dir, enum file_device_type type)
 			if(type == FDT_UNKNOWN)
 				file->ops = file_get_ops(node);
 			inode_put(node);
+		} else {
+			kobj_putref(file);
+			return NULL;
 		}
 		file->dirent = dir;
 	}

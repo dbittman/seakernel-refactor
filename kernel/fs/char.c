@@ -4,6 +4,7 @@
 #include <fs/stat.h>
 #include <system.h>
 #include <file.h>
+#include <errno.h>
 /* default char devices */
 
 static struct device dev;
@@ -14,6 +15,8 @@ static ssize_t _char_read(struct file *file, size_t off, size_t len, char *b)
 	(void)off;
 	size_t ret = 0;
 	struct inode *node = file_get_inode(file);
+	if(node == NULL)
+		return -EIO;
 	if(node->minor == 1) {
 		memset(b, 0, len);
 		ret = len;
@@ -31,6 +34,8 @@ static ssize_t _char_write(struct file *file, size_t off, size_t len, const char
 	
 	size_t ret;
 	struct inode *node = file_get_inode(file);
+	if(node == NULL)
+		return -EIO;
 	if(node->minor == 1)
 		ret = 0;
 	else

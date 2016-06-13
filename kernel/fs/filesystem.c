@@ -60,6 +60,8 @@ struct kobj kobj_filesystem = {
 static uintptr_t _fs_inode_map(struct file *file, struct map_region *map, ptrdiff_t d)
 {
 	struct inode *node = file_get_inode(file);
+	if(!node)
+		return 0;
 	struct inodepage *page = inode_get_page(node, map->nodepage + d / arch_mm_page_size(0));
 	inode_put(node);
 	frame_acquire(page->frame);
@@ -73,13 +75,15 @@ static void _fs_inode_unmap(struct file *file, struct map_region *map, ptrdiff_t
 	int dirty = frame->flags & FRAME_DIRTY;
 	if(frame_release(phys) == 0 && persist) {
 		struct inode *node = file_get_inode(file);
-		struct inodepage *page = inode_get_page(node, map->nodepage + d / arch_mm_page_size(0));
-		if(dirty)
-			page->flags |= INODEPAGE_DIRTY;
-		/* TODO: fix hacky way to release this */
-		inode_release_page(page);
-		inode_release_page(page);
-		inode_put(node);
+		if(node) {
+			struct inodepage *page = inode_get_page(node, map->nodepage + d / arch_mm_page_size(0));
+			if(dirty)
+				page->flags |= INODEPAGE_DIRTY;
+			/* TODO: fix hacky way to release this */
+			inode_release_page(page);
+			inode_release_page(page);
+			inode_put(node);
+		}
 	}
 }
 

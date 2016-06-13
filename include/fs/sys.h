@@ -109,6 +109,7 @@ sysret_t sys_fchmodat(int dirfd, const char *path, int mode);
 #include <thread.h>
 #include <process.h>
 #include <file.h>
+#define AT_GAS_FAILED (void *)(-1)
 static inline struct inode *__get_at_start(int fd)
 {
 	if(fd == AT_FDCWD)
@@ -118,7 +119,7 @@ static inline struct inode *__get_at_start(int fd)
 		return NULL;
 	struct inode *node = file_get_inode(file);
 	kobj_putref(file);
-	return node;
+	return node == NULL ? AT_GAS_FAILED : node;
 }
 
 #define AT_REMOVEDIR 0x200

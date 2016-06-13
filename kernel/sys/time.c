@@ -127,6 +127,7 @@ sysret_t sys_utimensat(int dirfd, const char *filename, const struct timespec ti
 {
 	struct inode *node;
 	struct inode *start = __get_at_start(dirfd);
+	if(start == AT_GAS_FAILED) return -EIO;
 	int err;
 	if(filename != NULL) {
 		err = fs_path_resolve(filename, start, 0, 0, NULL, &node);

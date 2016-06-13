@@ -10,7 +10,6 @@
 #include <printk.h>
 #include <fs/sys.h>
 #include <string.h>
-/* TODO: all the file_get_inode calls can return NULL! */
 
 static void _stat(struct inode *node, struct stat *buf)
 {
@@ -69,6 +68,10 @@ sysret_t sys_fchdir(int fd)
 	if(!file->dirent)
 		return -EINVAL;
 	struct inode *node = file_get_inode(file);
+	if(node == NULL) {
+		kobj_putref(file);
+		return -EIO;
+	}
 	if(!S_ISDIR(node->mode)) {
 		inode_put(node);
 		kobj_putref(file);
@@ -100,6 +103,7 @@ sysret_t sys_chroot(const char *path)
 sysret_t sys_faccessat(int fd, const char *path, int mode)
 {
 	struct inode *start = __get_at_start(fd), *node;
+	if(start == AT_GAS_FAILED) return -EIO;
 	int ret = fs_path_resolve(path, start, 0, 0, NULL, &node);
 	inode_put(start);
 	if(ret < 0)
@@ -129,13 +133,14 @@ sysret_t sys_fstatat(int dirfd, const char *path, struct stat *buf, int flags)
 	struct inode *start = __get_at_start(dirfd), *node;
 	int err;
 	if(path) {
+		if(start == AT_GAS_FAILED) return -EIO;
 		err = fs_path_resolve(path, start, flags & AT_SYMLINK_NOFOLLOW ? PATH_NOFOLLOW : 0, 0, NULL, &node);
 		inode_put(start);
 		if(err < 0) {
 			return err;
 		}
 	} else {
-		node = start;
+		node = start == AT_GAS_FAILED ? NULL : start;
 	}
 
 	if(node) {
@@ -167,6 +172,10 @@ sysret_t sys_getdents(int fd, struct gd_dirent *dp, int count)
 		return -EBADF;
 	int ret = 0;
 	struct inode *node = file_get_inode(file);
+	if(node == NULL) {
+		kobj_putref(file);
+		return -EIO;
+	}
 	if(!node->fs) {
 		ret = -EINVAL;
 		goto out;
@@ -252,6 +261,7 @@ ssize_t sys_readlink(const char *path, char *buf, size_t bufsz)
 		return err;
 
 	if(!S_ISLNK(node->mode)) {
+		printk("-> %o %x %x\n", node->mode, node->flags, node->_header.flags);
 		inode_put(node);
 		return -EINVAL;
 	}
@@ -269,6 +279,7 @@ sysret_t sys_unlinkat(int dirfd, const char *_path, int flags)
 	memcpy(path, _path, strlen(_path));
 
 	struct inode *start = __get_at_start(dirfd);
+	if(start == AT_GAS_FAILED) return -EIO;
 
 	char *sep = strrchrm(path, '/');
 	char *name;
@@ -310,7 +321,9 @@ static sysret_t _do_linkat(int olddirfd, const char *targ, int newdirfd, const c
 	if(strlen(_path) > 255)
 		return -ENAMETOOLONG;
 	struct inode *oldstart = __get_at_start(olddirfd);
+	if(oldstart == AT_GAS_FAILED) return -EIO;
 	struct inode *newstart = __get_at_start(newdirfd);
+	if(newstart == AT_GAS_FAILED) return -EIO;
 	if(!newstart || !oldstart) {
 		if(newstart) inode_put(newstart);
 		if(oldstart) inode_put(oldstart);
@@ -409,6 +422,7 @@ sysret_t sys_rename(const char *oldpath, const char *newpath)
 sysret_t sys_fchownat(int dirfd, const char *path, int uid, int gid, int flags)
 {
 	struct inode *node, *start = __get_at_start(dirfd);
+	if(start == AT_GAS_FAILED) return -EIO;
 	int err;
 	if(path == NULL) {
 		node = start;
