@@ -4,6 +4,12 @@ ASFLAGS=
 BUILDDIR=build
 CONFIGFILE=config.cfg
 LDFLAGS=
+SED=sed
+BUILDSYS:=$(shell uname)
+ifeq ($(BUILDSYS),Darwin)
+SED=gsed
+endif
+
 .DEFAULT_GOAL=all
 # these are the required libraries that the kernel needs.
 LIBRARIES=ds string
@@ -12,7 +18,7 @@ MAKEFILES=Makefile $(CONFIGFILE)
 include $(CONFIGFILE)
 SYSROOT=$(CONFIG_BUILD_SYSROOT)
 export SYSROOT
-CFLAGS+=$(addprefix -D,$(shell cat $(CONFIGFILE) | sed -e 's/=y/=1/g' -e 's/=n/=0/g' -e 's/\#.*$$//' -e '/^$$/d'))
+CFLAGS+=$(addprefix -D,$(shell cat $(CONFIGFILE) | $(SED) -e 's/=y/=1/g' -e 's/=n/=0/g' -e 's/\#.*$$//' -e '/^$$/d'))
 
 ARCH=$(CONFIG_ARCH)
 MACHINE=$(CONFIG_MACHINE)
@@ -139,7 +145,7 @@ $(BUILDDIR)/symbols.o: $(BUILDDIR)/symbols.c
 # the developers of binutils are.
 $(BUILDDIR)/kernel.sym.c: $(BUILDDIR)/kernel.elf.stage1
 	@echo -e "[GEN]\t$(BUILDDIR)/kernel.sym.c"
-	@$(TOOLCHAIN_PREFIX)objdump -t $(BUILDDIR)/kernel.elf.stage1 | grep "^.* [lg]" | awk '{print $$1 " " $$(NF-1) " " $$NF}' | grep -v ".hidden" | sed -rn 's|([0-9a-f]+) ([0-9a-f]+) ([a-zA-Z0-9_/\.]+)|{.value=0x\1, .size=0x\2, .name="\3"},|p' > $(BUILDDIR)/kernel.sym.c
+	@$(TOOLCHAIN_PREFIX)objdump -t $(BUILDDIR)/kernel.elf.stage1 | grep "^.* [lg]" | awk '{print $$1 " " $$(NF-1) " " $$NF}' | grep -v ".hidden" | $(SED) -rn 's|([0-9a-f]+) ([0-9a-f]+) ([a-zA-Z0-9_/\.]+)|{.value=0x\1, .size=0x\2, .name="\3"},|p' > $(BUILDDIR)/kernel.sym.c
 
 # link the stage1 kernel binary, not including the symbol table
 $(BUILDDIR)/kernel.elf.stage1: $(OBJECTS) $(BUILDDIR)/link.ld $(MAKEFILES)
@@ -175,9 +181,9 @@ $(BUILDDIR)/hd.img: $(USRPROGS)
 	sudo cp $(USRPROGS) $(BUILDDIR)/mnt/bin
 	sudo mkdir -p $(BUILDDIR)/mnt/usr/src/seakernel
 	sudo cp -r arch drivers include kernel lib machine tests tools config.cfg Makefile README.md $(BUILDDIR)/mnt/usr/src/seakernel
-	sudo sed -s -i -e 's|CONFIG_BUILD_SYSROOT=.*|CONFIG_BUILD_SYSROOT=/|g' $(BUILDDIR)/mnt/usr/src/seakernel/config.cfg
-	sudo sed -s -i -e 's|CONFIG_BUILD_SYSTEM_COMPILER=.*|CONFIG_BUILD_SYSTEM_COMPILER=y|g' $(BUILDDIR)/mnt/usr/src/seakernel/config.cfg
-	sudo sed -s -i -e 's|CONFIG_BUILD_CLANG=.*|CONFIG_BUILD_CLANG=n|g' $(BUILDDIR)/mnt/usr/src/seakernel/config.cfg
+	sudo $(SED) -s -i -e 's|CONFIG_BUILD_SYSROOT=.*|CONFIG_BUILD_SYSROOT=/|g' $(BUILDDIR)/mnt/usr/src/seakernel/config.cfg
+	sudo $(SED) -s -i -e 's|CONFIG_BUILD_SYSTEM_COMPILER=.*|CONFIG_BUILD_SYSTEM_COMPILER=y|g' $(BUILDDIR)/mnt/usr/src/seakernel/config.cfg
+	sudo $(SED) -s -i -e 's|CONFIG_BUILD_CLANG=.*|CONFIG_BUILD_CLANG=n|g' $(BUILDDIR)/mnt/usr/src/seakernel/config.cfg
 	echo "/lib:/usr/lib:/usr/lib64" | sudo tee $(BUILDDIR)/mnt/etc/ld-musl-$(ARCH).path > /dev/null
 	sudo umount $(BUILDDIR)/mnt
 
@@ -202,9 +208,9 @@ $(BUILDDIR)/%.o: %.c $(MAKEFILES)
 	@echo -e "[CC]\t$@"
 	@$(CC) $(CFLAGS) -c -MD -MF $(BUILDDIR)/$*.d -o $@ $<
 	@mv -f $(BUILDDIR)/$*.d $(BUILDDIR)/$*.d.tmp
-	@sed -e 's|.*:|$@:|' < $(BUILDDIR)/$*.d.tmp > $(BUILDDIR)/$*.d
-	@sed -e 's/.*://' -e 's/\\$$//' < $(BUILDDIR)/$*.d.tmp | fmt -1 | \
-		sed -e 's/^ *//' -e 's/$$/:/' >> $(BUILDDIR)/$*.d
+	@$(SED) -e 's|.*:|$@:|' < $(BUILDDIR)/$*.d.tmp > $(BUILDDIR)/$*.d
+	@$(SED) -e 's/.*://' -e 's/\\$$//' < $(BUILDDIR)/$*.d.tmp | fmt -1 | \
+		$(SED) -e 's/^ *//' -e 's/$$/:/' >> $(BUILDDIR)/$*.d
 	@rm -f $(BUILDDIR)/$*.d.tmp
 
 $(BUILDDIR)/%.o: %.S $(MAKEFILES)
@@ -212,8 +218,8 @@ $(BUILDDIR)/%.o: %.S $(MAKEFILES)
 	@echo -e "[AS]\t$@"
 	@$(CC) $(CFLAGS) -c -MD -MF $(BUILDDIR)/$*.d -o $@ $<
 	@mv -f $(BUILDDIR)/$*.d $(BUILDDIR)/$*.d.tmp
-	@sed -e 's|.*:|$@:|' < $(BUILDDIR)/$*.d.tmp > $(BUILDDIR)/$*.d
-	@sed -e 's/.*://' -e 's/\\$$//' < $(BUILDDIR)/$*.d.tmp | fmt -1 | \
-		sed -e 's/^ *//' -e 's/$$/:/' >> $(BUILDDIR)/$*.d
+	@$(SED) -e 's|.*:|$@:|' < $(BUILDDIR)/$*.d.tmp > $(BUILDDIR)/$*.d
+	@$(SED) -e 's/.*://' -e 's/\\$$//' < $(BUILDDIR)/$*.d.tmp | fmt -1 | \
+		$(SED) -e 's/^ *//' -e 's/$$/:/' >> $(BUILDDIR)/$*.d
 	@rm -f $(BUILDDIR)/$*.d.tmp
 
