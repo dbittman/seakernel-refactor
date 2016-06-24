@@ -24,6 +24,8 @@ static void __invalidate(uintptr_t virt)
 	if(current_thread && current_thread->process && current_thread->process->threads.count > 1) {
 		if(virt >= USER_TLS_REGION_END || virt < USER_TLS_REGION_START)
 			tlb_shootdown();
+	} else if(virt >= USER_REGION_END && current_thread) {
+		tlb_shootdown();
 	}
 }
 
