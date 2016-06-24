@@ -48,4 +48,5 @@ int mmu_mappings_handle_fault(struct process *proc, uintptr_t addr, int flags);
 int mapping_resize(struct process *proc, uintptr_t virt, size_t oldsz, size_t newsz);
 int mapping_move(struct process *proc, uintptr_t virt, size_t oldsz, size_t newsz, uintptr_t new);
 int map_change_protect(struct process *proc, uintptr_t virt, size_t len, int prot);
+void map_region_remove(struct process *proc, uintptr_t start, size_t len, bool locked);
 

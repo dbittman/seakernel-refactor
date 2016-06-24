@@ -118,9 +118,7 @@ sysret_t sys_munmap(void *addr, size_t len)
 {
 	/* TODO: something weird happens here
 	 * where the library calls with with a very large 'len'. figure out why */
-	(void)addr;
-	(void)len;
-	//map_unmap((uintptr_t)addr, len);
+	//map_region_remove(current_thread->process, (uintptr_t)addr, len, false);
 	return 0;
 }
 
