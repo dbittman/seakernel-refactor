@@ -21,17 +21,7 @@ struct pci_config_space
     uint8_t  header_type;
     uint8_t  bist;
     /* 0x10 */
-    uint32_t bar0;
-    /* 0x14 */
-    uint32_t bar1;
-    /* 0x18 */
-    uint32_t bar2;
-    /* 0x1C */
-    uint32_t bar3;
-    /* 0x20 */
-    uint32_t bar4;
-    /* 0x24 */
-    uint32_t bar5;
+    uint32_t bar[6];
     /* 0x28 */
     uint32_t cardbus_cis_pointer;
     /* 0x2C */
@@ -61,6 +51,22 @@ struct pci_device {
 	
 	struct linkedentry entry;
 };
+
+#define PCI_BAR_IO 1
+#define PCI_BAR_MEM 0
+
+static inline uint32_t pci_get_bar(struct pci_device *dev, uint8_t type)
+{
+	uint32_t bar = 0;
+	for(int i = 0; i < 6; i++)
+	{
+		bar = dev->config.bar[i];
+		if((bar & 0x1) == type) {
+			return type == PCI_BAR_IO ? bar & ~1 : bar & ~3;
+		}
+	}
+	return 0xFFFFFFFF;
+}
 
 struct pci_driver {
 	int (*init_device)(struct pci_device *);

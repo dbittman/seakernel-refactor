@@ -90,11 +90,12 @@ static void pci_scan(void)
 	for(entry = linkedlist_iter_start(&devices);
 			entry != linkedlist_iter_end(&devices);
 			entry = linkedlist_iter_next(entry)) {
+		struct pci_device *device = linkedentry_obj(entry);
+		printk("[pci]: found: %x %x\n", device->config.vendor_id, device->config.device_id);
 		for(drventry = linkedlist_iter_start(&drivers);
 				drventry != linkedlist_iter_end(&drivers);
 				drventry = linkedlist_iter_next(drventry)) {
 			
-			struct pci_device *device = linkedentry_obj(entry);
 			struct pci_driver *driver = linkedentry_obj(drventry);
 
 			for(int i=0;i<driver->num;i++) {
@@ -156,3 +157,4 @@ void pci_register_driver(struct pci_driver *driver)
 	mutex_release(&pci_mutex);
 	pci_scan();
 }
+

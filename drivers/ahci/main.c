@@ -102,7 +102,7 @@ static int _ahci_init_device(struct pci_device *dev)
 		dev->config.command |= 4;
 		pci_write_dword(dev->bus, dev->dev, dev->func, 4, dev->config.command);
 	}
-	ab->abar = (void *)(dev->config.bar5 + PHYS_MAP_START);
+	ab->abar = (void *)(dev->config.bar[5] + PHYS_MAP_START);
 	ab->interrupt = dev->config.interrupt_line + 32;
 	interrupt_map[ab->interrupt - 32] = ab;
 	
@@ -116,12 +116,13 @@ static int _ahci_init_device(struct pci_device *dev)
 static struct pci_driver pcidriver = {
 	.init_device = _ahci_init_device,
 	.name = "ahci",
-	.num = 2,
+	.num = 4,
 
 	.supported = {
 		{ 0x8086, 0x8c03},
 		{ 0x8086, 0x2922},
 		{ 0x8086, 0x2829},
+		{ 0x15AD, 0x07E0},
 	},
 };
 
@@ -145,51 +146,7 @@ static int handle_req(struct blockdev *bd, struct request *req)
 	spinlock_release(&dev->lock);
 	return 1;
 }
-#if 0
-int _ahci_read(struct blockdev *bdev, unsigned long blk, int count, uintptr_t phys)
-{
-	struct ahci_device *dev = bdev->devdata;
-	uint64_t end_blk = dev->identify.lba48_addressable_sectors;
-	if(blk >= end_blk)
-		return 0;
-	if((blk+count) > end_blk)
-		count = end_blk - blk;
-	if(!count)
-		return 0;
-	int num_read_blocks = count;
-	struct hba_port *port = (struct hba_port *)&dev->bus->abar->ports[dev->idx];
-	
-	int slot=ahci_port_acquire_slot(dev);
-	if(!ahci_port_dma_data_transfer(dev->bus->abar, port, dev, slot, 0, phys, count, blk))
-		num_read_blocks = 0;
-	
-	ahci_port_release_slot(dev, slot);
-	
-	return num_read_blocks * ATA_SECTOR_SIZE;
-}
 
-int _ahci_write(struct blockdev *bdev, unsigned long blk, int count, uintptr_t phys)
-{
-	struct ahci_device *dev = bdev->devdata;
-	uint64_t end_blk = dev->identify.lba48_addressable_sectors;
-	if(blk >= end_blk)
-		return 0;
-	if((blk+count) > end_blk)
-		count = end_blk - blk;
-	if(!count)
-		return 0;
-	int num_read_blocks = count;
-	struct hba_port *port = (struct hba_port *)&dev->bus->abar->ports[dev->idx];
-	
-	int slot=ahci_port_acquire_slot(dev);
-	if(!ahci_port_dma_data_transfer(dev->bus->abar, port, dev, slot, 1, phys, count, blk))
-		num_read_blocks = 0;
-	
-	ahci_port_release_slot(dev, slot);
-	
-	return num_read_blocks * ATA_SECTOR_SIZE;
-}
-#endif
 struct blockdriver ahci_driver = {
 	.blksz = ATA_SECTOR_SIZE,
 	.read_blocks = 0,

@@ -87,6 +87,7 @@ int ahci_initialize_device(struct hba_memory *abar, struct ahci_device *dev)
 	port->interrupt_status = ~0; /* clear pending interrupts */
 	port->interrupt_enable = AHCI_DEFAULT_INT; /* we want some interrupts */
 	
+	printk("A");
 	port->command &= ~1;
 	while(port->command & (1 << 15)) cpu_pause();
 	port->command &= ~((1 << 27) | (1 << 26) | 1); /* clear some bits */
@@ -96,9 +97,11 @@ int ahci_initialize_device(struct hba_memory *abar, struct ahci_device *dev)
 	sys_nanosleep(&ts, NULL);
 	port->sata_control |= (~1);
 	sys_nanosleep(&ts, NULL);
+	printk("B");
 	while(!(port->sata_status & 1)) cpu_pause();
 	port->sata_error = ~0;
 	port->command |= (1 << 28); /* set interface to active */
+	printk("C");
 	while((port->sata_status >> 8) != 1) cpu_pause();
 	port->interrupt_status = ~0; /* clear pending interrupts */
 	port->interrupt_enable = AHCI_DEFAULT_INT; /* we want some interrupts */
@@ -126,8 +129,10 @@ int ahci_initialize_device(struct hba_memory *abar, struct ahci_device *dev)
 	
 	port->fis_base_l = LOWER32(dev->dma_fis);
 	port->fis_base_h = UPPER32(dev->dma_fis);
+	printk("D");
  	ahci_start_port_command_engine(port);
 	port->sata_error = ~0;
+	printk("E");
 	return ahci_device_identify_ahci(abar, port, dev);
 }
 
