@@ -1,7 +1,11 @@
 
-USRPROGS_NAMES=cond init syslogd sctl ps thr
+USRPROGS_NAMES=cond init syslogd sctl ps thr pswitch
 
 USRPROGS=$(addprefix initrd/bin/,$(USRPROGS_NAMES))
+
+initrd/bin/pswitch: $(SYSROOT)/usr/src/pswitch.c
+	@mkdir -p initrd/bin
+	$(TOOLCHAIN_PREFIX)linux-musl-gcc -static -O2 -g  -o $@ $< -Wall 
 
 initrd/bin/thr: $(SYSROOT)/usr/src/thr.c
 	@mkdir -p initrd/bin
