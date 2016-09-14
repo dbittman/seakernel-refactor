@@ -200,6 +200,7 @@ static int _e1000_init_device(struct pci_device *dev)
 	arch_interrupt_unmask(e->intno);
 	assert(int_map[e->intno] == NULL);
 	int_map[e->intno] = e;
+	e->nic = net_nic_init(e, &e1000_nic_driver);
 
 	if(!(dev->config.command & 4)) {
 		dev->config.command |= 4;
@@ -221,7 +222,6 @@ static int _e1000_init_device(struct pci_device *dev)
 	writecmd(e, REG_IMASK, 0xff & ~4);
 	readcmd(e, 0xc0);
 	e1000_startlink(e);
-	e->nic = net_nic_init(e, &e1000_nic_driver);
 	return 0;
 }
 

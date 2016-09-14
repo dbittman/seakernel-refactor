@@ -142,7 +142,7 @@ static bool _inode_initialize(void *obj, void *id, void *data)
 __initializer static void _inode_init_lru(void)
 {
 	/* TODO: sane defaults for these maximums? */
-	kobj_lru_create(&inode_lru, sizeof(struct inode_id), 100, &kobj_inode, _inode_initialize, _inode_release, NULL, NULL);
+	kobj_lru_create(&inode_lru, sizeof(struct inode_id), 0, &kobj_inode, _inode_initialize, _inode_release, NULL, NULL);
 	kobj_lru_create(&inodepage_lru, sizeof(struct inodepage_id), 10000, &kobj_inode_page, _inode_page_initialize, _inode_page_release, NULL, NULL);
 }
 
