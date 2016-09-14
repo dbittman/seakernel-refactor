@@ -120,10 +120,12 @@ struct e1000_tx_desc {
 
 #include <slab.h>
 #include <lib/linkedlist.h>
+#include <net/nic.h>
 struct e1000_device {
 	struct kobj_header _header;
 	struct linkedentry entry;
 	struct pci_device *pci;
+	struct nic *nic;
 	uint64_t mem_base;
 	uint16_t io_base;
 	uint8_t bar_type;
@@ -131,9 +133,10 @@ struct e1000_device {
 	uint8_t mac[6];
 	short flags;
 
-	struct e1000_rx_desc rx_descs[E1000_NUM_RX_DESC];
-	struct e1000_tx_desc tx_descs[E1000_NUM_TX_DESC];
+	struct e1000_rx_desc *rx_descs;
+	struct e1000_tx_desc *tx_descs;
 	uint16_t rx_cur;
 	uint16_t tx_cur;
+	int intno;
 };
 

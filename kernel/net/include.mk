@@ -1,1 +1,1 @@
-C_SOURCES+=kernel/net/unix.c
+C_SOURCES+=kernel/net/unix.c kernel/net/nic.c kernel/net/ethernet.c

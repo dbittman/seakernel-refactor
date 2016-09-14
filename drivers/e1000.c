@@ -4,6 +4,8 @@
 #include <mmu.h>
 #include <printk.h>
 #include <panic.h>
+#include <interrupt.h>
+#include <net/packet.h>
 
 struct linkedlist list;
 
@@ -29,13 +31,15 @@ static uint32_t readcmd(struct e1000_device *e, uint16_t reg)
 
 static void e1000_rxinit(struct e1000_device *e)
 {
+	e->rx_descs = (void *)mm_virtual_allocate(0x1000, false);
 	for(int i=0;i<E1000_NUM_RX_DESC;i++) {
 		e->rx_descs[i].addr = mm_physical_allocate(0x1000, false);
 		e->rx_descs[i].status = 0;
 	}
 
-	writecmd(e, REG_RXDESCLO, (uint32_t)((uintptr_t)e->rx_descs & 0xFFFFFFFF));
-	writecmd(e, REG_RXDESCHI, (uint32_t)(((uintptr_t)e->rx_descs >> 32) & 0xFFFFFFFF));
+	uintptr_t ptr = (uintptr_t)e->rx_descs - PHYS_MAP_START;
+	writecmd(e, REG_RXDESCLO, (uint32_t)(ptr & 0xFFFFFFFF));
+	writecmd(e, REG_RXDESCHI, (uint32_t)(ptr >> 32));
 
 	writecmd(e, REG_RXDESCLEN, E1000_NUM_RX_DESC * 16);
 	writecmd(e, REG_RXDESCHEAD, 0);
@@ -46,20 +50,22 @@ static void e1000_rxinit(struct e1000_device *e)
 
 static void e1000_txinit(struct e1000_device *e)
 {
+	e->tx_descs = (void *)mm_virtual_allocate(0x1000, false);
 	for(int i=0;i<E1000_NUM_TX_DESC;i++) {
 		e->tx_descs[i].addr = e->tx_descs[i].cmd = 0;
 		e->tx_descs[i].status = TSTA_DD;
 	}
 
-	writecmd(e, REG_TXDESCHI, (uint32_t)(((uintptr_t)e->tx_descs >> 32) & 0xFFFFFFFF));
-	writecmd(e, REG_TXDESCLO, (uint32_t)((uintptr_t)e->tx_descs & 0xFFFFFFFF));
+	uintptr_t ptr = (uintptr_t)e->tx_descs - PHYS_MAP_START;
+	writecmd(e, REG_TXDESCLO, (uint32_t)(ptr & 0xFFFFFFFF));
+	writecmd(e, REG_TXDESCHI, (uint32_t)(ptr >> 32));
 
 	writecmd(e, REG_TXDESCLEN, E1000_NUM_TX_DESC * 16);
 	writecmd(e, REG_TXDESCHEAD, 0);
 	writecmd(e, REG_TXDESCTAIL, 0);
 	e->tx_cur = 0;
 	writecmd(e, REG_TCTRL, TCTL_EN | TCTL_PSP | (15 << TCTL_CT_SHIFT) | (64 << TCTL_COLD_SHIFT) | TCTL_RTLC);
-	writecmd(e, REG_TIPG, 0x0060200A); //???
+	//writecmd(e, REG_TIPG, 0x0060200A); //???
 }
 
 static bool e1000_haseeprom(struct e1000_device *e)
@@ -119,15 +125,81 @@ static void e1000_startlink(struct e1000_device *e)
 	writecmd(e, REG_CTRL, tmp | ECTRL_SLU);
 }
 
+static struct e1000_device *int_map[256];
+
+static void e1000_interrupt_handler(int int_no, int flags)
+{
+	(void)flags;
+	struct e1000_device *e = int_map[int_no];
+	if(e == NULL) {
+		return;
+	}
+	uint32_t status = readcmd(e, 0xc0);
+	if(status != 0) printk(":: %x\n", status);
+	if(status & 0x04) {
+		e1000_startlink(e);
+	}
+
+	if(status & 0x80) {
+		e->nic->rxpending = true;
+		blocklist_unblock_one(&e->nic->bl);
+	}
+}
+
+static void _e1000_recv(struct nic *nic)
+{
+	struct e1000_device *e = nic->data;
+	while(e->rx_descs[e->rx_cur].status & 0x1) {
+		uintptr_t pdata = e->rx_descs[e->rx_cur].addr;
+		size_t len = e->rx_descs[e->rx_cur].length;
+
+		e->rx_descs[e->rx_cur].addr = mm_physical_allocate(0x1000, false);
+		net_nic_receive(nic, (void *)(pdata + PHYS_MAP_START), len, 0 /* TODO flags */);
+
+		e->rx_descs[e->rx_cur].status = 0;
+		uint16_t old = e->rx_cur;
+		e->rx_cur = (e->rx_cur + 1) % E1000_NUM_RX_DESC;
+		writecmd(e, REG_RXDESCTAIL, old);
+	}
+	nic->rxpending = false;
+}
+
+static void _e1000_send(struct nic *nic, struct packet *packet)
+{
+	struct e1000_device *e = nic->data;
+	struct e1000_tx_desc *d = &e->tx_descs[e->tx_cur];
+	d->addr = (uintptr_t)packet->data - PHYS_MAP_START;
+	d->length = packet->length;
+	d->cmd = CMD_EOP | CMD_IFCS | CMD_RS | CMD_RPS;
+	d->status = 0;
+	uint16_t old = e->tx_cur;
+	e->tx_cur = (old + 1) % E1000_NUM_TX_DESC;
+	writecmd(e, REG_TXDESCTAIL, e->tx_cur);
+	while(!(d->status & 0xFF)); //TODO: handle packet sending in background via interrupts
+}
+
+static struct nic_driver e1000_nic_driver = {
+	.name = "e1000",
+	.type = NIC_TYPE_ETHERNET,
+	.send = _e1000_send,
+	.recv = _e1000_recv,
+};
+
 static int _e1000_init_device(struct pci_device *dev)
 {
 	struct e1000_device *e = kobj_allocate(&kobj_e1000_device);
 	e->pci = dev;
 	linkedlist_insert(&list, &e->entry, e);
 
+	printk("[e1000]: init device\n");
 	e->bar_type = dev->config.bar[0] & 1;
 	e->io_base = pci_get_bar(dev, PCI_BAR_IO);
-	e->mem_base = pci_get_bar(dev, PCI_BAR_MEM);
+	e->mem_base = pci_get_bar(dev, PCI_BAR_MEM) + PHYS_MAP_START;
+	e->intno = dev->config.interrupt_line + 32;
+	interrupt_register(e->intno, e1000_interrupt_handler);
+	arch_interrupt_unmask(e->intno);
+	assert(int_map[e->intno] == NULL);
+	int_map[e->intno] = e;
 
 	if(!(dev->config.command & 4)) {
 		dev->config.command |= 4;
@@ -137,6 +209,8 @@ static int _e1000_init_device(struct pci_device *dev)
 		printk("[e1000]: warning - no eeprom\n");
 	}
 	e1000_initmac(e);
+	printk("[e1000]: mac addr=%x:%x:%x:%x:%x:%x\n", e->mac[0], e->mac[1], e->mac[2], e->mac[3], e->mac[4], e->mac[5]);
+	e1000_startlink(e);
 
 	for(int i=0;i<0x80;i++)
 	    writecmd(e, 0x5200 + i*4, 0);
@@ -147,6 +221,7 @@ static int _e1000_init_device(struct pci_device *dev)
 	writecmd(e, REG_IMASK, 0xff & ~4);
 	readcmd(e, 0xc0);
 	e1000_startlink(e);
+	e->nic = net_nic_init(e, &e1000_nic_driver);
 	return 0;
 }
 
