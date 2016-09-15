@@ -1,10 +1,3 @@
-Twizzler (temporary name)
-=========================
-
-This is a kernel. It's a kernel that does some things. It's part of the NVRAM work.
-
-Let me (Daniel Bittman) know if you have any questions about the kernel design and implementation, I'll be happy to talk about it.
-
 Build Instructions
 ------------------
 
