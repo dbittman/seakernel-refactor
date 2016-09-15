@@ -134,8 +134,8 @@ static void e1000_interrupt_handler(int int_no, int flags)
 	if(e == NULL) {
 		return;
 	}
+	spinlock_acquire(&e->nic->lock);
 	uint32_t status = readcmd(e, 0xc0);
-	if(status != 0) printk(":: %x\n", status);
 	if(status & 0x04) {
 		e1000_startlink(e);
 	}
@@ -144,10 +144,13 @@ static void e1000_interrupt_handler(int int_no, int flags)
 		e->nic->rxpending = true;
 		blocklist_unblock_one(&e->nic->bl);
 	}
+	spinlock_release(&e->nic->lock);
 }
 
-static void _e1000_recv(struct nic *nic)
+void serial_putc (char c);
+static int _e1000_recv(struct nic *nic)
 {
+	int count=0;
 	struct e1000_device *e = nic->data;
 	while(e->rx_descs[e->rx_cur].status & 0x1) {
 		uintptr_t pdata = e->rx_descs[e->rx_cur].addr;
@@ -160,8 +163,11 @@ static void _e1000_recv(struct nic *nic)
 		uint16_t old = e->rx_cur;
 		e->rx_cur = (e->rx_cur + 1) % E1000_NUM_RX_DESC;
 		writecmd(e, REG_RXDESCTAIL, old);
+		count++;
 	}
-	nic->rxpending = false;
+	if(count == 0)
+		nic->rxpending = false;
+	return count;
 }
 
 static void _e1000_send(struct nic *nic, struct packet *packet)
@@ -190,17 +196,18 @@ static int _e1000_init_device(struct pci_device *dev)
 	struct e1000_device *e = kobj_allocate(&kobj_e1000_device);
 	e->pci = dev;
 	linkedlist_insert(&list, &e->entry, e);
+	e->nic = net_nic_init(e, &e1000_nic_driver);
 
 	printk("[e1000]: init device\n");
 	e->bar_type = dev->config.bar[0] & 1;
 	e->io_base = pci_get_bar(dev, PCI_BAR_IO);
 	e->mem_base = pci_get_bar(dev, PCI_BAR_MEM) + PHYS_MAP_START;
+
 	e->intno = dev->config.interrupt_line + 32;
 	interrupt_register(e->intno, e1000_interrupt_handler);
 	arch_interrupt_unmask(e->intno);
 	assert(int_map[e->intno] == NULL);
 	int_map[e->intno] = e;
-	e->nic = net_nic_init(e, &e1000_nic_driver);
 
 	if(!(dev->config.command & 4)) {
 		dev->config.command |= 4;

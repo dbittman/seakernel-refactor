@@ -14,7 +14,7 @@ void net_ethernet_receive(struct packet *packet);
 
 struct nic_driver {
 	const char *name;
-	void (*recv)(struct nic *);
+	int (*recv)(struct nic *);
 	void (*send)(struct nic *, struct packet *);
 	int type;
 };
@@ -24,6 +24,7 @@ struct nic {
 	void *data;
 	struct worker worker;
 	struct blocklist bl;
+	struct spinlock lock;
 	_Atomic bool rxpending;
 
 	const struct nic_driver *driver;

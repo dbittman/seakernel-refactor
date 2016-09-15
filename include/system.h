@@ -27,6 +27,31 @@ void init_register_late_call(void *call, void *data);
 #define LATE_INIT_CALL(call, data) \
 	__initializer static void ___init##__LINE__##__FILE__##_lateinitreg(void) { init_register_late_call((void *)&call, data); }
 
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+
+#define BIG_TO_HOST16(x) __builtin_bswap16(x)
+#define BIG_TO_HOST32(x) __builtin_bswap32(x)
+#define BIG_TO_HOST64(x) __builtin_bswap64(x)
+
+#define LITTLE_TO_HOST16(x) (x)
+#define LITTLE_TO_HOST32(x) (x)
+#define LITTLE_TO_HOST64(x) (x)
+
+#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+
+#define LITTLE_TO_HOST16(x) __builtin_bswap16(x)
+#define LITTLE_TO_HOST32(x) __builtin_bswap32(x)
+#define LITTLE_TO_HOST64(x) __builtin_bswap64(x)
+
+#define BIG_TO_HOST16(x) (x)
+#define BIG_TO_HOST32(x) (x)
+#define BIG_TO_HOST64(x) (x)
+
+#else
+
+#error "We only support big and little endian"
+
+#endif
 
 #endif
 

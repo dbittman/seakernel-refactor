@@ -75,9 +75,8 @@ void ahci_interrupt_handler(int int_no, int flags)
 {
 	(void)flags;
 	struct ahci_bus *bus = interrupt_map[int_no - 32];
-	uint32_t intstat = bus->abar->interrupt_status;
 	for(int i=0;i<32;i++) {
-		if(intstat & (1u << i)) {
+		if(bus->abar->interrupt_status & (1u << i)) {
 			struct ahci_device *dev = &bus->ports[i];
 			spinlock_acquire(&dev->lock);
 			if(bus->abar->ports[i].interrupt_status & 0x1) {
@@ -106,10 +105,10 @@ static int _ahci_init_device(struct pci_device *dev)
 	ab->interrupt = dev->config.interrupt_line + 32;
 	interrupt_map[ab->interrupt - 32] = ab;
 	
-	ahci_init_hba(ab);
-	ahci_probe_ports(ab);
 	interrupt_register(ab->interrupt, ahci_interrupt_handler);
 	arch_interrupt_unmask(ab->interrupt);
+	ahci_init_hba(ab);
+	ahci_probe_ports(ab);
 	return 0;
 }
 

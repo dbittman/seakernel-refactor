@@ -16,7 +16,7 @@ void spinlock_acquire(struct spinlock *lock)
 		assert(r >= 0);
 	}
 #if CONFIG_DEBUG
-	int timeout = 100000000;
+	int timeout = 10000000;
 #endif
 	while(atomic_flag_test_and_set(&lock->lock)) {
 #if CONFIG_DEBUG
