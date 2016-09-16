@@ -60,14 +60,26 @@ void net_nic_receive(struct nic *nic, void *data, size_t length, int flags)
 	}
 }
 
-struct nic *net_nic_init(void *data, struct nic_driver *drv)
+void net_nic_change(struct nic *nic, enum nic_change_event event)
+{
+	for(int i=0;i<NETWORK_TYPE_NUM;i++) {
+		netprots[i]->nic_change(nic, event);
+	}
+}
+
+struct nic *net_nic_init(void *data, struct nic_driver *drv, void *physaddr, size_t paddrlen)
 {
 	struct nic *nic = kobj_allocate(&kobj_nic);
 	nic->data = data;
 	nic->driver = drv;
+	if(paddrlen > sizeof(nic->physaddr)) {
+		panic(0, "increase size of physical address for nic!");
+	}
+	memcpy(nic->physaddr, physaddr, paddrlen);
 	spinlock_create(&nic->lock);
 	nic->rxpending = false;
 	blocklist_create(&nic->bl);
+	net_nic_change(nic, NIC_CHANGE_CREATE);
 	worker_start(&nic->worker, _nic_worker, nic);
 	return nic;
 }

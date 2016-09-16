@@ -196,7 +196,6 @@ static int _e1000_init_device(struct pci_device *dev)
 	struct e1000_device *e = kobj_allocate(&kobj_e1000_device);
 	e->pci = dev;
 	linkedlist_insert(&list, &e->entry, e);
-	e->nic = net_nic_init(e, &e1000_nic_driver);
 
 	printk("[e1000]: init device\n");
 	e->bar_type = dev->config.bar[0] & 1;
@@ -217,8 +216,8 @@ static int _e1000_init_device(struct pci_device *dev)
 		printk("[e1000]: warning - no eeprom\n");
 	}
 	e1000_initmac(e);
-	memcpy(e->nic->physaddr, e->mac, 6);
 	printk("[e1000]: mac addr=%x:%x:%x:%x:%x:%x\n", e->mac[0], e->mac[1], e->mac[2], e->mac[3], e->mac[4], e->mac[5]);
+	e->nic = net_nic_init(e, &e1000_nic_driver, e->mac, 6);
 	e1000_startlink(e);
 
 	for(int i=0;i<0x80;i++)
@@ -230,6 +229,7 @@ static int _e1000_init_device(struct pci_device *dev)
 	writecmd(e, REG_IMASK, 0xff & ~4);
 	readcmd(e, 0xc0);
 	e1000_startlink(e);
+	net_nic_change(e->nic, NIC_CHANGE_UP);
 	return 0;
 }
 

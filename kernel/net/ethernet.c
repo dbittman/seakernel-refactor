@@ -13,15 +13,24 @@ enum {
 	ETHERTYPE_IPV6 = 0x86DD,
 };
 
+void net_ethernet_drop(struct packet *packet)
+{
+	(void)packet;
+}
+
 void net_ethernet_receive(struct packet *packet)
 {
-	/* TODO check mac address -- should we process it? */
 	struct ethernet_frame *ef = packet->data;
-	switch(BIG_TO_HOST16(ef->type)) {
-		case ETHERTYPE_IPV6:
-			printk("Got ipv6 packet!\n");
-			ipv6_receive(packet, (struct ipv6_header *)ef->data);
-			break;
+	if((ef->dest[0] & 1) //multicast
+			|| (!memcmp(ef->dest, packet->origin->physaddr, 6))) {
+		switch(BIG_TO_HOST16(ef->type)) {
+			case ETHERTYPE_IPV6:
+				printk("Got ipv6 packet!\n");
+				ipv6_receive(packet, (struct ipv6_header *)ef->data);
+				break;
+		}
+	} else {
+		net_ethernet_drop(packet);
 	}
 }
 

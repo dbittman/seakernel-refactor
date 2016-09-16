@@ -28,6 +28,7 @@ struct nic_driver {
 enum nic_change_event {
 	NIC_CHANGE_CREATE,
 	NIC_CHANGE_DELETE,
+	NIC_CHANGE_UP,
 };
 
 struct network_protocol {
@@ -48,9 +49,10 @@ struct nic {
 	void *netprotdata[NETWORK_TYPE_NUM];
 };
 
-struct nic *net_nic_init(void *data, struct nic_driver *);
+struct nic *net_nic_init(void *data, struct nic_driver *, void *, size_t);
 void net_nic_receive(struct nic *nic, void *data, size_t length, int flags);
 struct network_address *net_nic_match_netaddr(struct nic *nic, enum network_type type, uint8_t *addr, size_t length);
+void net_nic_change(struct nic *nic, enum nic_change_event event);
 
 void net_ethernet_receive(struct packet *packet);
 void net_ethernet_send(struct packet *packet);
