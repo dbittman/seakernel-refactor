@@ -60,12 +60,7 @@ void icmp6_receive(struct packet *packet, struct ipv6_header *header, int type)
 			{
 				union ipv6_address tmp = header->source;
 				//header->source = header->destination;
-				uint8_t f[] = {
-					0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
-					0x02, 0x22, 0x75, 0xff, 0xfe, 0xd6, 0xfe, 0x50
-				};
-
-				memcpy(header->source.octets, f, 16);
+				
 
 				header->destination = tmp;
 				icmp->type = ICMP_MSG_ECHO_REP;

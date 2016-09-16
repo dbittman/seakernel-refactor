@@ -2,11 +2,10 @@
 #include <printk.h>
 #include <net/packet.h>
 static struct kobj kobj_nic = KOBJ_DEFAULT(nic);
-
 static struct kobj kobj_packet = KOBJ_DEFAULT(packet);
 
 extern struct network_protocol network_protocol_ipv6;
-struct network_protocol netprots[NETWORK_TYPE_NUM] = {
+struct network_protocol *netprots[NETWORK_TYPE_NUM] = {
 	[NETWORK_TYPE_IPV6] = &network_protocol_ipv6,
 };
 
@@ -34,21 +33,6 @@ static void _nic_worker(struct worker *worker)
 	}
 	spinlock_release(&nic->lock);
 	worker_exit(worker, 0);
-}
-
-bool net_nic_match_netaddr(struct nic *nic, enum network_type type, uint8_t *addr, size_t length)
-{
-	__linkedlist_lock(&nic->addresses);
-	for(struct linkedentry *entry = linkedlist_iter_start(&nic->addresses);
-			entry != linkedlist_iter_end(&nic->addresses); entry = linkedlist_iter_next(entry)) {
-		struct network_address *na = linkedentry_obj(entry);
-		if(length == na->length && type == na->type && !memcmp(addr, na->address, length)) {
-			__linkedlist_unlock(&nic->addresses);
-			return true;
-		}
-	}
-	__linkedlist_unlock(&nic->addresses);
-	return false;
 }
 
 void net_nic_send(struct nic *nic, struct packet *packet)
@@ -83,7 +67,6 @@ struct nic *net_nic_init(void *data, struct nic_driver *drv)
 	nic->driver = drv;
 	spinlock_create(&nic->lock);
 	nic->rxpending = false;
-	linkedlist_create(&nic->addresses, 0);
 	blocklist_create(&nic->bl);
 	worker_start(&nic->worker, _nic_worker, nic);
 	return nic;

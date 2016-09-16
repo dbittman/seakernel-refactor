@@ -50,7 +50,7 @@ struct nic {
 
 struct nic *net_nic_init(void *data, struct nic_driver *);
 void net_nic_receive(struct nic *nic, void *data, size_t length, int flags);
-bool net_nic_match_netaddr(struct nic *nic, enum network_type type, uint8_t *addr, size_t length);
+struct network_address *net_nic_match_netaddr(struct nic *nic, enum network_type type, uint8_t *addr, size_t length);
 
 void net_ethernet_receive(struct packet *packet);
 void net_ethernet_send(struct packet *packet);
