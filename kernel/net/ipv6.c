@@ -36,10 +36,10 @@ void ipv6_receive(struct packet *packet, struct ipv6_header *header)
 	}
 	printk("\n");
 #endif
-	//if(net_nic_match_netaddr(packet->origin, NETWORK_TYPE_IPV6, header->destination.octets, 16)) {
+	if((packet->na_dest = net_nic_match_netaddr(packet->origin, NETWORK_TYPE_IPV6, header->destination.octets, 16))) {
 		ipv6_receive_process(packet, header, PTR_UNICAST);
-	//} else if(header->destination.octets[0] == 0xFF && header->destination.octets[1] == 0x2) {
-	//	ipv6_receive_process(packet, header, PTR_MULTICAST);
-	//}
+	} else if(header->destination.octets[0] == 0xFF && header->destination.octets[1] == 0x2) {
+		ipv6_receive_process(packet, header, PTR_MULTICAST);
+	}
 }
 

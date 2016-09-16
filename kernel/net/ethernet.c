@@ -15,6 +15,7 @@ enum {
 
 void net_ethernet_receive(struct packet *packet)
 {
+	/* TODO check mac address -- should we process it? */
 	struct ethernet_frame *ef = packet->data;
 	switch(BIG_TO_HOST16(ef->type)) {
 		case ETHERTYPE_IPV6:

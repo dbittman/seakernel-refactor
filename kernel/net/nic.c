@@ -2,7 +2,7 @@
 #include <printk.h>
 #include <net/packet.h>
 static struct kobj kobj_nic = KOBJ_DEFAULT(nic);
-
+static struct kobj kobj_network_address = KOBJ_DEFAULT(network_address);
 static struct kobj kobj_packet = KOBJ_DEFAULT(packet);
 
 static void _nic_worker(struct worker *worker)
@@ -31,19 +31,20 @@ static void _nic_worker(struct worker *worker)
 	worker_exit(worker, 0);
 }
 
-bool net_nic_match_netaddr(struct nic *nic, enum network_type type, uint8_t *addr, size_t length)
+struct network_address *net_nic_match_netaddr(struct nic *nic, enum network_type type, uint8_t *addr, size_t length)
 {
 	__linkedlist_lock(&nic->addresses);
 	for(struct linkedentry *entry = linkedlist_iter_start(&nic->addresses);
 			entry != linkedlist_iter_end(&nic->addresses); entry = linkedlist_iter_next(entry)) {
 		struct network_address *na = linkedentry_obj(entry);
 		if(length == na->length && type == na->type && !memcmp(addr, na->address, length)) {
+			kobj_getref(na);
 			__linkedlist_unlock(&nic->addresses);
-			return true;
+			return na;
 		}
 	}
 	__linkedlist_unlock(&nic->addresses);
-	return false;
+	return NULL;
 }
 
 void net_nic_send(struct nic *nic, struct packet *packet)
@@ -78,6 +79,16 @@ struct nic *net_nic_init(void *data, struct nic_driver *drv)
 	nic->driver = drv;
 	spinlock_create(&nic->lock);
 	nic->rxpending = false;
+	uint8_t f[] = {
+		0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+	};
+
+	struct network_address *addr = kobj_allocate(&kobj_network_address);
+	addr->type = NETWORK_TYPE_IPV6;
+	addr->length = 16;
+	memcpy(addr->address, f, 16);
+
 	linkedlist_create(&nic->addresses, 0);
 	blocklist_create(&nic->bl);
 	worker_start(&nic->worker, _nic_worker, nic);
