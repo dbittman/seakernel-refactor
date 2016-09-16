@@ -5,6 +5,11 @@ static struct kobj kobj_nic = KOBJ_DEFAULT(nic);
 
 static struct kobj kobj_packet = KOBJ_DEFAULT(packet);
 
+extern struct network_protocol network_protocol_ipv6;
+struct network_protocol netprots[NETWORK_TYPE_NUM] = {
+	[NETWORK_TYPE_IPV6] = &network_protocol_ipv6,
+};
+
 static void _nic_worker(struct worker *worker)
 {
 	struct nic *nic = worker_arg(worker);
@@ -23,9 +28,9 @@ static void _nic_worker(struct worker *worker)
 			}
 			blockpoint_cleanup(&bp);
 		}
-		spinlock_release(&nic->lock);
-		schedule();
-		spinlock_acquire(&nic->lock);
+		/* spinlock_release(&nic->lock); */
+		/* schedule(); */
+		/* spinlock_acquire(&nic->lock); */
 	}
 	spinlock_release(&nic->lock);
 	worker_exit(worker, 0);

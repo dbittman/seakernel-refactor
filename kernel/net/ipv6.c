@@ -3,6 +3,35 @@
 #include <net/ipv6.h>
 #include <printk.h>
 
+#define HAS_GLOBAL 1
+
+struct nicdata {
+	struct kobj_header _header;
+	int flags;
+	union ipv6_address linkaddr;
+	union ipv6_address globaladdr;
+};
+
+struct kobj kobj_nicdata = KOBJ_DEFAULT(nicdata);
+
+static void _ipv6_nic_change(struct nic *nic, enum nic_change_event event)
+{
+	switch(event) {
+		case NIC_CHANGE_CREATE:
+			nic->netprotdata[NETWORK_TYPE_IPV6] = kobj_allocate(&kobj_nicdata);
+			break;
+		case NIC_CHANGE_DELETE:
+			/* TODO */
+			break;
+		default: panic(0, "invalid nic change event %d\n", event);
+	}
+}
+
+struct network_protocol network_protocol_ipv6 = {
+	.name = "ipv6",
+	.nic_change = _ipv6_nic_change,
+};
+
 static void ipv6_receive_process(struct packet *packet, struct ipv6_header *header, int type)
 {
 	(void)packet;

@@ -14,6 +14,8 @@ enum {
 
 enum network_type {
 	NETWORK_TYPE_IPV6,
+
+	NETWORK_TYPE_NUM,
 };
 
 struct nic_driver {
@@ -23,10 +25,14 @@ struct nic_driver {
 	int type;
 };
 
-struct network_address {
-	uint8_t address[16];
-	size_t length;
-	enum network_type type;
+enum nic_change_event {
+	NIC_CHANGE_CREATE,
+	NIC_CHANGE_DELETE,
+};
+
+struct network_protocol {
+	const char *name;
+	void (*nic_change)(struct nic *, enum nic_change_event event);
 };
 
 struct nic {
@@ -36,11 +42,10 @@ struct nic {
 	struct blocklist bl;
 	struct spinlock lock;
 	_Atomic bool rxpending;
-
 	const struct nic_driver *driver;
-
-	struct linkedlist addresses;
 	uint8_t physaddr[6];
+
+	void *netprotdata[NETWORK_TYPE_NUM];
 };
 
 struct nic *net_nic_init(void *data, struct nic_driver *);
