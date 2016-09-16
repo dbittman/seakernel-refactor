@@ -24,3 +24,11 @@ void net_ethernet_receive(struct packet *packet)
 	}
 }
 
+void net_ethernet_send(struct packet *packet)
+{
+	struct ethernet_frame *ef = packet->data;
+	memcpy(ef->dest, ef->src, 6);
+	memcpy(ef->src, packet->sender->physaddr, 6);
+	packet->sender->driver->send(packet->sender, packet);
+}
+

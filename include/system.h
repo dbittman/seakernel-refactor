@@ -53,5 +53,15 @@ void init_register_late_call(void *call, void *data);
 
 #endif
 
+
+#define HOST_TO_BIG16(x) BIG_TO_HOST16(x)
+#define HOST_TO_BIG32(x) BIG_TO_HOST32(x)
+#define HOST_TO_BIG64(x) BIG_TO_HOST64(x)
+
+#define HOST_TO_LITTLE16(x) LITTLE_TO_HOST16(x)
+#define HOST_TO_LITTLE32(x) LITTLE_TO_HOST32(x)
+#define HOST_TO_LITTLE64(x) LITTLE_TO_HOST64(x)
+
+
 #endif
 

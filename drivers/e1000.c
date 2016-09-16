@@ -217,6 +217,7 @@ static int _e1000_init_device(struct pci_device *dev)
 		printk("[e1000]: warning - no eeprom\n");
 	}
 	e1000_initmac(e);
+	memcpy(e->nic->physaddr, e->mac, 6);
 	printk("[e1000]: mac addr=%x:%x:%x:%x:%x:%x\n", e->mac[0], e->mac[1], e->mac[2], e->mac[3], e->mac[4], e->mac[5]);
 	e1000_startlink(e);
 
