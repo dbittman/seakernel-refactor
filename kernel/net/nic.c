@@ -76,6 +76,7 @@ struct nic *net_nic_init(void *data, struct nic_driver *drv, void *physaddr, siz
 		panic(0, "increase size of physical address for nic!");
 	}
 	memcpy(nic->physaddr.octets, physaddr, paddrlen);
+	nic->physaddr.len = paddrlen;
 	spinlock_create(&nic->lock);
 	nic->rxpending = false;
 	blocklist_create(&nic->bl);

@@ -5,34 +5,9 @@
 
 #define HAS_GLOBAL 1
 
-struct nicdata {
-	struct kobj_header _header;
-	int flags;
-	union ipv6_address linkaddr;
-	union ipv6_address globaladdr;
-	struct nic *nic;
-};
-
 struct kobj kobj_nicdata = {
 	KOBJ_DEFAULT_ELEM(nicdata),
 	.destroy = NULL, .put = NULL, .init = NULL, .create = NULL,
-};
-
-enum reach_state {
-	REACHABILITY_REACHABLE,
-	REACHABILITY_INCOMPLETE,
-	REACHABILITY_STALE,
-	REACHABILITY_PROBE,
-	REACHABILITY_DELAY,
-};
-
-struct neighbor {
-	struct kobj_header _header;
-	enum reach_state reachability;
-	union ipv6_address addr;
-	struct physical_address physaddr;
-	struct hashelem entry;
-	bool router;
 };
 
 struct hash neighbors;
@@ -163,8 +138,10 @@ void ipv6_receive(struct packet *packet, struct ipv6_header *header)
 			|| ((nd->flags & HAS_GLOBAL) && !memcmp(header->destination.octets, nd->globaladdr.octets, 16))) {
 		ipv6_receive_process(packet, header, PTR_UNICAST);
 	} else if(header->destination.octets[0] == 0xFF && header->destination.octets[1] == 0x2) {
-		/* TODO: check last octet: 1 = all nodes, 2 = all routers */
+		/* TODO: check last octet: 1 = all nodes, 2 = all routers... also can contain part of the ip address, check that too */
 		ipv6_receive_process(packet, header, PTR_MULTICAST);
+	} else {
+		printk("IPV6 DROP %lx:%lx       %lx:%lx\n", header->destination.prefix, header->destination.id, nd->linkaddr.prefix, nd->linkaddr.id);
 	}
 }
 

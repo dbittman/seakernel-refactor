@@ -37,6 +37,7 @@ struct network_protocol {
 };
 
 struct physical_address {
+	size_t len;
 	uint8_t octets[6];
 };
 

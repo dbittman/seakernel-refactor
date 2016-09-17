@@ -1,5 +1,8 @@
 #pragma once
 
+#include <slab.h>
+#include <net/nic.h>
+#define HAS_GLOBAL 1
 struct packet;
 enum {
 	IP_PROTOCOL_ICMP6 = 0x3A,
@@ -28,6 +31,25 @@ struct icmp6_header {
 	uint8_t data[];
 } __attribute__((packed));
 
+struct neighbor_solicit_header {
+	uint32_t _res;
+	union ipv6_address target;
+	uint8_t options[];
+} __attribute__((packed));
+
+struct neighbor_advert_header {
+	uint8_t flags;
+	uint8_t _resv[3];
+	union ipv6_address target;
+	uint8_t options[];
+} __attribute__((packed));
+
+struct icmp_option {
+	uint8_t type;
+	uint8_t length;
+	uint8_t data[];
+} __attribute__((packed));
+
 struct ipv6_header {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 	uint32_t tc0 : 4;
@@ -45,6 +67,32 @@ struct ipv6_header {
 	union ipv6_address destination;
 	uint8_t data[];
 } __attribute__((packed));
+
+struct nicdata {
+	struct kobj_header _header;
+	int flags;
+	union ipv6_address linkaddr;
+	union ipv6_address globaladdr;
+	struct nic *nic;
+};
+
+enum reach_state {
+	REACHABILITY_REACHABLE,
+	REACHABILITY_INCOMPLETE,
+	REACHABILITY_STALE,
+	REACHABILITY_PROBE,
+	REACHABILITY_DELAY,
+};
+
+struct neighbor {
+	struct kobj_header _header;
+	enum reach_state reachability;
+	union ipv6_address addr;
+	struct physical_address physaddr;
+	struct hashelem entry;
+	bool router;
+};
+
 
 void ipv6_receive(struct packet *packet, struct ipv6_header *header);
 void ipv6_drop_packet(struct packet *packet, struct ipv6_header *header, int type);
