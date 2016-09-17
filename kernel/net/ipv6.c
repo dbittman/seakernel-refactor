@@ -13,16 +13,34 @@ struct nicdata {
 	struct nic *nic;
 };
 
-static void _nicdata_destroy(void *o)
-{
-	(void)o;
-}
-
 struct kobj kobj_nicdata = {
 	KOBJ_DEFAULT_ELEM(nicdata),
-	.destroy = _nicdata_destroy,
-	.put = NULL, .init = NULL, .create = NULL,
+	.destroy = NULL, .put = NULL, .init = NULL, .create = NULL,
 };
+
+enum reach_state {
+	REACHABILITY_REACHABLE,
+	REACHABILITY_INCOMPLETE,
+	REACHABILITY_STALE,
+	REACHABILITY_PROBE,
+	REACHABILITY_DELAY,
+};
+
+struct neighbor {
+	struct kobj_header _header;
+	enum reach_state reachability;
+	union ipv6_address addr;
+	struct physical_address physaddr;
+	struct hashelem entry;
+	bool router;
+};
+
+struct hash neighbors;
+
+__initializer static void __ipv6_init(void)
+{
+	hash_create(&neighbors, 0, 1024);
+}
 
 static uint8_t ll_prefix[8] = {
 	0xfe, 0x80, 0, 0, 0, 0, 0, 0,
@@ -38,10 +56,10 @@ static void _ipv6_nic_change(struct nic *nic, enum nic_change_event event)
 			nd->nic = nic;
 			memcpy(nd->linkaddr.octets, ll_prefix, 8);
 			uint8_t id[8];
-			memcpy(id, nic->physaddr, 3);
+			memcpy(id, nic->physaddr.octets, 3);
 			id[3] = 0xFF;
 			id[4] = 0xFE;
-			memcpy(id + 5, nic->physaddr, 3);
+			memcpy(id + 5, nic->physaddr.octets, 3);
 			id[0] |= 1 << 1;
 			memcpy(nd->linkaddr.octets + 8, id, 8);
 			break;
@@ -145,6 +163,7 @@ void ipv6_receive(struct packet *packet, struct ipv6_header *header)
 			|| ((nd->flags & HAS_GLOBAL) && !memcmp(header->destination.octets, nd->globaladdr.octets, 16))) {
 		ipv6_receive_process(packet, header, PTR_UNICAST);
 	} else if(header->destination.octets[0] == 0xFF && header->destination.octets[1] == 0x2) {
+		/* TODO: check last octet: 1 = all nodes, 2 = all routers */
 		ipv6_receive_process(packet, header, PTR_MULTICAST);
 	}
 }

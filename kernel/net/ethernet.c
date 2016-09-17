@@ -22,7 +22,7 @@ void net_ethernet_receive(struct packet *packet)
 {
 	struct ethernet_frame *ef = packet->data;
 	if((ef->dest[0] & 1) //multicast
-			|| (!memcmp(ef->dest, packet->origin->physaddr, 6))) {
+			|| (!memcmp(ef->dest, packet->origin->physaddr.octets, 6))) {
 		switch(BIG_TO_HOST16(ef->type)) {
 			case ETHERTYPE_IPV6:
 				printk("Got ipv6 packet!\n");
@@ -38,7 +38,7 @@ void net_ethernet_send(struct packet *packet)
 {
 	struct ethernet_frame *ef = packet->data;
 	memcpy(ef->dest, ef->src, 6);
-	memcpy(ef->src, packet->sender->physaddr, 6);
+	memcpy(ef->src, packet->sender->physaddr.octets, 6);
 	packet->sender->driver->send(packet->sender, packet);
 }
 

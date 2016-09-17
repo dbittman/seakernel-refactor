@@ -36,6 +36,10 @@ struct network_protocol {
 	void (*nic_change)(struct nic *, enum nic_change_event event);
 };
 
+struct physical_address {
+	uint8_t octets[6];
+};
+
 struct nic {
 	struct kobj_header _header;
 	void *data;
@@ -44,14 +48,13 @@ struct nic {
 	struct spinlock lock;
 	_Atomic bool rxpending;
 	const struct nic_driver *driver;
-	uint8_t physaddr[6];
+	struct physical_address physaddr;
 
 	void *netprotdata[NETWORK_TYPE_NUM];
 };
 
 struct nic *net_nic_init(void *data, struct nic_driver *, void *, size_t);
 void net_nic_receive(struct nic *nic, void *data, size_t length, int flags);
-struct network_address *net_nic_match_netaddr(struct nic *nic, enum network_type type, uint8_t *addr, size_t length);
 void net_nic_change(struct nic *nic, enum nic_change_event event);
 
 void net_ethernet_receive(struct packet *packet);
