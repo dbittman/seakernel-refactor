@@ -182,6 +182,7 @@ static void _e1000_send(struct nic *nic, struct packet *packet)
 	e->tx_cur = (old + 1) % E1000_NUM_TX_DESC;
 	writecmd(e, REG_TXDESCTAIL, e->tx_cur);
 	while(!(d->status & 0xFF)); //TODO: handle packet sending in background via interrupts
+	kobj_putref(packet);
 }
 
 static struct nic_driver e1000_nic_driver = {

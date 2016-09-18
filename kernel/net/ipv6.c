@@ -286,14 +286,16 @@ static void ipv6_receive_process(struct packet *packet, struct ipv6_header *head
 	(void)type;
 	if(header->next_header == IP_PROTOCOL_ICMP6) {
 		icmp6_receive(packet, header, type);
+	} else {
+		ipv6_drop_packet(packet, header, type);
 	}
 }
 
 void ipv6_drop_packet(struct packet *packet, struct ipv6_header *header, int type)
 {
-	(void)packet;
 	(void)header;
 	(void)type;
+	kobj_putref(packet);
 }
 
 void ipv6_receive(struct packet *packet, struct ipv6_header *header)

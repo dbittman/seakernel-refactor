@@ -49,6 +49,7 @@ void net_nic_receive(struct nic *nic, void *data, size_t length, int flags)
 	(void)data;
 
 	struct packet *packet = kobj_allocate(&kobj_packet);
+	printk("Alloc %p\n", packet);
 	packet->data = data;
 	packet->length = length;
 	packet->origin = nic;
@@ -57,6 +58,8 @@ void net_nic_receive(struct nic *nic, void *data, size_t length, int flags)
 		case NIC_TYPE_ETHERNET:
 			net_ethernet_receive(packet);
 			break;
+		default:
+			kobj_putref(packet);
 	}
 }
 

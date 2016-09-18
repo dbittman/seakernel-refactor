@@ -97,6 +97,7 @@ void icmp6_receive(struct packet *packet, struct ipv6_header *header, int type)
 					options -= opt->length * 8;
 					opt = (void *)((char *)opt + opt->length * 8);
 				}
+				kobj_putref(packet);
 			} break;
 		case ICMP_MSG_NEIGH_SOLICIT:
 			{
@@ -135,6 +136,8 @@ void icmp6_receive(struct packet *packet, struct ipv6_header *header, int type)
 				packet->sender = packet->origin;
 				ipv6_send_packet(packet, header, &icmp->checksum);
 			} break;
+		default:
+			ipv6_drop_packet(packet, header, type);
 	}
 }
 

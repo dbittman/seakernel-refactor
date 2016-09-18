@@ -15,7 +15,7 @@ enum {
 
 void net_ethernet_drop(struct packet *packet)
 {
-	(void)packet;
+	kobj_putref(packet);
 }
 
 void net_ethernet_receive(struct packet *packet)
@@ -28,6 +28,8 @@ void net_ethernet_receive(struct packet *packet)
 				printk("Got ipv6 packet!\n");
 				ipv6_receive(packet, (struct ipv6_header *)ef->data);
 				break;
+			default:
+				net_ethernet_drop(packet);
 		}
 	} else {
 		net_ethernet_drop(packet);
