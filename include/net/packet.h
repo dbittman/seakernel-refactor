@@ -1,6 +1,7 @@
 #pragma once
 
 #include <slab.h>
+#include <fs/socket.h>
 
 struct nic;
 struct network_address;
@@ -10,7 +11,11 @@ struct packet {
 	size_t length;
 	struct nic *origin, *sender;
 	struct linkedentry queue_entry;
+	void *transport_header;
+	struct sockaddr saddr;
+	struct sockaddr daddr;
 };
 
 extern struct kobj kobj_packet;
 void *net_packet_buffer_allocate(void);
+

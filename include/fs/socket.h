@@ -5,22 +5,53 @@
 #include <blocklist.h>
 #include <slab.h>
 #include <fs/inode.h>
+#include <arena.h>
 
 typedef unsigned socklen_t;
 typedef unsigned short sa_family_t;
+typedef uint16_t in_port_t;
 #define AF_UNIX 1
+#define AF_INET6 10
 
-#define MAX_AF 2
+#define MAX_PROT 32
+#define MAX_AF 10
+#define MAX_TYPE 2
 
 struct sockaddr {
 	sa_family_t sa_family;
-	char sa_data[14];
+	char sa_data[64];
+};
+
+struct sockaddrinfo {
+	socklen_t length;
+	const struct sockaddr *any_address;
 };
 
 struct sockaddr_un {
 	sa_family_t sun_family;
 	char sun_path[108];
 };
+
+union ipv6_address {
+	uint8_t octets[16];
+	uint32_t u32[4];
+	struct {
+		uint64_t prefix;
+		uint64_t id;
+	} __attribute__((packed));
+	__int128 addr;
+};
+
+struct sockaddr_in6 {
+	sa_family_t sa_family;
+	in_port_t port;
+	uint32_t flow;
+	union ipv6_address addr;
+	uint32_t scope;
+} __attribute__((packed));
+
+extern struct sockaddrinfo sockaddrinfo[MAX_AF + 1];
+_Static_assert(sizeof(struct sockaddr) >= sizeof(struct sockaddr_in6), "");
 
 struct socket;
 struct sock_calls {
@@ -56,6 +87,13 @@ struct socket_unix_data {
 	struct unix_connection _condata; // the server socket stores the connection
 };
 
+struct socket_udp_data {
+	struct hashelem elem;
+	struct sockaddr binding;
+	struct linkedlist inq;
+	struct blocklist rbl;
+};
+
 #define SF_BOUND  1
 #define SF_LISTEN 2
 #define SF_ACCEPT 4
@@ -67,6 +105,20 @@ struct socket_unix_data {
 //some compilers define 'unix' as 1, which doesn't make sense for kernel code.
 #undef unix
 
+#define SO_BINDTODEVICE 25
+
+struct sockoptkey {
+	int level;
+	int option;
+};
+
+struct sockopt {
+	struct sockoptkey key;
+	size_t len;
+	struct hashelem elem;
+	char data[];
+};
+
 struct socket {
 	struct kobj_header _header;
 	int domain, type, protocol;
@@ -76,8 +128,12 @@ struct socket {
 	struct linkedlist pend_con;
 	struct blocklist pend_con_wait;
 	struct linkedentry pend_con_entry;
+	struct hash options;
+	struct arena optarena;
+	struct spinlock optlock;
 	union {
 		struct socket_unix_data unix;
+		struct socket_udp_data udp;
 	};
 };
 

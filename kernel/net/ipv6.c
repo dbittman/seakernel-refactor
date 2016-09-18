@@ -4,6 +4,9 @@
 #include <printk.h>
 #include <trace.h>
 
+const struct sockaddr_in6 ipv6_any_address = {
+	.sa_family = AF_INET6,
+};
 TRACE_DEFINE(ipv6_trace, "ipv6");
 
 static struct sleepflag worker_work;
@@ -283,13 +286,30 @@ void ipv6_send_packet(struct packet *packet, struct ipv6_header *header, uint16_
 	}
 }
 
+struct udp_header;
+void udp_recv(struct packet *packet, struct udp_header *header);
+void udp_get_ports(struct udp_header *header, uint16_t *src, uint16_t *dest);
 static void ipv6_receive_process(struct packet *packet, struct ipv6_header *header, int type)
 {
 	(void)packet;
 	(void)header;
 	(void)type;
+	packet->transport_header = header->data;
 	if(header->next_header == IP_PROTOCOL_ICMP6) {
 		icmp6_receive(packet, header, type);
+	} else if(header->next_header == IP_PROTOCOL_UDP) {
+		struct sockaddr_in6 *saddr = (struct sockaddr_in6 *)&packet->saddr;
+		struct sockaddr_in6 *daddr = (struct sockaddr_in6 *)&packet->daddr;
+		saddr->flow = 0;
+		saddr->scope = 0; //TODO
+		daddr->flow = 0;
+		daddr->scope = 0;
+		saddr->addr = header->source;
+		daddr->addr = header->destination;
+		saddr->sa_family = AF_INET6;
+		daddr->sa_family = AF_INET6;
+		udp_get_ports((void *)header->data, &saddr->port, &daddr->port);
+		udp_recv(packet, (void *)header->data);
 	} else {
 		ipv6_drop_packet(packet, header, type);
 	}

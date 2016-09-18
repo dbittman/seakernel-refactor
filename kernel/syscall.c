@@ -81,6 +81,8 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_bind]     = SC sys_bind,
 	[SYS_sendto]   = SC sys_sendto,
 	[SYS_recvfrom]   = SC sys_recvfrom,
+	[SYS_setsockopt] = SC sys_setsockopt,
+	[SYS_getsockopt] = SC sys_setsockopt,
 
 	[SYS_getpid]   = SC sys_getpid,
 	[SYS_getppid]   = SC sys_getppid,

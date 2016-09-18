@@ -4,13 +4,22 @@
 #include <errno.h>
 #include <fs/sys.h>
 #include <thread.h>
+#include <printk.h>
 extern struct sock_calls af_unix_calls;
+extern struct sock_calls af_udp_calls;
+
+extern const struct sockaddr_in6 ipv6_any_address;
+struct sockaddrinfo sockaddrinfo[MAX_AF + 1] = {
+	[AF_INET6] = {.length = sizeof(struct sockaddr_in6), .any_address = (const struct sockaddr *)&ipv6_any_address},
+};
 
 static void _socket_init(void *obj)
 {
 	struct socket *sock = obj;
 	sock->flags = 0;
 	sock->ops = NULL;
+	arena_create(&sock->optarena);
+	hash_create(&sock->options, HASH_LOCKLESS, 64);
 }
 
 static void _socket_create(void *obj)
@@ -18,18 +27,32 @@ static void _socket_create(void *obj)
 	struct socket *s = obj;
 	linkedlist_create(&s->pend_con, 0);
 	blocklist_create(&s->pend_con_wait);
+	spinlock_create(&s->optlock);
 	_socket_init(obj);
+}
+
+static void _socket_put(void *obj)
+{
+	struct socket *sock = obj;
+	hash_destroy(&sock->options);
+	arena_destroy(&sock->optarena);
 }
 
 static struct kobj kobj_socket = {
 	KOBJ_DEFAULT_ELEM(socket),
 	.create = _socket_create, .destroy = NULL,
-	.init = _socket_init, .put = NULL,
+	.init = _socket_init, .put = _socket_put,
 };
 
-static struct sock_calls *domains[MAX_AF] = {
-	[0] = NULL,
-	[AF_UNIX] = &af_unix_calls,
+static struct sock_calls *domains[MAX_AF + 1][MAX_PROT + 1] = {
+	[0] = {NULL, NULL, NULL},
+	[AF_UNIX] = {NULL, &af_unix_calls},
+	[AF_INET6] = {[0] = NULL, [6] = NULL, [17] = &af_udp_calls},
+};
+
+static int default_protocol[MAX_AF + 1][MAX_TYPE + 1] = {
+	[AF_UNIX] = {0, 1, 1},
+	[AF_INET6] = {0, 6, 17},
 };
 
 struct socket *socket_get_from_fd(int fd, int *err)
@@ -52,8 +75,18 @@ struct socket *socket_get_from_fd(int fd, int *err)
 
 sysret_t sys_socket(int domain, int type, int protocol)
 {
-	if(domain >= MAX_AF)
+	if(domain > MAX_AF || domain < 0)
 		return -EINVAL;
+	if(protocol > MAX_PROT || protocol < 0)
+		return -EINVAL;
+	if(type <= 0 || type > MAX_TYPE)
+		return -EINVAL;
+	protocol = protocol == 0 ? default_protocol[domain][type] : protocol;
+	struct sock_calls *ops = domains[domain][protocol];
+	printk(":: %d %d %d : %p\n", domain, type, protocol, ops);
+	if(!ops) {
+		return -ENOTSUP;
+	}
 	struct file *file = file_create(NULL, FDT_SOCK);
 	file->flags |= F_READ | F_WRITE;
 	int fd = process_allocate_fd(file, 0);
@@ -66,7 +99,7 @@ sysret_t sys_socket(int domain, int type, int protocol)
 	sock->domain = domain;
 	sock->type = type;
 	sock->protocol = protocol;
-	sock->ops = domains[domain];
+	sock->ops = ops;
 	if(sock->ops->init) sock->ops->init(sock);
 	kobj_putref(file);
 	return fd;
@@ -74,6 +107,10 @@ sysret_t sys_socket(int domain, int type, int protocol)
 
 sysret_t sys_socketpair(int domain, int type, int protocol, int *sv)
 {
+	protocol = protocol == 0 ? default_protocol[domain][type] : protocol;
+	struct sock_calls *ops = domains[domain][protocol];
+	if(!ops)
+		return -ENOTSUP;
 	struct file *f1 = file_create(NULL, FDT_SOCK);
 	struct file *f2 = file_create(NULL, FDT_SOCK);
 
@@ -101,7 +138,7 @@ sysret_t sys_socketpair(int domain, int type, int protocol, int *sv)
 	s1->type = s2->type = type;
 	s2->protocol = s1->protocol = protocol;
 
-	s1->ops = s2->ops = domains[domain];
+	s1->ops = s2->ops = ops;
 	if(s1->ops->init) s1->ops->init(s1);
 	if(s2->ops->init) s2->ops->init(s2);
 	s1->ops->sockpair(s1, s2);
@@ -111,6 +148,54 @@ sysret_t sys_socketpair(int domain, int type, int protocol, int *sv)
 	sv[0] = fd1;
 	sv[1] = fd2;
 
+	return 0;
+}
+
+sysret_t sys_getsockopt(int sockfd, int level, int option, void * restrict value, socklen_t * restrict optlen)
+{
+	int err = -EBADF;
+	struct socket *socket = socket_get_from_fd(sockfd, &err);
+	if(!socket) return err;
+
+	spinlock_acquire(&socket->optlock);
+	struct sockoptkey key = {.level = level, .option = option};
+	struct sockopt *so = hash_lookup(&socket->options, &key, sizeof(key));
+	if(so == NULL) {
+		err = -ENOPROTOOPT;
+	} else {
+		err = 0;
+		*optlen = *optlen > so->len ? so->len : *optlen;
+		memcpy(value, so->data, *optlen);
+	}
+	spinlock_release(&socket->optlock);
+	kobj_putref(socket);
+	return 0;
+}
+
+sysret_t sys_setsockopt(int sockfd, int level, int option, const void *value, socklen_t optlen)
+{
+	int err = -EBADF;
+	struct socket *socket = socket_get_from_fd(sockfd, &err);
+	if(!socket) return err;
+
+	spinlock_acquire(&socket->optlock);
+
+	if(level == 1) {
+		/* TODO switch on socket options */
+	} else {
+		/* TODO notify option change to layers */
+	}
+
+	/* TODO: do we actually need to keep track of options this way? */
+	struct sockopt *so = arena_allocate(&socket->optarena, sizeof(struct sockopt) + optlen);
+	so->key.level = level;
+	so->key.option = option;
+	so->len = optlen;
+	memcpy(so->data, value, optlen);
+	hash_delete(&socket->options, &so->key, sizeof(so->key));
+	hash_insert(&socket->options, &so->key, sizeof(so->key), &so->elem, so);
+	spinlock_release(&socket->optlock);
+	kobj_putref(socket);
 	return 0;
 }
 
@@ -170,7 +255,6 @@ sysret_t sys_listen(int sockfd, int backlog)
 	return err;
 }
 
-#include <printk.h>
 ssize_t _do_recv(struct socket *sock, char *buf, size_t len, int flags)
 {
 	if(sock->flags & SF_SHUTDOWN)

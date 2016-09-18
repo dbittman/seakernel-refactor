@@ -2,26 +2,18 @@
 
 #include <slab.h>
 #include <net/nic.h>
+#include <fs/socket.h>
 #define HAS_GLOBAL 1
 struct packet;
 enum {
 	IP_PROTOCOL_ICMP6 = 0x3A,
+	IP_PROTOCOL_UDP   = 17,
 };
 
 enum {
 	PTR_MULTICAST,
 	PTR_ANYCAST,
 	PTR_UNICAST,
-};
-
-union ipv6_address {
-	uint8_t octets[16];
-	uint32_t u32[4];
-	struct {
-		uint64_t prefix;
-		uint64_t id;
-	} __attribute__((packed));
-	__int128 addr;
 };
 
 struct icmp6_header {
