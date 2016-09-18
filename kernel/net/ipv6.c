@@ -2,20 +2,114 @@
 #include <net/nic.h>
 #include <net/ipv6.h>
 #include <printk.h>
+#include <trace.h>
 
-#define HAS_GLOBAL 1
+TRACE_DEFINE(ipv6_trace, "ipv6");
+
+static struct sleepflag worker_work;
 
 struct kobj kobj_nicdata = {
 	KOBJ_DEFAULT_ELEM(nicdata),
 	.destroy = NULL, .put = NULL, .init = NULL, .create = NULL,
 };
 
+static void _neighbor_create(void *o)
+{
+	struct neighbor *n = o;
+	spinlock_create(&n->lock);
+	linkedlist_create(&n->queue, LINKEDLIST_LOCKLESS);
+}
+
+struct kobj kobj_neighbor = {
+	KOBJ_DEFAULT_ELEM(neighbor),
+	.create = _neighbor_create,
+	.init = NULL, .put = NULL, .destroy = NULL,
+};
+
 struct hash neighbors;
+struct spinlock neighbor_lock;
+
+void ipv6_neighbor_update(union ipv6_address lladdr, struct physical_address *paddr, enum reach_state reach)
+{
+	spinlock_acquire(&neighbor_lock);
+	struct neighbor *n = hash_lookup(&neighbors, &lladdr, sizeof(lladdr));
+	if(!n) {
+		n = kobj_allocate(&kobj_neighbor);
+		n->addr = lladdr;
+		if(paddr) {
+			memcpy(&n->physaddr, paddr, sizeof(*paddr));
+		}
+		/* TODO: default to reachable? */
+		n->reachability = reach == REACHABILITY_NOCHANGE ? REACHABILITY_REACHABLE : reach;
+		hash_insert(&neighbors, &n->addr, sizeof(union ipv6_address), &n->entry, n);
+		TRACE(&ipv6_trace, "new neighbor: %lx:%lx -> %lx:%lx: %d", n->addr.prefix, n->addr.id, *(uint32_t *)n->physaddr.octets, *((uint32_t *)n->physaddr.octets + 4), reach);
+	} else {
+		spinlock_acquire(&n->lock);
+		n->addr = lladdr;
+		if(paddr) {
+			memcpy(&n->physaddr, paddr, sizeof(*paddr));
+		}
+		n->reachability = reach == REACHABILITY_NOCHANGE ? n->reachability : reach;
+		TRACE(&ipv6_trace, "update neighbor: %lx:%lx -> %lx:%lx: %d", n->addr.prefix, n->addr.id, *(uint32_t *)n->physaddr.octets, *((uint32_t *)n->physaddr.octets + 4), reach);
+		spinlock_release(&n->lock);
+	}
+	sleepflag_wake(&worker_work);
+	spinlock_release(&neighbor_lock);
+}
+
+struct neighbor *ipv6_get_neighbor(union ipv6_address *lladdr)
+{
+	spinlock_acquire(&neighbor_lock);
+	struct neighbor *n = hash_lookup(&neighbors, lladdr, sizeof(*lladdr));
+	if(n) {
+		kobj_getref(n);
+	}
+	spinlock_release(&neighbor_lock);
+	return n;
+}
 
 __initializer static void __ipv6_init(void)
 {
-	hash_create(&neighbors, 0, 1024);
+	spinlock_create(&neighbor_lock);
+	hash_create(&neighbors, HASH_LOCKLESS, 1024);
+	trace_enable(&ipv6_trace);
+	sleepflag_create(&worker_work);
 }
+
+static void _ipv6_worker_main(struct worker *w)
+{
+	printk("[ipv6]: worker thread started\n");
+	while(worker_notjoining(w)) {
+		printk(".");
+		spinlock_acquire(&neighbor_lock);
+		struct hashiter iter;
+		bool remaining = false;
+		for(hash_iter_init(&iter, &neighbors); !hash_iter_done(&iter); hash_iter_next(&iter)) {
+			struct neighbor *n = hash_iter_get(&iter);
+			spinlock_acquire(&n->lock);
+			if(n->reachability == REACHABILITY_REACHABLE && n->queue.count > 0) {
+				struct packet *packet = linkedlist_remove_head(&n->queue);
+				net_ethernet_send(packet, 0x86DD, &n->physaddr);
+				if(n->queue.count > 0) {
+					remaining = true;
+				}
+			}
+			spinlock_release(&n->lock);
+		}
+		spinlock_release(&neighbor_lock);
+		if(!remaining) {
+			sleepflag_sleep(&worker_work);
+		}
+	}
+	worker_exit(w, 0);
+}
+
+static struct worker _ipv6_worker;
+static void __ipv6_late_init(void)
+{
+	worker_start(&_ipv6_worker, _ipv6_worker_main, NULL);
+}
+LATE_INIT_CALL(__ipv6_late_init, NULL);
 
 static uint8_t ll_prefix[8] = {
 	0xfe, 0x80, 0, 0, 0, 0, 0, 0,
@@ -34,9 +128,12 @@ static void _ipv6_nic_change(struct nic *nic, enum nic_change_event event)
 			memcpy(id, nic->physaddr.octets, 3);
 			id[3] = 0xFF;
 			id[4] = 0xFE;
-			memcpy(id + 5, nic->physaddr.octets, 3);
+			memcpy(id + 5, nic->physaddr.octets + 3, 3);
 			id[0] |= 1 << 1;
 			memcpy(nd->linkaddr.octets + 8, id, 8);
+			for(int i=0;i<8;i++) {
+				printk(":: %x\n", id[i]);
+			}
 			break;
 		case NIC_CHANGE_DELETE:
 			/* TODO */
@@ -52,6 +149,49 @@ struct network_protocol network_protocol_ipv6 = {
 	.name = "ipv6",
 	.nic_change = _ipv6_nic_change,
 };
+
+static bool ipv6_neighbor_check_state(struct neighbor *n, struct packet *packet)
+{
+	bool res = false;
+	spinlock_acquire(&n->lock);
+	printk("check neighbor state: %d\n", n->reachability);
+	switch(n->reachability) {
+		case REACHABILITY_REACHABLE:
+			res = true;
+			break;
+		case REACHABILITY_STALE:
+			n->reachability = REACHABILITY_PROBE;
+			/* fallthrough */
+		case REACHABILITY_INCOMPLETE:
+			icmp6_neighbor_solicit(packet->sender, n->addr);
+			/* fallthrough */
+		default:
+			linkedlist_insert(&n->queue, &packet->queue_entry, packet);
+	}
+	if(!res)
+		sleepflag_wake(&worker_work);
+	spinlock_release(&n->lock);
+	return res;
+}
+
+static struct neighbor *ipv6_establish_neighbor(union ipv6_address lladdr, struct packet *packet)
+{
+	spinlock_acquire(&neighbor_lock);
+	struct neighbor *n = hash_lookup(&neighbors, &lladdr, sizeof(lladdr));
+	if(n == NULL) {
+		n = kobj_allocate(&kobj_neighbor);
+		n->addr = lladdr;
+		n->reachability = REACHABILITY_INCOMPLETE;
+		hash_insert(&neighbors, &n->addr, sizeof(n->addr), &n->entry, n);
+	}
+	kobj_getref(n);
+	spinlock_release(&neighbor_lock);
+	if(!ipv6_neighbor_check_state(n, packet)) {
+		kobj_putref(n);
+		return NULL;
+	}
+	return n;
+}
 
 uint16_t ipv6_gen_checksum(struct ipv6_header *header)
 {
@@ -91,25 +231,52 @@ uint16_t ipv6_gen_checksum(struct ipv6_header *header)
 	return (~sum);
 }
 
-void ipv6_send_packet(struct packet *packet, struct ipv6_header *header, uint16_t *checksum)
+void ipv6_construct_final(struct packet *packet, struct ipv6_header *header, uint16_t *checksum)
 {
-	/* if no sender nic is set, determine one to send to. */
-	if(packet->sender == NULL) {
-		printk("we don't route yet\n");
-		return;
-	}
-
 	struct nicdata *snd = packet->sender->netprotdata[NETWORK_TYPE_IPV6];
 	
 	/* set source address given a nic */
 	header->source = snd->linkaddr;
+	header->hoplim = 255;
 
 	/* if we need to update a checksum, do that now */
 	if(checksum) {
 		*checksum = 0;
 		*checksum = ipv6_gen_checksum(header);
 	}
-	net_ethernet_send(packet);
+}
+
+void ipv6_send_packet(struct packet *packet, struct ipv6_header *header, uint16_t *checksum)
+{
+	packet->netheader = header;
+	struct router *router = NULL;
+	/* if no sender nic is set, determine one to send to. */
+	if(packet->sender == NULL) {
+		printk("we don't route yet\n");
+		return;
+	}
+
+	ipv6_construct_final(packet, header, checksum);
+
+	struct neighbor *n;
+	if(router == NULL) {
+		/* we're sending directly to neighbor */
+		n = ipv6_establish_neighbor(header->destination, packet);
+	} else {
+		n = kobj_getref(router->neighbor);
+		if(!ipv6_neighbor_check_state(n, packet)) {
+			kobj_putref(n);
+			n = NULL;
+		}
+	}
+
+	if(n) {
+		net_ethernet_send(packet, 0x86DD, &n->physaddr);
+		kobj_putref(n);
+	}
+	if(router) {
+		kobj_putref(router);
+	}
 }
 
 static void ipv6_receive_process(struct packet *packet, struct ipv6_header *header, int type)

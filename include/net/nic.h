@@ -23,6 +23,7 @@ struct nic_driver {
 	int (*recv)(struct nic *);
 	void (*send)(struct nic *, struct packet *);
 	int type;
+	size_t headlen;
 };
 
 enum nic_change_event {
@@ -59,5 +60,5 @@ void net_nic_receive(struct nic *nic, void *data, size_t length, int flags);
 void net_nic_change(struct nic *nic, enum nic_change_event event);
 
 void net_ethernet_receive(struct packet *packet);
-void net_ethernet_send(struct packet *packet);
+void net_ethernet_send(struct packet *packet, int prot, struct physical_address *addr);
 

@@ -20,7 +20,7 @@ union ipv6_address {
 	struct {
 		uint64_t prefix;
 		uint64_t id;
-	};
+	} __attribute__((packed));
 	__int128 addr;
 };
 
@@ -82,22 +82,32 @@ enum reach_state {
 	REACHABILITY_STALE,
 	REACHABILITY_PROBE,
 	REACHABILITY_DELAY,
+	REACHABILITY_NOCHANGE,
 };
 
 struct neighbor {
 	struct kobj_header _header;
-	enum reach_state reachability;
 	union ipv6_address addr;
+	enum reach_state reachability;
 	struct physical_address physaddr;
 	struct hashelem entry;
+	struct spinlock lock;
+	struct linkedlist queue;
 	bool router;
 };
 
+struct router {
+	struct kobj_header _header;
+	struct neighbor *neighbor;
+};
 
 void ipv6_receive(struct packet *packet, struct ipv6_header *header);
 void ipv6_drop_packet(struct packet *packet, struct ipv6_header *header, int type);
 void ipv6_send_packet(struct packet *packet, struct ipv6_header *header, uint16_t *);
 uint16_t ipv6_gen_checksum(struct ipv6_header *header);
+void ipv6_construct_final(struct packet *packet, struct ipv6_header *header, uint16_t *checksum);
+void ipv6_neighbor_update(union ipv6_address lladdr, struct physical_address *paddr, enum reach_state reach);
 
 void icmp6_receive(struct packet *packet, struct ipv6_header *header, int type);
+void icmp6_neighbor_solicit(struct nic *nic, union ipv6_address lladdr);
 

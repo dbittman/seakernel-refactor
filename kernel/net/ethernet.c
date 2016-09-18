@@ -34,11 +34,12 @@ void net_ethernet_receive(struct packet *packet)
 	}
 }
 
-void net_ethernet_send(struct packet *packet)
+void net_ethernet_send(struct packet *packet, int prot, struct physical_address *addr)
 {
 	struct ethernet_frame *ef = packet->data;
-	memcpy(ef->dest, ef->src, 6);
+	memcpy(ef->dest, addr->octets, 6);
 	memcpy(ef->src, packet->sender->physaddr.octets, 6);
+	ef->type = HOST_TO_BIG16(prot);
 	packet->sender->driver->send(packet->sender, packet);
 }
 

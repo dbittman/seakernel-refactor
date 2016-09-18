@@ -2,7 +2,7 @@
 #include <printk.h>
 #include <net/packet.h>
 static struct kobj kobj_nic = KOBJ_DEFAULT(nic);
-static struct kobj kobj_packet = KOBJ_DEFAULT(packet);
+struct kobj kobj_packet = KOBJ_DEFAULT(packet);
 
 extern struct network_protocol network_protocol_ipv6;
 struct network_protocol *netprots[NETWORK_TYPE_NUM] = {

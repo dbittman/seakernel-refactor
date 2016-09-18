@@ -186,6 +186,7 @@ static void _e1000_send(struct nic *nic, struct packet *packet)
 
 static struct nic_driver e1000_nic_driver = {
 	.name = "e1000",
+	.headlen = 14,
 	.type = NIC_TYPE_ETHERNET,
 	.send = _e1000_send,
 	.recv = _e1000_recv,

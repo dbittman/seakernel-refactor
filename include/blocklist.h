@@ -48,3 +48,12 @@ static inline void blockpoint_create(struct blockpoint *bp, int flags, long time
 	bp->bl = NULL;
 }
 
+struct sleepflag {
+	_Atomic int flag;
+	struct blocklist bl;
+};
+
+void sleepflag_wake(struct sleepflag *s);
+void sleepflag_sleep(struct sleepflag *s);
+void sleepflag_create(struct sleepflag *s);
+

@@ -10,5 +10,8 @@ struct packet {
 	size_t length;
 	struct nic *origin, *sender;
 	struct network_address *na_source, *na_dest;
+	void *netheader;
+	struct linkedentry queue_entry;
 };
 
+extern struct kobj kobj_packet;
