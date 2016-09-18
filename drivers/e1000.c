@@ -156,14 +156,14 @@ static int _e1000_recv(struct nic *nic)
 		uintptr_t pdata = e->rx_descs[e->rx_cur].addr;
 		size_t len = e->rx_descs[e->rx_cur].length;
 
-		e->rx_descs[e->rx_cur].addr = mm_physical_allocate(0x1000, false);
+		e->rx_descs[e->rx_cur].addr = (uintptr_t)net_packet_buffer_allocate() - PHYS_MAP_START;
 		net_nic_receive(nic, (void *)(pdata + PHYS_MAP_START), len, 0 /* TODO flags */);
 
 		e->rx_descs[e->rx_cur].status = 0;
 		uint16_t old = e->rx_cur;
 		e->rx_cur = (e->rx_cur + 1) % E1000_NUM_RX_DESC;
 		writecmd(e, REG_RXDESCTAIL, old);
-		count++;
+		count = 1;
 	}
 	if(count == 0)
 		nic->rxpending = false;

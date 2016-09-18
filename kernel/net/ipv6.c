@@ -79,8 +79,8 @@ __initializer static void __ipv6_init(void)
 static void _ipv6_worker_main(struct worker *w)
 {
 	printk("[ipv6]: worker thread started\n");
+	/* TODO: worker threads have interrupts enabled? */
 	while(worker_notjoining(w)) {
-		printk(".");
 		spinlock_acquire(&neighbor_lock);
 		struct hashiter iter;
 		bool remaining = false;
@@ -154,7 +154,6 @@ static bool ipv6_neighbor_check_state(struct neighbor *n, struct packet *packet)
 {
 	bool res = false;
 	spinlock_acquire(&n->lock);
-	printk("check neighbor state: %d\n", n->reachability);
 	switch(n->reachability) {
 		case REACHABILITY_REACHABLE:
 			res = true;
@@ -248,7 +247,6 @@ void ipv6_construct_final(struct packet *packet, struct ipv6_header *header, uin
 
 void ipv6_send_packet(struct packet *packet, struct ipv6_header *header, uint16_t *checksum)
 {
-	packet->netheader = header;
 	struct router *router = NULL;
 	/* if no sender nic is set, determine one to send to. */
 	if(packet->sender == NULL) {

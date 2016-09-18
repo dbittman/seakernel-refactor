@@ -9,9 +9,8 @@ struct packet {
 	void *data;
 	size_t length;
 	struct nic *origin, *sender;
-	struct network_address *na_source, *na_dest;
-	void *netheader;
 	struct linkedentry queue_entry;
 };
 
 extern struct kobj kobj_packet;
+void *net_packet_buffer_allocate(void);

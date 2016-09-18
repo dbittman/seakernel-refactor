@@ -15,7 +15,7 @@ void icmp6_neighbor_solicit(struct nic *nic, union ipv6_address lladdr)
 	/* TODO: simplify this, or encapsulate */
 	struct packet *packet = kobj_allocate(&kobj_packet);
 	packet->sender = nic;
-	packet->data = (void *)mm_virtual_allocate(0x1000, true /* TODO: only zero out what we need */);
+	packet->data = net_packet_buffer_allocate();
 
 	struct ipv6_header *header = (void *)((char *)packet->data + nic->driver->headlen);
 	memset(&header->destination, 0, sizeof(union ipv6_address));
@@ -71,7 +71,6 @@ void icmp6_receive(struct packet *packet, struct ipv6_header *header, int type)
 				header->source.addr = 0;
 				icmp->type = ICMP_MSG_ECHO_REP;
 				packet->sender = packet->origin;
-				printk("resp echo!\n");
 				ipv6_send_packet(packet, header, &icmp->checksum);
 			} break;
 		case ICMP_MSG_NEIGH_ADVERT:

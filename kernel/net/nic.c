@@ -2,7 +2,6 @@
 #include <printk.h>
 #include <net/packet.h>
 static struct kobj kobj_nic = KOBJ_DEFAULT(nic);
-struct kobj kobj_packet = KOBJ_DEFAULT(packet);
 
 extern struct network_protocol network_protocol_ipv6;
 struct network_protocol *netprots[NETWORK_TYPE_NUM] = {
@@ -49,7 +48,6 @@ void net_nic_receive(struct nic *nic, void *data, size_t length, int flags)
 	(void)data;
 
 	struct packet *packet = kobj_allocate(&kobj_packet);
-	printk("Alloc %p\n", packet);
 	packet->data = data;
 	packet->length = length;
 	packet->origin = nic;

@@ -25,7 +25,6 @@ void net_ethernet_receive(struct packet *packet)
 			|| (!memcmp(ef->dest, packet->origin->physaddr.octets, 6))) {
 		switch(BIG_TO_HOST16(ef->type)) {
 			case ETHERTYPE_IPV6:
-				printk("Got ipv6 packet!\n");
 				ipv6_receive(packet, (struct ipv6_header *)ef->data);
 				break;
 			default:
