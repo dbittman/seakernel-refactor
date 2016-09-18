@@ -247,6 +247,12 @@ void ipv6_construct_final(struct packet *packet, struct ipv6_header *header, uin
 
 void ipv6_send_packet(struct packet *packet, struct ipv6_header *header, uint16_t *checksum)
 {
+	if(header->destination.prefix == 0 && BIG_TO_HOST64(header->destination.id) == 1) {
+		/* loopback */
+		ipv6_construct_final(packet, header, checksum);
+		ipv6_receive(packet, header);
+		return;
+	}
 	struct router *router = NULL;
 	/* if no sender nic is set, determine one to send to. */
 	if(packet->sender == NULL) {
