@@ -94,7 +94,7 @@ struct router {
 };
 
 void ipv6_receive(struct packet *packet, struct ipv6_header *header);
-void ipv6_drop_packet(struct packet *packet, struct ipv6_header *header, int type);
+void ipv6_drop_packet(struct packet *packet, struct ipv6_header *header);
 void ipv6_send_packet(struct packet *packet, struct ipv6_header *header, uint16_t *);
 uint16_t ipv6_gen_checksum(struct ipv6_header *header);
 void ipv6_construct_final(struct packet *packet, struct ipv6_header *header, uint16_t *checksum);

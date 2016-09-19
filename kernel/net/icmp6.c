@@ -57,6 +57,7 @@ void icmp6_neighbor_solicit(struct nic *nic, union ipv6_address lladdr)
 
 void icmp6_receive(struct packet *packet, struct ipv6_header *header, int type)
 {
+	(void)type;
 	struct icmp6_header *icmp = (void *)header->data;
 	struct nicdata *nd = packet->origin->netprotdata[NETWORK_TYPE_IPV6];
 	/* printk("Got: %x\n", icmp->type); */
@@ -79,7 +80,7 @@ void icmp6_receive(struct packet *packet, struct ipv6_header *header, int type)
 				ssize_t options = BIG_TO_HOST16(header->length) - (sizeof(struct icmp6_header) + sizeof(*adv));
 				if(options == 0) {
 					/* we must be provided the link-layer address */
-					ipv6_drop_packet(packet, header, type);
+					ipv6_drop_packet(packet, header);
 					break;
 				}
 				
@@ -106,7 +107,7 @@ void icmp6_receive(struct packet *packet, struct ipv6_header *header, int type)
 				
 				if(memcmp(sol->target.octets, nd->linkaddr.octets, 16)
 						&& (!(nd->flags & HAS_GLOBAL) || memcmp(sol->target.octets, nd->globaladdr.octets, 16))) {					
-					ipv6_drop_packet(packet, header, type);
+					ipv6_drop_packet(packet, header);
 					break;
 				}
 				
@@ -136,7 +137,7 @@ void icmp6_receive(struct packet *packet, struct ipv6_header *header, int type)
 				ipv6_send_packet(packet, header, &icmp->checksum);
 			} break;
 		default:
-			ipv6_drop_packet(packet, header, type);
+			ipv6_drop_packet(packet, header);
 	}
 }
 

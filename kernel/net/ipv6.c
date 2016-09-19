@@ -321,8 +321,6 @@ void udp_recv(struct packet *packet, struct udp_header *header);
 void udp_get_ports(struct udp_header *header, uint16_t *src, uint16_t *dest);
 static void ipv6_receive_process(struct packet *packet, struct ipv6_header *header, int type)
 {
-	(void)packet;
-	(void)header;
 	(void)type;
 	packet->transport_header = header->data;
 	if(header->next_header == IP_PROTOCOL_ICMP6) {
@@ -341,14 +339,15 @@ static void ipv6_receive_process(struct packet *packet, struct ipv6_header *head
 		udp_get_ports((void *)header->data, &saddr->port, &daddr->port);
 		udp_recv(packet, (void *)header->data);
 	} else {
-		ipv6_drop_packet(packet, header, type);
+		ipv6_drop_packet(packet, header);
 	}
 }
 
-void ipv6_drop_packet(struct packet *packet, struct ipv6_header *header, int type)
+void ipv6_drop_packet(struct packet *packet, struct ipv6_header *header)
 {
 	(void)header;
-	(void)type;
+	struct nicdata *nd = packet->origin->netprotdata[NETWORK_TYPE_IPV6];
+	printk("IPV6 DROP %lx:%lx       %lx:%lx\n", header->destination.prefix, header->destination.id, nd->linkaddr.prefix, nd->linkaddr.id);
 	kobj_putref(packet);
 }
 
@@ -364,7 +363,7 @@ void ipv6_receive(struct packet *packet, struct ipv6_header *header)
 		/* TODO: check last octet: 1 = all nodes, 2 = all routers... also can contain part of the ip address, check that too */
 		ipv6_receive_process(packet, header, PTR_MULTICAST);
 	} else {
-		printk("IPV6 DROP %lx:%lx       %lx:%lx\n", header->destination.prefix, header->destination.id, nd->linkaddr.prefix, nd->linkaddr.id);
+		ipv6_drop_packet(packet, header);
 	}
 }
 
