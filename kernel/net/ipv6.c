@@ -224,7 +224,7 @@ uint16_t ipv6_gen_checksum(struct ipv6_header *header)
 
 	if(len & 1) {
 		uint16_t tmp = 0;
-		memcpy(&tmp,header->data+len-1,1);
+		memcpy(&tmp, header->data+len-1, 1);
 		sum += (tmp);
 	}
 

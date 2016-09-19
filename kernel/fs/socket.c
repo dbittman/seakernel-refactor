@@ -21,7 +21,6 @@ static void _socket_init(void *obj)
 	sock->ops = NULL;
 	arena_create(&sock->optarena);
 	hash_create(&sock->options, HASH_LOCKLESS, 64);
-	sock->nic = NULL;
 }
 
 static void _socket_create(void *obj)
@@ -38,6 +37,9 @@ static void _socket_put(void *obj)
 	struct socket *sock = obj;
 	hash_destroy(&sock->options);
 	arena_destroy(&sock->optarena);
+	if(sock->nic)
+		kobj_putref(sock->nic);
+	sock->nic = NULL;
 }
 
 static struct kobj kobj_socket = {
@@ -85,7 +87,6 @@ sysret_t sys_socket(int domain, int type, int protocol)
 		return -EINVAL;
 	protocol = protocol == 0 ? default_protocol[domain][type] : protocol;
 	struct sock_calls *ops = domains[domain][protocol];
-	printk(":: %d %d %d : %p\n", domain, type, protocol, ops);
 	if(!ops) {
 		return -ENOTSUP;
 	}
