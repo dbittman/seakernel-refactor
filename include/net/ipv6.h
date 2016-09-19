@@ -103,3 +103,4 @@ void ipv6_neighbor_update(union ipv6_address lladdr, struct physical_address *pa
 void icmp6_receive(struct packet *packet, struct ipv6_header *header, int type);
 void icmp6_neighbor_solicit(struct nic *nic, union ipv6_address lladdr);
 
+void ipv6_network_send(const struct sockaddr *daddr, struct nic *sender, const void *trheader, size_t thlen, const void *msg, size_t mlen, int prot, int);

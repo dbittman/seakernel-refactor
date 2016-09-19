@@ -5,9 +5,12 @@
 #include <errno.h>
 #include <thread.h>
 #include <blocklist.h>
+#include <net/network.h>
 
 static struct hash bindings;
 static struct spinlock bind_lock;
+
+static _Atomic uint16_t next_eph = 49152;
 
 __initializer static void _udp_init(void)
 {
@@ -76,6 +79,9 @@ static int _udp_bind(struct socket *sock, const struct sockaddr *_addr, socklen_
 	int ret = 0;
 	spinlock_acquire(&bind_lock);
 	memcpy(&sock->udp.binding, _addr, len);
+	if(*(uint16_t *)(sock->udp.binding.sa_data) == 0) {
+		*(uint16_t *)sock->udp.binding.sa_data = HOST_TO_BIG16(next_eph++);
+	}
 	if(hash_insert(&bindings, &sock->udp.binding, len, &sock->udp.elem, sock) == -1) {
 		ret = -EADDRINUSE;
 	} else {
@@ -122,6 +128,31 @@ static ssize_t _udp_recvfrom(struct socket *sock, char *msg, size_t length,
 	return length;
 }
 
+static ssize_t _udp_sendto(struct socket *sock, const char *msg, size_t length,
+		int flags, const struct sockaddr *dest, socklen_t dest_len)
+{
+	(void)flags;
+	if(dest == NULL)
+		return -EINVAL;
+	if(dest_len < sockaddrinfo[dest->sa_family].length)
+		return -EINVAL;
+	if(!(sock->flags & SF_BOUND)) {
+		assert(sock->domain == AF_INET6);
+		if(_udp_bind(sock, sockaddrinfo[sock->domain].any_address, sockaddrinfo[sock->domain].length) != 0)
+			return -ENOMEM; //TODO
+		sock->flags |= SF_BOUND;
+	}
+
+	struct udp_header header = {.destport = *(uint16_t *)(dest->sa_data), .srcport = *(uint16_t *)(sock->udp.binding.sa_data), .length = HOST_TO_BIG16(length + 8), .checksum = 0};
+	net_network_send(sock, dest, &header, 8, msg, length, PROT_UDP, 6);
+	return length;
+}
+
+static ssize_t _udp_recv(struct socket *sock, char *buf, size_t len, int flags)
+{
+	return _udp_recvfrom(sock, buf, len, flags, NULL, NULL);	
+}
+
 struct sock_calls af_udp_calls = {
 	.init = _udp_init_sock,
 	.shutdown = NULL,
@@ -131,9 +162,9 @@ struct sock_calls af_udp_calls = {
 	.accept = NULL,
 	.sockpair = NULL,
 	.send = NULL,
-	.recv = NULL,
+	.recv = _udp_recv,
 	.select = NULL,
-	.sendto = NULL,
+	.sendto = _udp_sendto,
 	.recvfrom = _udp_recvfrom,
 };
 

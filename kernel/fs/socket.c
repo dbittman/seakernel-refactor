@@ -5,6 +5,7 @@
 #include <fs/sys.h>
 #include <thread.h>
 #include <printk.h>
+#include <net/nic.h>
 extern struct sock_calls af_unix_calls;
 extern struct sock_calls af_udp_calls;
 
@@ -20,6 +21,7 @@ static void _socket_init(void *obj)
 	sock->ops = NULL;
 	arena_create(&sock->optarena);
 	hash_create(&sock->options, HASH_LOCKLESS, 64);
+	sock->nic = NULL;
 }
 
 static void _socket_create(void *obj)
@@ -181,7 +183,15 @@ sysret_t sys_setsockopt(int sockfd, int level, int option, const void *value, so
 	spinlock_acquire(&socket->optlock);
 
 	if(level == 1) {
-		/* TODO switch on socket options */
+		switch(option) {
+			case SO_BINDTODEVICE:
+				socket->nic = net_nic_get_byname(value);
+				if(!socket->nic) {
+					spinlock_release(&socket->optlock);
+					return -ENOENT;
+				}
+				break;
+		}
 	} else {
 		/* TODO notify option change to layers */
 	}

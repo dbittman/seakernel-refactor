@@ -53,11 +53,14 @@ struct nic {
 	struct physical_address physaddr;
 
 	void *netprotdata[NETWORK_TYPE_NUM];
+	char name[16];
+	struct hashelem elem;
 };
 
 struct nic *net_nic_init(void *data, struct nic_driver *, void *, size_t);
 void net_nic_receive(struct nic *nic, void *data, size_t length, int flags);
 void net_nic_change(struct nic *nic, enum nic_change_event event);
+struct nic *net_nic_get_byname(const char *name);
 
 void net_ethernet_receive(struct packet *packet);
 void net_ethernet_send(struct packet *packet, int prot, struct physical_address *addr);

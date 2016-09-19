@@ -13,6 +13,8 @@ typedef uint16_t in_port_t;
 #define AF_UNIX 1
 #define AF_INET6 10
 
+#define PROT_UDP 17
+
 #define MAX_PROT 32
 #define MAX_AF 10
 #define MAX_TYPE 2
@@ -119,6 +121,7 @@ struct sockopt {
 	char data[];
 };
 
+struct nic;
 struct socket {
 	struct kobj_header _header;
 	int domain, type, protocol;
@@ -131,6 +134,7 @@ struct socket {
 	struct hash options;
 	struct arena optarena;
 	struct spinlock optlock;
+	struct nic *nic;
 	union {
 		struct socket_unix_data unix;
 		struct socket_udp_data udp;

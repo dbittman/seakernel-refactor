@@ -286,6 +286,36 @@ void ipv6_send_packet(struct packet *packet, struct ipv6_header *header, uint16_
 	}
 }
 
+void ipv6_network_send(const struct sockaddr *daddr, struct nic *sender, const void *trheader, size_t thlen, const void *msg, size_t mlen, int prot, int csoff)
+{
+	struct sockaddr_in6 *dest = (void *)daddr;
+	if(sender == NULL) {
+		printk("We don't route yet (2)\n");
+		return;
+	}
+
+	struct packet *packet = kobj_allocate(&kobj_packet);
+	packet->data = net_packet_buffer_allocate();
+	packet->sender = sender;
+
+	struct ipv6_header *header = (void *)((char *)packet->data + sender->driver->headlen);
+	header->destination = dest->addr;
+	header->length = HOST_TO_BIG16(thlen + mlen);
+	header->next_header = prot;
+	header->version = 6;
+
+	memcpy(header->data, trheader, thlen);
+	memcpy(header->data + thlen, msg, mlen);
+	
+	packet->length = sender->driver->headlen + sizeof(*header) + BIG_TO_HOST16(header->length);
+
+	uint16_t *checksum = NULL;
+	if(csoff >= 0) {
+		checksum = (uint16_t *)(header->data + csoff);
+	}
+	ipv6_send_packet(packet, header, checksum);
+}
+
 struct udp_header;
 void udp_recv(struct packet *packet, struct udp_header *header);
 void udp_get_ports(struct udp_header *header, uint16_t *src, uint16_t *dest);
