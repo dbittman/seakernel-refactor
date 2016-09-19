@@ -345,7 +345,6 @@ static void ipv6_receive_process(struct packet *packet, struct ipv6_header *head
 
 void ipv6_drop_packet(struct packet *packet, struct ipv6_header *header)
 {
-	(void)header;
 	struct nicdata *nd = packet->origin->netprotdata[NETWORK_TYPE_IPV6];
 	printk("IPV6 DROP %lx:%lx       %lx:%lx\n", header->destination.prefix, header->destination.id, nd->linkaddr.prefix, nd->linkaddr.id);
 	kobj_putref(packet);
