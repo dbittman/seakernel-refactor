@@ -47,15 +47,14 @@ void ahci_reset_device(struct hba_memory *abar, struct hba_port *port, struct ah
 	sys_nanosleep(&ts, NULL);
 	/* initialize state */
 	port->interrupt_status = ~0; /* clear pending interrupts */
-	port->interrupt_enable = AHCI_DEFAULT_INT; /* we want some interrupts */
 	port->command &= ~((1 << 27) | (1 << 26)); /* clear some bits */
 	port->sata_control |= 1;
 	ts.tv_nsec = 10000000;
 	sys_nanosleep(&ts, NULL);
 	port->sata_control |= (~1);
 	sys_nanosleep(&ts, NULL);
+	port->interrupt_enable = AHCI_DEFAULT_INT;
 	port->interrupt_status = ~0; /* clear pending interrupts */
-	port->interrupt_enable = AHCI_DEFAULT_INT; /* we want some interrupts */
 	ahci_start_port_command_engine(port);
 	dev->slots=0;
 	port->sata_error = ~0;
@@ -84,8 +83,8 @@ int ahci_initialize_device(struct hba_memory *abar, struct ahci_device *dev)
 	struct timespec ts = {.tv_sec = 0, .tv_nsec = 1000000 };
 	sys_nanosleep(&ts, NULL);
 	/* initialize state */
+	port->interrupt_enable = AHCI_DEFAULT_INT;
 	port->interrupt_status = ~0; /* clear pending interrupts */
-	port->interrupt_enable = AHCI_DEFAULT_INT; /* we want some interrupts */
 	
 	printk("A");
 	port->command &= ~1;
@@ -104,7 +103,6 @@ int ahci_initialize_device(struct hba_memory *abar, struct ahci_device *dev)
 	printk("C");
 	while((port->sata_status >> 8) != 1) cpu_pause();
 	port->interrupt_status = ~0; /* clear pending interrupts */
-	port->interrupt_enable = AHCI_DEFAULT_INT; /* we want some interrupts */
 	/* map memory */
 	
 	dev->dma_clb = mm_physical_allocate(0x1000, false);

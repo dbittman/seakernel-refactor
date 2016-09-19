@@ -37,9 +37,9 @@ struct fis_reg_host_to_device *ahci_initialize_fis_host_to_device(struct hba_mem
 
 void ahci_send_command(struct hba_port *port, int slot)
 {
-	port->interrupt_status = ~0;
 	port->command_issue = (1 << slot);
 	ahci_flush_commands(port);
+	port->interrupt_enable = AHCI_DEFAULT_INT;
 }
 
 int ahci_write_prdt(struct hba_memory *abar, struct hba_port *port, struct ahci_device *dev, int slot, int offset, int length, uintptr_t phys_buffer)

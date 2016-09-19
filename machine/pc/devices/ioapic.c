@@ -71,7 +71,9 @@ void arch_interrupt_mask(int v)
 		if(chip->id == -1)
 			continue;
 		if(vector >= chip->gsib && vector < chip->gsib + 24) {
-        	write_ioapic_vector(chip, vector, 1, 0, 0, 0, 32+vector+chip->gsib);
+			/* TODO: this is a hack to distingish which interrupts should be level or edge triggered. There are
+			 * "correct" ways of doing this. */
+        	write_ioapic_vector(chip, vector, 1, vector+chip->gsib > 4 ? 1 : 0, 0, 0, 32+vector+chip->gsib);
 		}
 	}
 }
@@ -84,7 +86,7 @@ void arch_interrupt_unmask(int v)
 		if(chip->id == -1)
 			continue;
 		if(vector >= chip->gsib && vector < chip->gsib + 24) {
-        	write_ioapic_vector(chip, vector, 0, 0, 0, 0, 32+vector+chip->gsib);
+        	write_ioapic_vector(chip, vector, 0, vector+chip->gsib > 4 ? 1 : 0, 0, 0, 32+vector+chip->gsib);
 		}
 	}
 }
