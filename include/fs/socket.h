@@ -94,6 +94,7 @@ struct socket_udp_data {
 	struct sockaddr binding;
 	struct linkedlist inq;
 	struct blocklist rbl;
+	size_t blen;
 };
 
 #define SF_BOUND  1

@@ -6,11 +6,12 @@
 #include <thread.h>
 #include <blocklist.h>
 #include <net/network.h>
+#include <file.h>
 
 static struct hash bindings;
 static struct spinlock bind_lock;
 
-static _Atomic uint16_t next_eph = 49152;
+static _Atomic uint16_t next_eph = 0;
 
 __initializer static void _udp_init(void)
 {
@@ -28,10 +29,8 @@ struct udp_header {
 
 static void _udp_init_sock(struct socket *sock)
 {
-	(void)sock;
 	linkedlist_create(&sock->udp.inq, 0);
 	blocklist_create(&sock->udp.rbl);
-	printk("UDP INIT\n");
 }
 
 void udp_get_ports(struct udp_header *header, uint16_t *src, uint16_t *dest)
@@ -64,11 +63,11 @@ struct socket *_udp_get_bound_socket(struct sockaddr *addr)
 void udp_recv(struct packet *packet, struct udp_header *header)
 {
 	(void)header;
-	printk("UDP recv: %d %d\n", BIG_TO_HOST16(*(uint16_t *)packet->saddr.sa_data), BIG_TO_HOST16(*(uint16_t *)packet->daddr.sa_data));
 	struct socket *sock = _udp_get_bound_socket(&packet->daddr);
 	if(sock) {
 		linkedlist_insert(&sock->udp.inq, &packet->queue_entry, packet);
 		blocklist_unblock_all(&sock->udp.rbl);
+		kobj_putref(sock);
 	} else {
 		kobj_putref(packet);
 	}
@@ -79,8 +78,10 @@ static int _udp_bind(struct socket *sock, const struct sockaddr *_addr, socklen_
 	int ret = 0;
 	spinlock_acquire(&bind_lock);
 	memcpy(&sock->udp.binding, _addr, len);
+	sock->udp.blen = len;
 	if(*(uint16_t *)(sock->udp.binding.sa_data) == 0) {
-		*(uint16_t *)sock->udp.binding.sa_data = HOST_TO_BIG16(next_eph++);
+
+		*(uint16_t *)sock->udp.binding.sa_data = HOST_TO_BIG16((next_eph++ % 16384) + 49152);
 	}
 	if(hash_insert(&bindings, &sock->udp.binding, len, &sock->udp.elem, sock) == -1) {
 		ret = -EADDRINUSE;
@@ -153,9 +154,34 @@ static ssize_t _udp_recv(struct socket *sock, char *buf, size_t len, int flags)
 	return _udp_recvfrom(sock, buf, len, flags, NULL, NULL);	
 }
 
+static void _udp_shutdown(struct socket *sock)
+{
+	spinlock_acquire(&bind_lock);
+	if(sock->flags & SF_BOUND) {
+		if(hash_delete(&bindings, &sock->udp.binding, sock->udp.blen) == -1) {
+			panic(0, "bound socket not present in bindings");
+		}
+		kobj_putref(sock);
+	}
+	spinlock_release(&bind_lock);
+}
+
+static int _udp_select(struct socket *sock, int flags, struct blockpoint *bp)
+{
+	if(flags == SEL_ERROR)
+		return -1; //TODO
+
+	if(flags == SEL_READ) {
+		if(bp)
+			blockpoint_startblock(&sock->udp.rbl, bp);
+		return sock->udp.inq.count == 0 ? 0 : 1;
+	}
+	return 1; //TODO: don't always indicate ready for writing.
+}
+
 struct sock_calls af_udp_calls = {
 	.init = _udp_init_sock,
-	.shutdown = NULL,
+	.shutdown = _udp_shutdown,
 	.bind = _udp_bind,
 	.connect = NULL,
 	.listen = NULL,
@@ -163,7 +189,7 @@ struct sock_calls af_udp_calls = {
 	.sockpair = NULL,
 	.send = NULL,
 	.recv = _udp_recv,
-	.select = NULL,
+	.select = _udp_select,
 	.sendto = _udp_sendto,
 	.recvfrom = _udp_recvfrom,
 };
