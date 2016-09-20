@@ -13,6 +13,12 @@ static void _packet_put(void *o)
 	if(packet->data) {
 		linkedlist_insert(&buffers, (struct linkedentry *)packet->data, packet->data);
 	}
+	if(packet->origin) {
+		kobj_putref(packet->origin);
+	}
+	if(packet->sender) {
+		kobj_putref(packet->sender);
+	}
 }
 
 static void _packet_init(void *o)

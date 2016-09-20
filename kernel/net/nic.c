@@ -50,7 +50,7 @@ void net_nic_receive(struct nic *nic, void *data, size_t length, int flags)
 	struct packet *packet = kobj_allocate(&kobj_packet);
 	packet->data = data;
 	packet->length = length;
-	packet->origin = nic;
+	packet->origin = kobj_getref(nic);
 	/* simple link-layer router, for now */
 	switch(nic->driver->type) {
 		case NIC_TYPE_ETHERNET:

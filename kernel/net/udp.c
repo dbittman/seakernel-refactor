@@ -145,8 +145,8 @@ static ssize_t _udp_sendto(struct socket *sock, const char *msg, size_t length,
 	}
 
 	struct udp_header header = {.destport = *(uint16_t *)(dest->sa_data), .srcport = *(uint16_t *)(sock->udp.binding.sa_data), .length = HOST_TO_BIG16(length + 8), .checksum = 0};
-	net_network_send(sock, dest, &header, 8, msg, length, PROT_UDP, 6);
-	return length;
+	int err = net_network_send(sock, dest, &header, 8, msg, length, PROT_UDP, 6);
+	return err == 0 ? (ssize_t)length : err;
 }
 
 static ssize_t _udp_recv(struct socket *sock, char *buf, size_t len, int flags)

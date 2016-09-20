@@ -6,15 +6,53 @@
 enum {
 	ICMP_MSG_ECHO_REQ = 128,
 	ICMP_MSG_ECHO_REP = 129,
+	ICMP_MSG_ROUTER_SOLICIT = 133,
+	ICMP_MSG_ROUTER_ADVERT = 134,
 	ICMP_MSG_NEIGH_SOLICIT = 135,
 	ICMP_MSG_NEIGH_ADVERT = 136,
 };
+
+void icmp6_router_solicit(struct nic *nic)
+{
+	/* TODO: simplify this, or encapsulate */
+	struct packet *packet = kobj_allocate(&kobj_packet);
+	packet->sender = kobj_getref(nic);
+	packet->data = net_packet_buffer_allocate();
+
+	struct ipv6_header *header = (void *)((char *)packet->data + nic->driver->headlen);
+	memset(&header->destination, 0, sizeof(union ipv6_address));
+	/* solicited node multicast */
+	header->destination.octets[0] = 0xFF;
+	header->destination.octets[1] = 0x02;
+	header->destination.octets[15] = 2;
+	header->length = HOST_TO_BIG16(16);
+	header->next_header = 58;
+	header->version = 6;
+	struct icmp6_header *icmp = (void *)header->data;
+	icmp->type = ICMP_MSG_ROUTER_SOLICIT;
+	icmp->code = 0;
+	struct icmp_option *opt = (void *)(icmp->data + 4);
+	opt->type = 1;
+	opt->length = 1; //TODO: don't hardcode
+	packet->length = nic->driver->headlen + sizeof(struct ipv6_header) + BIG_TO_HOST16(header->length);
+
+	/* TODO: make not ethernet specific */
+	memcpy(opt->data, nic->physaddr.octets, 6);
+	printk("Sending router solicitation\n");
+	struct physical_address pa;
+	memset(&pa, 0, sizeof(pa));
+	pa.octets[0] = 0x33;
+	pa.octets[1] = 0x33;
+	pa.octets[5] = 2;
+	ipv6_construct_final(packet, header, &icmp->checksum);
+	net_ethernet_send(packet, 0x86DD, &pa);
+}
 
 void icmp6_neighbor_solicit(struct nic *nic, union ipv6_address lladdr)
 {
 	/* TODO: simplify this, or encapsulate */
 	struct packet *packet = kobj_allocate(&kobj_packet);
-	packet->sender = nic;
+	packet->sender = kobj_getref(nic);
 	packet->data = net_packet_buffer_allocate();
 
 	struct ipv6_header *header = (void *)((char *)packet->data + nic->driver->headlen);
@@ -71,8 +109,46 @@ void icmp6_receive(struct packet *packet, struct ipv6_header *header, int type)
 				header->destination = header->source;
 				header->source.addr = 0;
 				icmp->type = ICMP_MSG_ECHO_REP;
-				packet->sender = packet->origin;
-				ipv6_send_packet(packet, header, &icmp->checksum);
+				ipv6_reply_packet(packet, header, &icmp->checksum);
+			} break;
+		case ICMP_MSG_ROUTER_ADVERT:
+			{
+				struct router_advert_header *rah = (void *)icmp->data;
+				printk("router advert: %d %x %d %d %d\n", rah->hoplim, rah->flags, BIG_TO_HOST16(rah->lifetime), rah->reachtime, rah->retranstime);
+				ssize_t options = BIG_TO_HOST16(header->length) - (sizeof(struct icmp6_header) + sizeof(*rah));
+
+				struct icmp_option *opt = (void *)rah->options;
+				struct prefix_option_data *pod = NULL;
+				struct neighbor *neighbor = NULL;
+				while(options > 0) {
+					switch(opt->type) {
+						struct physical_address pa;
+						case 1:
+							pa.len = opt->length * 8 - 2;
+							memcpy(pa.octets, opt->data, pa.len);
+							printk(":: %ld %x %x %x %x %x %x\n", pa.len, pa.octets[0], pa.octets[1], pa.octets[2], pa.octets[3], pa.octets[4], pa.octets[5]);
+							ipv6_neighbor_update(header->source, &pa, REACHABILITY_REACHABLE);
+							neighbor = ipv6_get_neighbor(&header->source);
+							break;
+
+						case 3:
+							pod = (void *)opt->data;
+							printk("prefix: %lx %lx %x %x\n", pod->prefix.prefix, pod->prefix.id, pod->onlink, pod->autocon);
+							break;
+					}
+					options -= opt->length * 8;
+					opt = (void *)((char *)opt + opt->length * 8);
+				}
+
+				if(neighbor == NULL || pod == NULL) {
+					if(neighbor) {
+						kobj_putref(neighbor);
+					}
+					ipv6_drop_packet(packet, header);
+					break;
+				}
+
+				ipv6_router_add(packet->origin, neighbor, rah, pod);
 			} break;
 		case ICMP_MSG_NEIGH_ADVERT:
 			{
@@ -83,9 +159,9 @@ void icmp6_receive(struct packet *packet, struct ipv6_header *header, int type)
 					ipv6_drop_packet(packet, header);
 					break;
 				}
-				
+
 				struct icmp_option *opt = (void *)adv->options;
-				
+
 				while(options > 0) {
 					if(opt->type == 2) {
 						struct physical_address pa;
@@ -104,13 +180,13 @@ void icmp6_receive(struct packet *packet, struct ipv6_header *header, int type)
 				struct neighbor_solicit_header *sol = (void *)icmp->data;
 				struct neighbor_advert_header *adv = (void *)icmp->data;
 				ssize_t options = BIG_TO_HOST16(header->length) - (sizeof(struct icmp6_header) + sizeof(*sol));
-				
+
 				if(memcmp(sol->target.octets, nd->linkaddr.octets, 16)
 						&& (!(nd->flags & HAS_GLOBAL) || memcmp(sol->target.octets, nd->globaladdr.octets, 16))) {					
 					ipv6_drop_packet(packet, header);
 					break;
 				}
-				
+
 				if(options == 0) {
 					int o = packet->origin->physaddr.len + 2;
 					o = ((options - 1) & ~7) + 8;
@@ -133,8 +209,7 @@ void icmp6_receive(struct packet *packet, struct ipv6_header *header, int type)
 				header->source.addr = 0;
 				adv->flags = (1 << 6) | (1 << 5); //TODO: set router flag if we're a router
 				icmp->type = ICMP_MSG_NEIGH_ADVERT;
-				packet->sender = packet->origin;
-				ipv6_send_packet(packet, header, &icmp->checksum);
+				ipv6_reply_packet(packet, header, &icmp->checksum);
 			} break;
 		default:
 			ipv6_drop_packet(packet, header);

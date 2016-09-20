@@ -1,4 +1,5 @@
 #include <net/packet.h>
+#include <errno.h>
 #include <net/nic.h>
 #include <net/ipv6.h>
 #include <printk.h>
@@ -9,9 +10,13 @@ const struct sockaddr_in6 ipv6_any_address = {
 };
 TRACE_DEFINE(ipv6_trace, "ipv6");
 
+static struct kobj kobj_router = KOBJ_DEFAULT(router);
+
+static struct router *default_router = NULL;
+
 static struct sleepflag worker_work;
 
-struct kobj kobj_nicdata = {
+static struct kobj kobj_nicdata = {
 	KOBJ_DEFAULT_ELEM(nicdata),
 	.destroy = NULL, .put = NULL, .init = NULL, .create = NULL,
 };
@@ -23,14 +28,19 @@ static void _neighbor_create(void *o)
 	linkedlist_create(&n->queue, LINKEDLIST_LOCKLESS);
 }
 
-struct kobj kobj_neighbor = {
+static struct kobj kobj_neighbor = {
 	KOBJ_DEFAULT_ELEM(neighbor),
 	.create = _neighbor_create,
 	.init = NULL, .put = NULL, .destroy = NULL,
 };
 
-struct hash neighbors;
-struct spinlock neighbor_lock;
+static struct hash neighbors;
+static struct spinlock neighbor_lock;
+
+static struct kobj kobj_prefix = KOBJ_DEFAULT(prefix);
+
+static struct hash prefixes;
+static struct spinlock prefix_lock;
 
 void ipv6_neighbor_update(union ipv6_address lladdr, struct physical_address *paddr, enum reach_state reach)
 {
@@ -41,11 +51,12 @@ void ipv6_neighbor_update(union ipv6_address lladdr, struct physical_address *pa
 		n->addr = lladdr;
 		if(paddr) {
 			memcpy(&n->physaddr, paddr, sizeof(*paddr));
+			printk(":: %ld %x %x %x %x %x %x\n", n->physaddr.len, n->physaddr.octets[0], n->physaddr.octets[1], n->physaddr.octets[2], n->physaddr.octets[3], n->physaddr.octets[4], n->physaddr.octets[5]);
 		}
 		/* TODO: default to reachable? */
 		n->reachability = reach == REACHABILITY_NOCHANGE ? REACHABILITY_REACHABLE : reach;
 		hash_insert(&neighbors, &n->addr, sizeof(union ipv6_address), &n->entry, n);
-		TRACE(&ipv6_trace, "new neighbor: %lx:%lx -> %lx:%lx: %d", n->addr.prefix, n->addr.id, *(uint32_t *)n->physaddr.octets, *((uint32_t *)n->physaddr.octets + 4), reach);
+		TRACE(&ipv6_trace, "new neighbor: %lx:%lx -> %x:%x:%x:%x:%x:%x %d", n->addr.prefix, n->addr.id, n->physaddr.octets[0], n->physaddr.octets[1], n->physaddr.octets[2], n->physaddr.octets[3], n->physaddr.octets[4], n->physaddr.octets[5], reach);
 	} else {
 		spinlock_acquire(&n->lock);
 		n->addr = lladdr;
@@ -71,11 +82,34 @@ struct neighbor *ipv6_get_neighbor(union ipv6_address *lladdr)
 	return n;
 }
 
+void ipv6_router_add(struct nic *nic, struct neighbor *neighbor, struct router_advert_header *rah, struct prefix_option_data *pod)
+{
+	struct router *router = kobj_allocate(&kobj_router);
+	router->hoplim = rah->hoplim;
+	router->neighbor = neighbor;
+	/* TODO: support flags */
+	router->lifetime = BIG_TO_HOST16(rah->lifetime);
+	router->onlink = pod->onlink;
+	router->autocon = pod->autocon;
+	struct router *e = NULL;
+	atomic_compare_exchange_strong(&default_router, &e, router);
+
+	spinlock_acquire(&prefix_lock);
+	struct prefix *prefix = kobj_allocate(&kobj_prefix);
+	prefix->prefix = pod->prefix.prefix;
+	prefix->nic = kobj_getref(nic);
+	router->prefix = kobj_getref(prefix);
+	hash_insert(&prefixes, &prefix->prefix, 8, &prefix->elem, prefix);
+	spinlock_release(&prefix_lock);
+}
+
 __initializer static void __ipv6_init(void)
 {
 	spinlock_create(&neighbor_lock);
 	hash_create(&neighbors, HASH_LOCKLESS, 1024);
 	trace_enable(&ipv6_trace);
+	spinlock_create(&prefix_lock);
+	hash_create(&prefixes, HASH_LOCKLESS, 32);
 	sleepflag_create(&worker_work);
 }
 
@@ -143,6 +177,7 @@ static void _ipv6_nic_change(struct nic *nic, enum nic_change_event event)
 			break;
 		case NIC_CHANGE_UP:
 			/* TODO: notify state thread */
+			icmp6_router_solicit(nic);
 			break;
 		default: panic(0, "invalid nic change event %d\n", event);
 	}
@@ -248,50 +283,35 @@ void ipv6_construct_final(struct packet *packet, struct ipv6_header *header, uin
 	}
 }
 
-void ipv6_send_packet(struct packet *packet, struct ipv6_header *header, uint16_t *checksum)
+void ipv6_reply_packet(struct packet *packet, struct ipv6_header *header, uint16_t *checksum)
 {
-	if(header->destination.prefix == 0 && BIG_TO_HOST64(header->destination.id) == 1) {
-		/* loopback */
-		ipv6_construct_final(packet, header, checksum);
-		ipv6_receive(packet, header);
-		return;
-	}
-	struct router *router = NULL;
-	/* if no sender nic is set, determine one to send to. */
-	if(packet->sender == NULL) {
-		printk("we don't route yet\n");
-		return;
-	}
-
+	packet->sender = kobj_getref(packet->origin);
 	ipv6_construct_final(packet, header, checksum);
-
-	struct neighbor *n;
-	if(router == NULL) {
-		/* we're sending directly to neighbor */
-		n = ipv6_establish_neighbor(header->destination, packet);
-	} else {
-		n = kobj_getref(router->neighbor);
-		if(!ipv6_neighbor_check_state(n, packet)) {
-			kobj_putref(n);
-			n = NULL;
-		}
-	}
-
+	struct neighbor *n = ipv6_establish_neighbor(header->destination, packet);
 	if(n) {
 		net_ethernet_send(packet, 0x86DD, &n->physaddr);
 		kobj_putref(n);
 	}
-	if(router) {
-		kobj_putref(router);
-	}
 }
 
-void ipv6_network_send(const struct sockaddr *daddr, struct nic *sender, const void *trheader, size_t thlen, const void *msg, size_t mlen, int prot, int csoff)
+int ipv6_network_send(const struct sockaddr *daddr, struct nic *sender, const void *trheader, size_t thlen, const void *msg, size_t mlen, int prot, int csoff)
 {
 	struct sockaddr_in6 *dest = (void *)daddr;
+	union ipv6_address nexthop = dest->addr;
 	if(sender == NULL) {
-		printk("We don't route yet (2)\n");
-		return;
+		spinlock_acquire(&prefix_lock);
+		struct prefix *prefix = hash_lookup(&prefixes, &dest->addr.prefix, 8);
+		if(!prefix) {
+			spinlock_release(&prefix_lock);
+			if(default_router == NULL) {
+				return -ENETUNREACH;
+			}
+			sender = kobj_getref(default_router->prefix->nic);
+			nexthop = default_router->neighbor->addr;
+		} else {
+			sender = kobj_getref(prefix->nic);
+			spinlock_release(&prefix_lock);
+		}
 	}
 
 	struct packet *packet = kobj_allocate(&kobj_packet);
@@ -313,7 +333,21 @@ void ipv6_network_send(const struct sockaddr *daddr, struct nic *sender, const v
 	if(csoff >= 0) {
 		checksum = (uint16_t *)(header->data + csoff);
 	}
-	ipv6_send_packet(packet, header, checksum);
+
+	ipv6_construct_final(packet, header, checksum);
+
+	if(header->destination.prefix == 0 && BIG_TO_HOST64(header->destination.id) == 1) {
+		/* loopback */
+		ipv6_receive(packet, header);
+		return 0;
+	}
+
+	struct neighbor *n = ipv6_establish_neighbor(nexthop, packet);
+	if(n) {
+		net_ethernet_send(packet, 0x86DD, &n->physaddr);
+		kobj_putref(n);
+	}
+	return 0;
 }
 
 struct udp_header;
