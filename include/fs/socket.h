@@ -10,14 +10,21 @@
 typedef unsigned socklen_t;
 typedef unsigned short sa_family_t;
 typedef uint16_t in_port_t;
-#define AF_UNIX 1
+
+#define SOCK_STREAM 1
+#define SOCK_DGRAM  2
+#define SOCK_RAW    3
+
+#define AF_UNIX   1
 #define AF_INET6 10
 
-#define PROT_UDP 17
+#define PROT_UDP      17
+#define PROT_TCP      6
+#define PROT_ICMPV6   58
 
-#define MAX_PROT 32
-#define MAX_AF 10
-#define MAX_TYPE 2
+#define MAX_PROT 58
+#define MAX_AF   10
+#define MAX_TYPE  3
 
 struct sockaddr {
 	sa_family_t sa_family;
@@ -97,6 +104,12 @@ struct socket_udp_data {
 	size_t blen;
 };
 
+struct socket_ipv6raw_data {
+	struct linkedentry entry;
+	struct linkedlist inq;
+	struct blocklist rbl;
+};
+
 #define SF_BOUND  1
 #define SF_LISTEN 2
 #define SF_ACCEPT 4
@@ -108,6 +121,8 @@ struct socket_udp_data {
 //some compilers define 'unix' as 1, which doesn't make sense for kernel code.
 #undef unix
 
+#define IPV6_CHECKSUM 7
+#define SOL_RAW 255
 #define SO_BINDTODEVICE 25
 
 struct sockoptkey {
@@ -139,6 +154,7 @@ struct socket {
 	union {
 		struct socket_unix_data unix;
 		struct socket_udp_data udp;
+		struct socket_ipv6raw_data ipv6;
 	};
 };
 

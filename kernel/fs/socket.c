@@ -8,6 +8,7 @@
 #include <net/nic.h>
 extern struct sock_calls af_unix_calls;
 extern struct sock_calls af_udp_calls;
+extern struct sock_calls af_ipv6_calls;
 
 extern const struct sockaddr_in6 ipv6_any_address;
 struct sockaddrinfo sockaddrinfo[MAX_AF + 1] = {
@@ -50,13 +51,13 @@ static struct kobj kobj_socket = {
 
 static struct sock_calls *domains[MAX_AF + 1][MAX_PROT + 1] = {
 	[0] = {NULL, NULL, NULL},
-	[AF_UNIX] = {NULL, &af_unix_calls},
-	[AF_INET6] = {[0] = NULL, [6] = NULL, [17] = &af_udp_calls},
+	[AF_UNIX]  = {NULL, &af_unix_calls},
+	[AF_INET6] = {[0] = &af_ipv6_calls, [PROT_TCP] = NULL, [PROT_UDP] = &af_udp_calls, [PROT_ICMPV6] = &af_ipv6_calls },
 };
 
 static int default_protocol[MAX_AF + 1][MAX_TYPE + 1] = {
-	[AF_UNIX] = {0, 1, 1},
-	[AF_INET6] = {0, 6, 17},
+	[AF_UNIX]  = {0, 1, 1, 0},
+	[AF_INET6] = {0, [SOCK_STREAM] = PROT_TCP, [SOCK_DGRAM] = PROT_UDP, [SOCK_RAW] = 0},
 };
 
 struct socket *socket_get_from_fd(int fd, int *err)

@@ -357,6 +357,7 @@ static void ipv6_receive_process(struct packet *packet, struct ipv6_header *head
 {
 	(void)type;
 	packet->transport_header = header->data;
+	ipv6_rawsocket_copy(packet, header);
 	if(header->next_header == IP_PROTOCOL_ICMP6) {
 		icmp6_receive(packet, header, type);
 	} else if(header->next_header == IP_PROTOCOL_UDP) {

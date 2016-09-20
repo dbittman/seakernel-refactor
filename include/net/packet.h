@@ -12,6 +12,7 @@ struct packet {
 	struct nic *origin, *sender;
 	struct linkedentry queue_entry;
 	void *transport_header;
+	void *network_header;
 	struct sockaddr saddr;
 	struct sockaddr daddr;
 };

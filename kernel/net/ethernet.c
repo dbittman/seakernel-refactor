@@ -21,6 +21,7 @@ void net_ethernet_drop(struct packet *packet)
 void net_ethernet_receive(struct packet *packet)
 {
 	struct ethernet_frame *ef = packet->data;
+	packet->network_header = ef->data;
 	if((ef->dest[0] & 1) //multicast
 			|| (!memcmp(ef->dest, packet->origin->physaddr.octets, 6))) {
 		switch(BIG_TO_HOST16(ef->type)) {
