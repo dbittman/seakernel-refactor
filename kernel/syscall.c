@@ -99,6 +99,8 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_ioctl]    = SC sys_ioctl,
 	[SYS_pselect6]  = SC sys_pselect,
 	[SYS_select]   = SC sys_select,
+	[SYS_ppoll]    = SC sys_ppoll,
+	[SYS_poll]    = SC sys_poll,
 	[SYS_nanosleep] = SC sys_nanosleep,
 
 	[SYS_gettid]   = SC sys_gettid,

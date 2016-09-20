@@ -130,3 +130,14 @@ sysret_t sys_lchown(const char *path, int uid, int gid);
 sysret_t sys_fchown(int fd, int uid, int gid);
 sysret_t sys_chown(const char *path, int uid, int gid);
 sysret_t sys_fchownat(int dirfd, const char *path, int uid, int gid, int flags);
+
+
+struct pollfd {
+	int   fd;         /* file descriptor */
+	short events;     /* requested events */
+	short revents;    /* returned events */
+};
+
+sysret_t sys_ppoll(struct pollfd *fds, int nfds, const struct timespec *tmo_p, const sigset_t *sigmask);
+sysret_t sys_poll(struct pollfd *fds, int nfds, int timeout);
+

@@ -1,7 +1,11 @@
 
-USRPROGS_NAMES=cond init syslogd sctl ps thr pswitch udps
+USRPROGS_NAMES=cond init syslogd sctl ps thr pswitch udps lookup
 
 USRPROGS=$(addprefix initrd/bin/,$(USRPROGS_NAMES))
+
+initrd/bin/lookup: $(SYSROOT)/usr/src/lookup.c
+	@mkdir -p initrd/bin
+	$(TOOLCHAIN_PREFIX)linux-musl-gcc -static -O2 -g  -o $@ $<
 
 initrd/bin/udps: $(SYSROOT)/usr/src/udps.c
 	@mkdir -p initrd/bin

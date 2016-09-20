@@ -9,6 +9,7 @@
 #include <arena.h>
 #include <printk.h>
 #include <processor.h>
+#include <fs/sys.h>
 
 struct select_blockpoint {
 	struct blockpoint bp;
@@ -188,6 +189,25 @@ sysret_t _do_select(int nfds, fd_set *readfds, fd_set *writefds,
 out_arena:
 	arena_destroy(&arena);
 	return ret;
+}
+
+sysret_t sys_ppoll(struct pollfd *fds, int nfds, const struct timespec *timeout, const sigset_t *sigmask)
+{
+	(void)fds;
+	(void)nfds;
+	(void)timeout;
+	(void)sigmask;
+	return 1;
+}
+
+sysret_t sys_poll(struct pollfd *fds, int nfds, int timeout)
+{
+	struct timespec ts;
+	if(timeout >= 0) {
+		ts.tv_nsec = (timeout % 1000) * 1000000;
+		ts.tv_sec = timeout / 1000;
+	}
+	return sys_ppoll(fds, nfds, timeout >= 0 ? &ts : NULL, NULL);
 }
 
 sysret_t sys_pselect(int nfds, fd_set *readfds, fd_set *writefds,
