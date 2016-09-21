@@ -37,6 +37,8 @@ __initializer static void _ipv6_init(void)
 
 static void _ipv6_init_sock(struct socket *sock)
 {
+	linkedlist_create(&sock->ipv6.inq, 0);
+	blocklist_create(&sock->ipv6.rbl);
 	spinlock_acquire(&lock);
 	linkedlist_insert(&socks, &sock->ipv6.entry, kobj_getref(sock));
 	spinlock_release(&lock);
@@ -50,6 +52,8 @@ void ipv6_rawsocket_copy(const struct packet *_packet, struct ipv6_header *heade
 	/* TODO: only do the copy on the first socket that we find. */
 	struct packet *packet = kobj_allocate(&kobj_packet);
 	memcpy(packet, _packet, sizeof(*packet));
+	if(packet->origin)
+		kobj_getref(packet->origin);
 	packet->data = net_packet_buffer_allocate();
 	memcpy(packet->data, _packet->data, _packet->length);
 	spinlock_acquire(&lock);
@@ -94,9 +98,9 @@ static ssize_t _ipv6_recvfrom(struct socket *sock, char *msg, size_t length,
 	}
 
 	struct ipv6_header *header = place->packet->network_header;
-	size_t plen = BIG_TO_HOST16(header->length);
+	size_t plen = BIG_TO_HOST16(header->length) + sizeof(struct ipv6_header); //TODO: copy header?
 	size_t minlen = length > plen ? plen : length;
-	memcpy(msg, header->data, minlen);
+	memcpy(msg, header, minlen);
 	if(srclen && src) {
 		if(*srclen > sockaddrinfo[place->packet->saddr.sa_family].length)
 			*srclen = sockaddrinfo[place->packet->saddr.sa_family].length;
@@ -125,7 +129,7 @@ static ssize_t _ipv6_sendto(struct socket *sock, const char *msg, size_t length,
 		cs = *(int *)so->data;
 	}
 	spinlock_release(&sock->optlock);
-	int err = net_network_send(sock, dest, NULL, 0, msg, length, sock->protocol, cs);
+	int err = ipv6_network_send(dest, sock->nic ? kobj_getref(sock->nic) : NULL, NULL, 0, msg, length, sock->protocol, cs);
 	return err == 0 ? (ssize_t)length : err;
 }
 

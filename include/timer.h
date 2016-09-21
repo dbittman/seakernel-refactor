@@ -26,8 +26,12 @@ struct timer {
 	struct linkedentry node;
 };
 
-void timer_add(struct timer *timer, enum timer_mode mode, uint64_t ticks,
-		void (*fn)(void *), void *data);
+void timer_add_locked(struct timer *timer, enum timer_mode mode, uint64_t ticks,
+		void (*fn)(void *), void *data, bool locked);
+
+#define timer_add(a,b,c,d,e) timer_add_locked(a,b,c,d,e,false)
+#define timer_readd(a,b,c,d,e) timer_add_locked(a,b,c,d,e,true)
+
 void timer_remove(struct timer *timer);
 
 

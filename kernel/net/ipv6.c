@@ -324,7 +324,8 @@ int ipv6_network_send(const struct sockaddr *daddr, struct nic *sender, const vo
 	header->next_header = prot;
 	header->version = 6;
 
-	memcpy(header->data, trheader, thlen);
+	if(trheader)
+		memcpy(header->data, trheader, thlen);
 	memcpy(header->data + thlen, msg, mlen);
 	
 	packet->length = sender->driver->headlen + sizeof(*header) + BIG_TO_HOST16(header->length);
@@ -335,12 +336,6 @@ int ipv6_network_send(const struct sockaddr *daddr, struct nic *sender, const vo
 	}
 
 	ipv6_construct_final(packet, header, checksum);
-
-	if(header->destination.prefix == 0 && BIG_TO_HOST64(header->destination.id) == 1) {
-		/* loopback */
-		ipv6_receive(packet, header);
-		return 0;
-	}
 
 	struct neighbor *n = ipv6_establish_neighbor(nexthop, packet);
 	if(n) {

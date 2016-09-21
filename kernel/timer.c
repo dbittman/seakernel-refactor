@@ -28,14 +28,14 @@ static void __add_timer(struct timer *timer, bool locked)
 		spinlock_release(&lock);
 }
 
-void timer_add(struct timer *timer, enum timer_mode mode, uint64_t ticks,
-		void (*fn)(void *), void *data)
+void timer_add_locked(struct timer *timer, enum timer_mode mode, uint64_t ticks,
+		void (*fn)(void *), void *data, bool locked)
 {
 	timer->ticks = timer->initial_ticks = ticks;
 	timer->mode = mode;
 	timer->call = fn;
 	timer->data = data;
-	__add_timer(timer, false);
+	__add_timer(timer, locked);
 }
 
 void timer_remove(struct timer *timer)

@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = AF_INET6;
     hints.ai_socktype = 0;
-    hints.ai_flags = 0;
+    hints.ai_flags = AI_CANONNAME | AI_V4MAPPED;
     hints.ai_protocol = 0;
     hints.ai_canonname = NULL;
     hints.ai_addr = NULL;
@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
 
     s = getaddrinfo(argv[1], NULL, &hints, &result);
     if (s != 0) {
-        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
+        fprintf(stderr, "getaddrinfo: %d: %s\n", s, gai_strerror(s));
         exit(EXIT_FAILURE);
     }
 
@@ -43,3 +43,4 @@ int main(int argc, char *argv[])
 	}
 	return 0;
 }
+

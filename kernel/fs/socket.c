@@ -80,7 +80,7 @@ struct socket *socket_get_from_fd(int fd, int *err)
 
 sysret_t sys_socket(int domain, int type, int protocol)
 {
-	printk(":: %d %d %d\n", domain, type, protocol);
+	/* TODO: type can take flags... deal with them. */
 	if(domain > MAX_AF || domain < 0)
 		return -EINVAL;
 	if(protocol > MAX_PROT || protocol < 0)

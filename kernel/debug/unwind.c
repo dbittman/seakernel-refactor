@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <system.h>
 #include <ksymbol.h>
+#include <spinlock.h>
 #if FEATURE_SUPPORTED_UNWIND
 #ifdef __clang__
 __attribute__((no_sanitize("alignment")))
@@ -20,14 +21,23 @@ static void __print_frame(struct frame *frame)
 	}
 }
 #endif
+static struct spinlock lock;
+static bool init = false;
+__initializer static void __init_unwind(void)
+{
+	spinlock_create(&lock);
+	init = true;
+}
+
 #ifdef __clang__
 __attribute__((no_sanitize("alignment")))
 #else
 __attribute__((no_sanitize_undefined))
 #endif
-
 void debug_print_backtrace(void)
 {
+	if(init)
+		spinlock_acquire(&lock);
 #if FEATURE_SUPPORTED_UNWIND
 	struct frame frame;
 	frame.pc = (uintptr_t)__builtin_extract_return_addr(__builtin_return_address(0));
@@ -39,5 +49,7 @@ void debug_print_backtrace(void)
 #else
 	printk("Arch '%s' does not support unwinding.\n", stringify_define(CONFIG_ARCH));
 #endif
+	if(init)
+		spinlock_release(&lock);
 }
 

@@ -192,6 +192,7 @@ void *kobj_allocate(struct kobj *ko)
 	return obj;
 }
 
+#include <debug.h>
 size_t __kobj_putref(void *obj)
 {
 	assert(obj != NULL);

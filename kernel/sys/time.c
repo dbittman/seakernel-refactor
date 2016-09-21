@@ -51,12 +51,11 @@ sysret_t sys_getitimer(int which, struct itimerval *cur)
 static void _itimer_timeout(void *data)
 {
 	struct thread_timer *timer = data;
-	printk("timer out %ld\n", timer->thread->tid);
 
 	time_t value = timer->interval.tv_sec * 1000000 + timer->interval.tv_usec;
 	
 	if(value > 0) {
-		timer_add(&timer->timer, TIMER_MODE_ONESHOT, value / MICROSECONDS_PER_TICK, _itimer_timeout, timer);
+		timer_readd(&timer->timer, TIMER_MODE_ONESHOT, value / MICROSECONDS_PER_TICK, _itimer_timeout, timer);
 	}
 
 	thread_send_signal(timer->thread, timer->sig);
