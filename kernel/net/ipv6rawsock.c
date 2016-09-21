@@ -50,12 +50,7 @@ void ipv6_rawsocket_copy(const struct packet *_packet, struct ipv6_header *heade
 	if(!socks.count)
 		return;
 	/* TODO: only do the copy on the first socket that we find. */
-	struct packet *packet = kobj_allocate(&kobj_packet);
-	memcpy(packet, _packet, sizeof(*packet));
-	if(packet->origin)
-		kobj_getref(packet->origin);
-	packet->data = net_packet_buffer_allocate();
-	memcpy(packet->data, _packet->data, _packet->length);
+	struct packet *packet = packet_duplicate(_packet);
 	spinlock_acquire(&lock);
 	for(struct linkedentry *entry = linkedlist_iter_start(&socks);
 			entry != linkedlist_iter_end(&socks); entry = linkedlist_iter_next(entry)) {

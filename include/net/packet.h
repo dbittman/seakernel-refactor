@@ -19,4 +19,5 @@ struct packet {
 
 extern struct kobj kobj_packet;
 void *net_packet_buffer_allocate(void);
+struct packet *packet_duplicate(const struct packet *src);
 

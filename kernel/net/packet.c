@@ -44,3 +44,17 @@ void *net_packet_buffer_allocate(void)
 	return buffer == NULL ? (void *)mm_virtual_allocate(0x1000, false) : buffer;
 }
 
+struct packet *packet_duplicate(const struct packet *src)
+{
+	struct packet *packet = kobj_allocate(&kobj_packet);
+	memcpy(packet, src, sizeof(*packet));
+	if(packet->origin)
+		kobj_getref(packet->origin);
+	if(packet->sender)
+		kobj_getref(packet->sender);
+	packet->data = net_packet_buffer_allocate();
+	memcpy(packet->data, src->data, src->length);
+
+	return packet;
+}
+
