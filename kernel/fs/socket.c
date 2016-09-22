@@ -391,12 +391,54 @@ static int _socket_select(struct file *file, int flags, struct blockpoint *bp)
 	return ret;
 }
 
+#define IFNAMSIZ 16
+struct ifreq {
+	char ifr_name[IFNAMSIZ]; /* Interface name */
+	union {
+	    struct sockaddr ifr_addr;
+	    struct sockaddr ifr_dstaddr;
+	    struct sockaddr ifr_broadaddr;
+	    struct sockaddr ifr_netmask;
+	    struct sockaddr ifr_hwaddr;
+	    short           ifr_flags;
+	    int             ifr_ifindex;
+	    int             ifr_metric;
+	    int             ifr_mtu;
+	    char            ifr_slave[IFNAMSIZ];
+	    char            ifr_newname[IFNAMSIZ];
+	    char           *ifr_data;
+	};
+};
+
+#define SIOCGIFINDEX 0x8933
+static int _socket_ioctl(struct file *file, long cmd, long arg)
+{
+	struct socket *sock = kobj_getref(file->devdata);
+	int ret = 0;
+	struct ifreq *ifr = (void *)arg;
+	switch(cmd) {
+		struct nic *nic = NULL;
+		case SIOCGIFINDEX:
+			nic = net_nic_get_byname(ifr->ifr_name);
+			if(nic) {
+				ifr->ifr_ifindex = nic->id;
+			} else {
+				ret = -ENOENT;
+			}
+			break;
+		default:
+			ret = -ENOTSUP;
+	}
+	kobj_putref(sock);
+	return ret;
+}
+
 struct file_calls socket_fops = {
 	.write = _socket_write,
 	.read = _socket_read,
 	.create = _socket_fops_create,
 	.destroy = _socket_fops_destroy,
-	.ioctl = 0, .select = _socket_select, .open = 0, .close = 0,
+	.ioctl = _socket_ioctl, .select = _socket_select, .open = 0, .close = 0,
 	.map = 0, .unmap = 0,
 };
 

@@ -79,10 +79,12 @@ void net_nic_change(struct nic *nic, enum nic_change_event event)
 }
 
 static struct hash nic_names;
+static struct hash nic_nums;
 static _Atomic int next_nic = 0;
 __initializer static void _init_nic_names(void)
 {
 	hash_create(&nic_names, 0, 32);
+	hash_create(&nic_nums, 0, 32);
 }
 
 struct nic *net_nic_get_byname(const char *name)
@@ -92,6 +94,14 @@ struct nic *net_nic_get_byname(const char *name)
 	return n ? kobj_getref(n) : NULL;
 }
 
+struct nic *net_nic_get_bynum(int num)
+{
+	/* TODO: this is not thread safe */
+	struct nic *n = hash_lookup(&nic_nums, &num, sizeof(num));
+	return n ? kobj_getref(n) : NULL;
+}
+
+static int _next_id = 0;
 struct nic *net_nic_init(void *data, struct nic_driver *drv, void *physaddr, size_t paddrlen)
 {
 	struct nic *nic = kobj_allocate(&kobj_nic);
@@ -101,7 +111,9 @@ struct nic *net_nic_init(void *data, struct nic_driver *drv, void *physaddr, siz
 		panic(0, "increase size of physical address for nic!");
 	}
 	snprintf(nic->name, 16, "nic%d", next_nic++);
+	nic->id = ++_next_id;
 	hash_insert(&nic_names, nic->name, strlen(nic->name), &nic->elem, kobj_getref(nic));
+	hash_insert(&nic_nums, &nic->id, sizeof(int), &nic->elemnum, kobj_getref(nic));
 	memcpy(nic->physaddr.octets, physaddr, paddrlen);
 	nic->physaddr.len = paddrlen;
 	spinlock_create(&nic->lock);

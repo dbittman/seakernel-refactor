@@ -93,9 +93,9 @@ static ssize_t _ipv6_recvfrom(struct socket *sock, char *msg, size_t length,
 	}
 
 	struct ipv6_header *header = place->packet->network_header;
-	size_t plen = BIG_TO_HOST16(header->length) + sizeof(struct ipv6_header); //TODO: copy header?
+	size_t plen = BIG_TO_HOST16(header->length);// + sizeof(struct ipv6_header); //TODO: copy header?
 	size_t minlen = length > plen ? plen : length;
-	memcpy(msg, header, minlen);
+	memcpy(msg, header->data /* header */, minlen);
 	if(srclen && src) {
 		if(*srclen > sockaddrinfo[place->packet->saddr.sa_family].length)
 			*srclen = sockaddrinfo[place->packet->saddr.sa_family].length;

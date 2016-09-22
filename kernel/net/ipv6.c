@@ -299,18 +299,27 @@ int ipv6_network_send(const struct sockaddr *daddr, struct nic *sender, const vo
 	struct sockaddr_in6 *dest = (void *)daddr;
 	union ipv6_address nexthop = dest->addr;
 	if(sender == NULL) {
-		spinlock_acquire(&prefix_lock);
-		struct prefix *prefix = hash_lookup(&prefixes, &dest->addr.prefix, 8);
-		if(!prefix) {
-			spinlock_release(&prefix_lock);
-			if(default_router == NULL) {
+		printk("%x %x\n", nexthop.octets[0], nexthop.octets[1]);
+		if((nexthop.octets[0] == 0xff && nexthop.octets[1] == 0x02)
+				|| (nexthop.octets[0] == 0xfe && nexthop.octets[1] == 0x80)) {
+			printk(":: %d -> %p\n", dest->scope, net_nic_get_bynum(dest->scope));
+			if((sender = net_nic_get_bynum(dest->scope)) == NULL) {
 				return -ENETUNREACH;
 			}
-			sender = kobj_getref(default_router->prefix->nic);
-			nexthop = default_router->neighbor->addr;
 		} else {
-			sender = kobj_getref(prefix->nic);
-			spinlock_release(&prefix_lock);
+			spinlock_acquire(&prefix_lock);
+			struct prefix *prefix = hash_lookup(&prefixes, &dest->addr.prefix, 8);
+			if(!prefix) {
+				spinlock_release(&prefix_lock);
+				if(default_router == NULL) {
+					return -ENETUNREACH;
+				}
+				sender = kobj_getref(default_router->prefix->nic);
+				nexthop = default_router->neighbor->addr;
+			} else {
+				sender = kobj_getref(prefix->nic);
+				spinlock_release(&prefix_lock);
+			}
 		}
 	}
 
@@ -337,10 +346,16 @@ int ipv6_network_send(const struct sockaddr *daddr, struct nic *sender, const vo
 
 	ipv6_construct_final(packet, header, checksum);
 
-	struct neighbor *n = ipv6_establish_neighbor(nexthop, packet);
-	if(n) {
-		net_ethernet_send(packet, 0x86DD, &n->physaddr);
-		kobj_putref(n);
+	if(nexthop.octets[0] == 0xFF) {
+		/* TODO: this is ethernet specific */
+		struct physical_address pa = {.len = 6, .octets = {0x33, 0x33, 0, 0, 0, 0 } };
+		net_ethernet_send(packet, 0x86DD, &pa);
+	} else {
+		struct neighbor *n = ipv6_establish_neighbor(nexthop, packet);
+		if(n) {
+			net_ethernet_send(packet, 0x86DD, &n->physaddr);
+			kobj_putref(n);
+		}
 	}
 	return 0;
 }
