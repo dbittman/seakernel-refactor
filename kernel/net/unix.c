@@ -279,6 +279,7 @@ static void _unix_init_sock(struct socket *sock)
 {
 	sock->unix.named = false;
 	sock->unix.fd = -1;
+	sock->unix.con = NULL;
 }
 
 static int _unix_select(struct socket *sock, int flags, struct blockpoint *bp)
