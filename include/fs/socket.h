@@ -104,6 +104,15 @@ struct socket_udp_data {
 	size_t blen;
 };
 
+struct tcp_connection;
+struct socket_tcp_data {
+	struct hashelem elem;
+	struct sockaddr binding;
+	size_t blen;
+
+	struct tcp_connection *con;
+};
+
 struct socket_ipv6raw_data {
 	struct linkedentry entry;
 	struct linkedlist inq;
@@ -154,6 +163,7 @@ struct socket {
 	union {
 		struct socket_unix_data unix;
 		struct socket_udp_data udp;
+		struct socket_tcp_data tcp;
 		struct socket_ipv6raw_data ipv6;
 	};
 };

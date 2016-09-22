@@ -1,7 +1,11 @@
 
-USRPROGS_NAMES=cond init syslogd sctl ps thr pswitch udps lookup ping
+USRPROGS_NAMES=cond init syslogd sctl ps thr pswitch udps lookup ping netcat
 
 USRPROGS=$(addprefix initrd/bin/,$(USRPROGS_NAMES))
+
+initrd/bin/netcat: $(SYSROOT)/usr/src/netcat.c
+	@mkdir -p initrd/bin
+	$(TOOLCHAIN_PREFIX)linux-musl-gcc -static -O2 -g  -o $@ $<
 
 initrd/bin/ping: $(SYSROOT)/usr/src/ping.c
 	@mkdir -p initrd/bin

@@ -9,6 +9,7 @@
 extern struct sock_calls af_unix_calls;
 extern struct sock_calls af_udp_calls;
 extern struct sock_calls af_ipv6_calls;
+extern struct sock_calls af_tcp_calls;
 
 extern const struct sockaddr_in6 ipv6_any_address;
 struct sockaddrinfo sockaddrinfo[MAX_AF + 1] = {
@@ -52,7 +53,7 @@ static struct kobj kobj_socket = {
 static struct sock_calls *domains[MAX_AF + 1][MAX_PROT + 1] = {
 	[0] = {NULL, NULL, NULL},
 	[AF_UNIX]  = {NULL, &af_unix_calls},
-	[AF_INET6] = {[0] = &af_ipv6_calls, [PROT_TCP] = NULL, [PROT_UDP] = &af_udp_calls, [PROT_ICMPV6] = &af_ipv6_calls },
+	[AF_INET6] = {[0] = &af_ipv6_calls, [PROT_TCP] = &af_tcp_calls, [PROT_UDP] = &af_udp_calls, [PROT_ICMPV6] = &af_ipv6_calls },
 };
 
 static int default_protocol[MAX_AF + 1][MAX_TYPE + 1] = {

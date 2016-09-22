@@ -8,7 +8,7 @@ static int (*senders[MAX_AF + 1])(const struct sockaddr *, struct nic *, const v
 };
 
 static int protocol_map[MAX_AF + 1][MAX_PROT] = {
-	[AF_INET6] = { [PROT_UDP] = 17 },
+	[AF_INET6] = { [PROT_UDP] = 17, [PROT_TCP] = 6 },
 };
 
 int net_network_send(struct socket *sock, const struct sockaddr *dest, const void *trheader, size_t thlen, const void *msg, size_t mlen, int prot, int checksum_offset)

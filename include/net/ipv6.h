@@ -8,6 +8,7 @@ struct packet;
 enum {
 	IP_PROTOCOL_ICMP6 = 0x3A,
 	IP_PROTOCOL_UDP   = 17,
+	IP_PROTOCOL_TCP   = 6,
 };
 
 enum {

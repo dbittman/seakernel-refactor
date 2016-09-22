@@ -25,6 +25,8 @@ static void _packet_init(void *o)
 {
 	struct packet *p = o;
 	p->origin = p->sender = NULL;
+	memset(&p->saddr, 0, sizeof(p->saddr));
+	memset(&p->daddr, 0, sizeof(p->daddr));
 }
 
 struct kobj kobj_packet = {
