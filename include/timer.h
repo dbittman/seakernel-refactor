@@ -42,5 +42,6 @@ struct timeval { time_t tv_sec; suseconds_t tv_usec; };
 
 time_t time_get_current(void);
 int64_t arch_time_getepoch(void);
+uint64_t timer_get_counter(void);
 #endif
 

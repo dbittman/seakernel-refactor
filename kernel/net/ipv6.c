@@ -299,10 +299,8 @@ int ipv6_network_send(const struct sockaddr *daddr, struct nic *sender, const vo
 	struct sockaddr_in6 *dest = (void *)daddr;
 	union ipv6_address nexthop = dest->addr;
 	if(sender == NULL) {
-		printk("%x %x\n", nexthop.octets[0], nexthop.octets[1]);
 		if((nexthop.octets[0] == 0xff && nexthop.octets[1] == 0x02)
 				|| (nexthop.octets[0] == 0xfe && nexthop.octets[1] == 0x80)) {
-			printk(":: %d -> %p\n", dest->scope, net_nic_get_bynum(dest->scope));
 			if((sender = net_nic_get_bynum(dest->scope)) == NULL) {
 				return -ENETUNREACH;
 			}

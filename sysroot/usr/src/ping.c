@@ -209,9 +209,6 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 	
-	int index = if_nametoindex("enp3s0");
-	printf(":: %d %d\n", index, sa->sin6_scope_id);
-
 	/* handle alarms */
 	signal(SIGALRM, handler);
 	signal(SIGINT, handler);

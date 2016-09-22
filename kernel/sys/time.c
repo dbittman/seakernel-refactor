@@ -5,6 +5,7 @@
 #include <fs/path.h>
 #include <fs/sys.h>
 #include <fs/inode.h>
+#include <processor.h>
 static void __timeout(void *data)
 {
 	struct thread *thread = data;
@@ -68,7 +69,6 @@ static void __setup_timer(int which)
 		timer_remove(&timer->timer);
 
 	time_t value = timer->value.tv_sec * 1000000 + timer->value.tv_usec;
-	value /= 4; //TODO: what
 	if(value == 0)
 		return;
 	timer->thread = current_thread;
@@ -95,16 +95,32 @@ sysret_t sys_setitimer(int which, const struct itimerval *_new, struct itimerval
 }
 
 #define CLOCK_REALTIME           0
+#define CLOCK_MONOTONIC          1
 sysret_t sys_clock_getres(int id, struct timespec *res)
 {
-	(void)id;
-	res->tv_sec = 1;
-	res->tv_nsec = 0;
+	switch(id) {
+		case CLOCK_REALTIME:
+			res->tv_sec = 1;
+			res->tv_nsec = 0;
+			break;
+		case CLOCK_MONOTONIC:
+#if FEATURE_SUPPORTED_CYCLE_COUNT
+			res->tv_sec = 0;
+			res->tv_nsec = 1;
+#else
+			res->tv_sec = 0;
+			res->tv_nsec = MICROSECONDS_PER_TICK * 1000;
+#endif
+			break;
+		default:
+			return -ENOTSUP;
+	}
 	return 0;
 }
 
 sysret_t sys_clock_gettime(int id, struct timespec *res)
 {
+	uint64_t tmp;
 	switch(id) {
 		case CLOCK_REALTIME:
 #if FEATURE_SUPPORTED_GETTIME
@@ -113,6 +129,17 @@ sysret_t sys_clock_gettime(int id, struct timespec *res)
 #else
 			return -ENOTSUP;
 #endif
+		case CLOCK_MONOTONIC:
+#if FEATURE_SUPPORTED_CYCLE_COUNT
+			tmp = arch_processor_get_cycle_count();
+			res->tv_sec = tmp / 1000000000;
+			res->tv_nsec = tmp % 1000000000;
+#else
+			tmp = timer_get_counter();
+			res->tv_sec  = (tmp * MICROSECONDS_PER_TICK) / 1000000;
+			res->tv_nsec = (tmp * MICROSECONDS_PER_TICK * 1000) % 1000000000;
+#endif
+			break;
 		default:
 			return -ENOTSUP;
 	}

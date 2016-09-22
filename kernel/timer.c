@@ -7,6 +7,11 @@
 #include <assert.h>
 static _Atomic uint64_t counter = 0;
 
+uint64_t timer_get_counter(void)
+{
+	return counter;
+}
+
 #define TIMER_LEVELS 8
 #define TIMER_LEVEL_SIZE 64
 static struct spinlock lock;

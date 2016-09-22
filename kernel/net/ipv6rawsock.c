@@ -103,7 +103,7 @@ static ssize_t _ipv6_recvfrom(struct socket *sock, char *msg, size_t length,
 	}
 
 	kobj_putref(place->packet);
-	return length;
+	return minlen;
 }
 
 static ssize_t _ipv6_sendto(struct socket *sock, const char *msg, size_t length,
