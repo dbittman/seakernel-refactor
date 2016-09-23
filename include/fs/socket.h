@@ -110,6 +110,7 @@ struct tcp_con_key {
 
 enum tcp_con_state {
 	TCS_CLOSED,
+	TCS_LISTENING,
 	TCS_SYNSENT,
 	TCS_SYNRECV,
 	TCS_ESTABLISHED,
@@ -128,16 +129,20 @@ struct tcp_connection {
 	enum tcp_con_state state;
 	struct blocklist bl;
 	uint32_t seqnum, acknum;
-	uint16_t winsize;
+	size_t sndws;
 };
 
+struct socket;
 struct socket_tcp_data {
 	struct hashelem elem;
 	struct sockaddr binding;
 	size_t blen;
 	struct charbuffer inbuf;
+	struct linkedlist establishing;
+	int tmpfd;
 	
 	struct tcp_connection con;
+	time_t time;
 };
 
 struct socket_ipv6raw_data {

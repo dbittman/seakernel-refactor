@@ -180,6 +180,9 @@ sysret_t sys_getsockopt(int sockfd, int level, int option, void * restrict value
 
 sysret_t sys_setsockopt(int sockfd, int level, int option, const void *value, socklen_t optlen)
 {
+	if(value == NULL)
+		return -EINVAL;
+
 	int err = -EBADF;
 	struct socket *socket = socket_get_from_fd(sockfd, &err);
 	if(!socket) return err;
@@ -192,8 +195,14 @@ sysret_t sys_setsockopt(int sockfd, int level, int option, const void *value, so
 				socket->nic = net_nic_get_byname(value);
 				if(!socket->nic) {
 					spinlock_release(&socket->optlock);
+					kobj_putref(socket);
 					return -ENOENT;
 				}
+
+			case 4:
+				spinlock_release(&socket->optlock);
+				kobj_putref(socket);
+				return 0;
 				break;
 		}
 	} else {
@@ -309,7 +318,6 @@ sysret_t sys_send(int sockfd, const char *buf, size_t len, int flags)
 	int err = -ENOTSUP;
 	struct socket *socket = socket_get_from_fd(sockfd, &err);
 	if(!socket) return err;
-	
 	size_t ret = _do_send(socket, buf, len, flags | ((err & O_NONBLOCK) ? _MSG_NONBLOCK : 0));
 	kobj_putref(socket);
 	return ret;

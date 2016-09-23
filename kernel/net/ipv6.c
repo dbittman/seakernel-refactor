@@ -336,7 +336,6 @@ int ipv6_network_send(const struct sockaddr *daddr, struct nic *sender, const vo
 	if(msg)
 		memcpy(header->data + thlen, msg, mlen);
 	
-	printk(":: %d\n", BIG_TO_HOST16(header->length));
 	packet->length = sender->driver->headlen + sizeof(*header) + BIG_TO_HOST16(header->length);
 
 	uint16_t *checksum = NULL;
@@ -378,9 +377,9 @@ static void ipv6_receive_process(struct packet *packet, struct ipv6_header *head
 		struct sockaddr_in6 *saddr = (struct sockaddr_in6 *)&packet->saddr;
 		struct sockaddr_in6 *daddr = (struct sockaddr_in6 *)&packet->daddr;
 		saddr->flow = 0;
-		saddr->scope = 0; //TODO
+		saddr->scope = packet->origin->id; //TODO
 		daddr->flow = 0;
-		daddr->scope = 0;
+		daddr->scope = packet->origin->id;
 		saddr->addr = header->source;
 		daddr->addr = header->destination;
 		saddr->sa_family = AF_INET6;

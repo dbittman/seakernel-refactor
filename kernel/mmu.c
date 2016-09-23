@@ -66,8 +66,9 @@ void mm_fault_entry(uintptr_t address, int flags, uintptr_t from)
 		printk("SIGSEGV - process %d, addr %lx cause %x (tls %lx) from %lx\n", current_thread->process->pid, address, flags, current_thread->arch.fs, from);
 		current_thread->state = THREADSTATE_BLOCKED;
 		current_thread->processor->running = &current_thread->processor->idle_thread;
-		//panic(0, "debug panic");
-		//thread_send_signal(current_thread, SIGSEGV);
+		panic(0, "debug panic");
+		thread_send_signal(current_thread, SIGSEGV);
+		schedule();
 		return;
 	}
 	panic(0, "PF [t%ld, p%d] - %lx %x, from %lx", current_thread->tid, current_thread->process->pid, address, flags, from);

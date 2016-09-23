@@ -10,6 +10,7 @@
 #include <netdb.h>
 
 const char *progname;
+bool verbose = false;
 
 void usage(void)
 {
@@ -53,12 +54,17 @@ void server(char *service)
 		exit(1);
 	}
 
-	int clientsock = accept(sock, NULL, NULL);
+	struct sockaddr_in6 cl;
+	socklen_t cllen = sizeof(cl);
+	int clientsock = accept(sock, (void *)&cl, &cllen);
 	if(clientsock < 0) {
 		perror("accept");
 		exit(1);
 	}
-
+	if(verbose) {
+		char buf[128];
+		fprintf(stderr, "accepting connection from %s\n", inet_ntop(AF_INET6, &cl.sin6_addr, buf, 128));
+	}
 	char buffer[1024];
 	ssize_t len;
 	while((len=read(0, buffer, 1024)) > 0) {
@@ -112,8 +118,11 @@ int main(int argc, char **argv)
 	progname = argv[0];
 	int c;
 	bool listener = false;
-	while((c=getopt(argc, argv, "hl")) != -1) {
+	while((c=getopt(argc, argv, "hlv")) != -1) {
 		switch(c) {
+			case 'v':
+				verbose = true;
+				break;
 			case 'h':
 				usage();
 				exit(0);

@@ -42,6 +42,11 @@ void udp_get_ports(struct udp_header *header, uint16_t *src, uint16_t *dest)
 struct socket *_udp_get_bound_socket(struct sockaddr *addr)
 {
 	socklen_t len = sockaddrinfo[addr->sa_family].length;
+
+	/* XXX HACK: */
+	struct sockaddr_in6 *s6 = (void *)addr;
+	s6->scope = 0;
+
 	spinlock_acquire(&bind_lock);
 	struct socket *sock = hash_lookup(&bindings, addr, len);
 	if(sock == NULL) {
@@ -78,6 +83,11 @@ static int _udp_bind(struct socket *sock, const struct sockaddr *_addr, socklen_
 	int ret = 0;
 	spinlock_acquire(&bind_lock);
 	memcpy(&sock->udp.binding, _addr, len);
+
+	/* XXX HACK: */
+	struct sockaddr_in6 *s6 = (void *)&sock->udp.binding;
+	s6->scope = 0;
+
 	sock->udp.blen = len;
 	if(*(uint16_t *)(sock->udp.binding.sa_data) == 0) {
 
@@ -123,6 +133,10 @@ static ssize_t _udp_recvfrom(struct socket *sock, char *msg, size_t length,
 		if(*srclen > sockaddrinfo[packet->saddr.sa_family].length)
 			*srclen = sockaddrinfo[packet->saddr.sa_family].length;
 		memcpy(src, &packet->saddr, *srclen);
+
+		/* XXX HACK: */
+		struct sockaddr_in6 *s6 = (void *)src;
+		s6->scope = 0;
 	}
 
 	kobj_putref(packet);

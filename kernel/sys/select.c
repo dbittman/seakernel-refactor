@@ -191,12 +191,17 @@ out_arena:
 	return ret;
 }
 
+#define POLLIN      0x001
+#define POLLOUT     0x004
 sysret_t sys_ppoll(struct pollfd *fds, int nfds, const struct timespec *timeout, const sigset_t *sigmask)
 {
 	(void)fds;
 	(void)nfds;
 	(void)timeout;
 	(void)sigmask;
+	for(int i=0;i<nfds;i++) {
+		fds[i].revents = POLLIN | POLLOUT;
+	}
 	return 1;
 }
 
