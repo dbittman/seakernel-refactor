@@ -21,11 +21,12 @@ void server(char *service)
 {
 	struct addrinfo hint = {
 		.ai_family = AF_INET6,
+		.ai_flags = AI_PASSIVE,
 	};
 	struct addrinfo *rai;
 
 	int r;
-	if((r=getaddrinfo("localhost", service, &hint, &rai)) < 0) {
+	if((r=getaddrinfo(NULL, service, &hint, &rai)) < 0) {
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(r));
 	}
 
@@ -94,12 +95,15 @@ void client(char *node, char *service)
 	}
 
 	char buffer[1024];
-	size_t len;
+	ssize_t len;
 	while((len = recv(sock, buffer, len, 0)) > 0) {
 		if(write(1, buffer, len) == -1) {
 			perror("write");
 			exit(1);
 		}
+	}
+	if(len < 0) {
+		perror("recv");
 	}
 }
 

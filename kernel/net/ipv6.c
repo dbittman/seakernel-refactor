@@ -365,7 +365,7 @@ void udp_recv(struct packet *packet, struct udp_header *header);
 void udp_get_ports(struct udp_header *header, uint16_t *src, uint16_t *dest);
 
 struct tcp_header;
-void tcp_recv(struct packet *packet, struct udp_header *header);
+void tcp_recv(struct packet *packet, struct udp_header *header, size_t);
 void tcp_get_ports(struct tcp_header *header, uint16_t *src, uint16_t *dest);
 static void ipv6_receive_process(struct packet *packet, struct ipv6_header *header, int type)
 {
@@ -390,7 +390,7 @@ static void ipv6_receive_process(struct packet *packet, struct ipv6_header *head
 			udp_recv(packet, (void *)header->data);
 		} else {
 			tcp_get_ports((void *)header->data, &saddr->port, &daddr->port);
-			tcp_recv(packet, (void *)header->data);
+			tcp_recv(packet, (void *)header->data, BIG_TO_HOST16(header->length));
 		}
 	} else {
 		ipv6_drop_packet(packet, header);

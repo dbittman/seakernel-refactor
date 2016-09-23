@@ -104,13 +104,40 @@ struct socket_udp_data {
 	size_t blen;
 };
 
-struct tcp_connection;
+struct tcp_con_key {
+	struct sockaddr local, peer;
+};
+
+enum tcp_con_state {
+	TCS_CLOSED,
+	TCS_SYNSENT,
+	TCS_SYNRECV,
+	TCS_ESTABLISHED,
+	TCS_FINWAIT1,
+	TCS_FINWAIT2,
+	TCS_CLOSING,
+	TCS_LASTACK,
+	TCS_TIMEWAIT,
+};
+
+struct tcp_connection {
+	struct hashelem elem;
+	struct tcp_con_key key;
+	struct sockaddr peer;
+	struct socket *local;
+	enum tcp_con_state state;
+	struct blocklist bl;
+	uint32_t seqnum, acknum;
+	uint16_t winsize;
+};
+
 struct socket_tcp_data {
 	struct hashelem elem;
 	struct sockaddr binding;
 	size_t blen;
-
-	struct tcp_connection *con;
+	struct charbuffer inbuf;
+	
+	struct tcp_connection con;
 };
 
 struct socket_ipv6raw_data {

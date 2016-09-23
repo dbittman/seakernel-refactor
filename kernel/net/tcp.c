@@ -7,6 +7,7 @@
 #include <blocklist.h>
 #include <net/network.h>
 #include <file.h>
+#include <charbuffer.h>
 
 static struct hash bindings;
 static struct hash connections;
@@ -23,33 +24,6 @@ __initializer static void _tcp_init(void)
 	hash_create(&connections, HASH_LOCKLESS, 1024);
 	spinlock_create(&con_lock);
 }
-
-struct tcp_con_key {
-	struct sockaddr local, peer;
-};
-
-enum tcp_con_state {
-	TCS_CLOSED,
-	TCS_SYNSENT,
-	TCS_SYNRECV,
-	TCS_ESTABLISHED,
-	TCS_FINWAIT1,
-	TCS_FINWAIT2,
-	TCS_CLOSING,
-	TCS_LASTACK,
-	TCS_TIMEWAIT,
-};
-
-struct tcp_connection {
-	struct kobj_header _header;
-	struct hashelem elem;
-	struct tcp_con_key key;
-	struct socket *local;
-	enum tcp_con_state state;
-	struct blocklist bl;
-	uint32_t seqnum, acknum;
-	uint16_t winsize;
-};
 
 struct tcp_header {
 	uint16_t srcport;
@@ -78,56 +52,29 @@ struct tcp_header {
 	uint8_t payload[];
 } __attribute__((packed));
 
-static void _tcp_connection_init(void *o)
-{
-	struct tcp_connection *c = o;
-	c->local = NULL;
-	c->state = TCS_CLOSED;
-	memset(&c->key, 0, sizeof(c->key));
-}
-
-static void _tcp_connection_create(void *o)
-{
-	struct tcp_connection *c = o;
-	blocklist_create(&c->bl);
-}
-
-static void _tcp_connection_put(void *o)
-{
-	struct tcp_connection *c = o;
-	if(c->local)
-		kobj_putref(c->local);
-}
-
-static struct kobj kobj_tcp_connection = {
-	KOBJ_DEFAULT_ELEM(tcp_connection),
-	.put = _tcp_connection_put, .create = _tcp_connection_create,
-	.init = _tcp_connection_init, .destroy = NULL,
-};
-
 #define FL_FIN 1
 #define FL_SYN (1 << 1)
 #define FL_RST (1 << 2)
 #define FL_ACK (1 << 4)
 
-int __tcp_send(struct tcp_connection *con, int flags)
+int __tcp_send(struct socket *sock, int flags)
 {
+	struct tcp_connection *con = &sock->tcp.con;
 	struct tcp_header header;
 	header.flags = flags;
 	header.srcport = *(uint16_t *)con->local->tcp.binding.sa_data;
 	header.destport = *(uint16_t *)con->key.peer.sa_data;
 	if(FL_ACK) {
-		header.seqnum = 0;
-		header.acknum = con->acknum;
+		header.acknum = HOST_TO_BIG32(con->acknum);
 	} else {
 		header.acknum = 0;
-		header.seqnum = con->seqnum;
 	}
+	header.seqnum = HOST_TO_BIG32(con->seqnum);
 	header.doff = 5;
 	header.winsize = HOST_TO_BIG16(con->winsize);
 	header.urgptr = 0;
 
-	return net_network_send(con->local, &con->key.peer, &header, header.doff * 4, NULL, 0, PROT_TCP, 16);
+	return net_network_send(con->local, &con->peer, &header, header.doff * 4, NULL, 0, PROT_TCP, 16);
 }
 
 
@@ -171,30 +118,53 @@ struct socket *_tcp_get_bound_socket(struct sockaddr *addr)
 	return sock;
 }
 
-void tcp_recv(struct packet *packet, struct tcp_header *header)
+static struct socket *_tcp_get_connection(struct tcp_con_key *key)
+{
+	spinlock_acquire(&con_lock);
+	struct socket *sock = hash_lookup(&connections, key, sizeof(*key));
+	if(sock)
+		kobj_getref(sock);
+	spinlock_release(&con_lock);
+	return sock;
+}
+
+void tcp_recv(struct packet *packet, struct tcp_header *header, size_t len)
 {
 	if(header->syn && header->ack) {
-		printk("GOT SYNACK\n");
-	}
-
-	(void)packet;
-
-#if 0
-	struct socket *sock = _tcp_get_bound_socket(&packet->daddr);
-	if(sock) {
-		linkedlist_insert(&sock->tcp.inq, &packet->queue_entry, packet);
-		blocklist_unblock_all(&sock->tcp.rbl);
-		kobj_putref(sock);
+		struct socket *sock = _tcp_get_bound_socket(&packet->daddr);
+		/* TODO: thread safe? */
+		if(sock && !(sock->flags & SF_CONNEC) && sock->tcp.con.state == TCS_SYNSENT) {
+			sock->tcp.con.key.local = packet->daddr;
+			sock->tcp.con.state = TCS_ESTABLISHED;
+			sock->tcp.con.seqnum = BIG_TO_HOST32(header->acknum);
+			sock->tcp.con.acknum = BIG_TO_HOST32(header->seqnum) + 1;
+			blocklist_unblock_all(&sock->tcp.con.bl);
+		}
+		if(sock) kobj_putref(sock);
 	} else {
-		kobj_putref(packet);
+		/* TODO: locking? */
+		size_t datalen = len - header->doff * 4;
+		struct tcp_con_key key = { .peer = packet->saddr, .local = packet->daddr };
+		struct socket *sock = _tcp_get_connection(&key);
+		if(sock) {
+			if(sock->tcp.con.acknum == BIG_TO_HOST32(header->seqnum)) {
+				//		printk("Got ordered, %ld bytes off %d\n", datalen, (header->doff - 5) * 4);
+				ssize_t r = charbuffer_write(&sock->tcp.inbuf, (char *)header->payload + (header->doff - 5)*4, datalen, CHARBUFFER_DO_NONBLOCK);
+				if(r > 0) {
+					sock->tcp.con.acknum += r;
+					__tcp_send(sock, FL_ACK);
+				}
+			}
+		}
 	}
-#endif
-
+	kobj_putref(packet);
 }
 
 static void _tcp_init_sock(struct socket *sock)
 {
-	sock->tcp.con = NULL;
+	sock->tcp.con.state = TCS_CLOSED;
+	blocklist_create(&sock->tcp.con.bl);
+	charbuffer_create(&sock->tcp.inbuf, 0x1000);
 }
 
 static int _tcp_bind(struct socket *sock, const struct sockaddr *_addr, socklen_t len)
@@ -215,40 +185,14 @@ static int _tcp_bind(struct socket *sock, const struct sockaddr *_addr, socklen_
 	return ret;
 }
 
-/* TODO: handle peek, OOB */
-static ssize_t _tcp_recvfrom(struct socket *sock, char *msg, size_t length,
-		int flags, struct sockaddr *src, socklen_t *srclen)
-{
-	(void)sock;
-	(void)msg;
-	(void)length;
-	(void)flags;
-	(void)src;
-	(void)srclen;
-	return 0;
-}
-
-static ssize_t _tcp_sendto(struct socket *sock, const char *msg, size_t length,
-		int flags, const struct sockaddr *dest, socklen_t dest_len)
-{
-	(void)flags;
-	(void)length;
-	(void)msg;
-	(void)sock;
-	if(dest == NULL)
-		return -EINVAL;
-	if(dest_len < sockaddrinfo[dest->sa_family].length)
-		return -EINVAL;
-	return 0;
-}
-
 static ssize_t _tcp_recv(struct socket *sock, char *buf, size_t len, int flags)
 {
-	return _tcp_recvfrom(sock, buf, len, flags, NULL, NULL);	
+	return charbuffer_read(&sock->tcp.inbuf, buf, len, CHARBUFFER_DO_ANY | ((flags & _MSG_NONBLOCK) ? CHARBUFFER_DO_NONBLOCK : 0));
 }
 
 static void _tcp_shutdown(struct socket *sock)
 {
+	/* remove cons, reset & destroy charbuffer */
 	spinlock_acquire(&bind_lock);
 	if(sock->flags & SF_BOUND) {
 		if(hash_delete(&bindings, &sock->tcp.binding, sock->tcp.blen) == -1) {
@@ -275,29 +219,25 @@ static int _tcp_connect(struct socket *sock, const struct sockaddr *addr, sockle
 			return -ENOMEM; //TODO
 		sock->flags |= SF_BOUND;
 	}
-
-	struct tcp_connection *con = kobj_allocate(&kobj_tcp_connection);
+	struct tcp_connection *con = &sock->tcp.con;
 	con->state = TCS_SYNSENT;
-	sock->tcp.con = kobj_getref(con);
-	con->local = kobj_getref(sock);
-	con->seqnum = 1234; //TODO
+	con->local = sock;
+	con->seqnum = 0; //TODO
 	con->winsize = 128;
+	memset(&con->key, 0, sizeof(con->key));
 	memcpy(&con->key.peer, addr, alen);
+	con->peer = *addr;
 	struct blockpoint bp;
 	blockpoint_create(&bp, BLOCK_TIMEOUT, ONE_SECOND * 10 /* TODO */);
 	blockpoint_startblock(&con->bl, &bp);
-	int ret = __tcp_send(con, FL_SYN);
+	int ret = __tcp_send(sock, FL_SYN);
 	if(ret < 0) {
 		blockpoint_cleanup(&bp);
-		kobj_putref(con);
-		kobj_putref(con);
 		return ret;
 	}
 	schedule();
 
 	enum block_result res = blockpoint_cleanup(&bp);
-	sock->tcp.con = NULL;
-	kobj_putref(con);
 	switch(res) {
 		case BLOCK_RESULT_INTERRUPTED:
 			return -EINTR;
@@ -307,18 +247,24 @@ static int _tcp_connect(struct socket *sock, const struct sockaddr *addr, sockle
 	}
 
 	if(con->state != TCS_ESTABLISHED) {
-		kobj_putref(con);
 		return -ECONNREFUSED;
 	}
 	
-	if(hash_insert(&connections, &con->key, sizeof(con->key), &con->elem, kobj_getref(con)) != 0) {
-		kobj_putref(con);
-		kobj_putref(con); //again, since we just got a new reference
+	spinlock_acquire(&con_lock);
+
+	struct sockaddr_in6 *s = (void *)&con->key.peer;
+	struct sockaddr_in6 *d = (void *)&con->key.local;
+	d->scope = 0;
+	s->scope = 0;
+
+	if(hash_insert(&connections, &con->key, sizeof(con->key), &con->elem, kobj_getref(sock)) != 0) {
+		spinlock_release(&con_lock);
 		return -EADDRINUSE;
 	}
+	spinlock_release(&con_lock);
 
 	sock->flags |= SF_CONNEC;
-	__tcp_send(con, FL_ACK);
+	__tcp_send(sock, FL_ACK);
 	return 0;
 }
 
@@ -333,7 +279,7 @@ struct sock_calls af_tcp_calls = {
 	.send = NULL,
 	.recv = _tcp_recv,
 	.select = _tcp_select,
-	.sendto = _tcp_sendto,
-	.recvfrom = _tcp_recvfrom,
+	.sendto = NULL,
+	.recvfrom = NULL,
 };
 
