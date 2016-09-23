@@ -81,10 +81,10 @@ void arch_thread_init(struct thread *us)
 void arch_thread_usermode_jump(uintptr_t entry, uintptr_t initial_stack)
 {
 	long trap = 0;
-	if(current_thread->tid == 4)
+	if(current_thread->tid == 14)
 		trap = 1 << 8;
 	
-	trap = 0;
+	//trap = 0;
 	asm volatile("cli;"
 			"movq $0, %%rbp;"
 			"mov $0x23, %%ax;"

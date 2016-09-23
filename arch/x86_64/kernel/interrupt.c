@@ -71,8 +71,8 @@ static void __fault(struct arch_exception_frame *frame)
 		mm_fault_entry(cr2, flags, frame->rip);
 	} else {
 		if(frame->int_no == 1) {
-			if(current_thread->tid == 5) {
-				//printk("trap %ld: %lx, %lx, %lx\n", current_thread->tid, frame->rip, frame->userrsp, frame->rax);
+			if(current_thread->tid == 5 || 1) {
+				printk("trap %ld: %lx, %lx, %lx\n", current_thread->tid, frame->rip, frame->userrsp, frame->rax);
 				//for(;;);
 			}
 			return;
@@ -129,7 +129,7 @@ void x86_64_exception_entry(struct arch_exception_frame *frame)
 	}
 }
 
-#define DEBUG_SYS 1
+#define DEBUG_SYS 0
 void x86_64_syscall_entry(struct arch_exception_frame *frame)
 {
 	if(frame->rax == SYS_rt_sigreturn) {
