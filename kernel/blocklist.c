@@ -74,7 +74,7 @@ void blocklist_unblock_all(struct blocklist *bl)
 			entry != linkedlist_back_iter_end(&bl->waitlist);
 			entry = linkedlist_back_iter_next(entry)) {
 		struct blockpoint *bp = linkedentry_obj(entry);
-		TRACE(&blocking_trace, "UB: %p %p", entry, bp);
+		TRACE(&blocking_trace, "UB: %p %p %x", entry, bp, bp->flags);
 		if(!(bp->flags & BLOCK_UNBLOCKED)) {
 			if(bp->thread->processor == current_thread->processor)
 				current_thread->flags |= THREAD_RESCHEDULE;

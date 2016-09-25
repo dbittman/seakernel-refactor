@@ -4,6 +4,8 @@ if [[ "$TARGET" == "" ]]; then
 	TARGET="x86_64-elf-linux-musl"
 fi
 
+TARGETARCH=$(echo $TARGET | cut -d- -f 1)
+
 STDCONF="--prefix=/usr --host=$TARGET"
 STDMAKE=
 

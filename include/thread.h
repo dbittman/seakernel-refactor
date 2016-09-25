@@ -48,6 +48,7 @@ struct thread {
 	struct vm_context *ctx;
 	void *kernel_tls_base, *stackpointer;
 	void *user_tls_base;
+	_Atomic int priority;
 	_Atomic int *set_child_tid, *clear_child_tid;
 	unsigned long tid;
 	/* A */ long long time /* ago, I can still remember when that music... */;

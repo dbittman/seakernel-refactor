@@ -89,16 +89,7 @@ void thread_wakeup(void)
 
 int thread_current_priority(struct thread *thr)
 {
-	struct processor *proc = thr->processor;
-	if(!proc)
-		return 0;
-	long long time = thr->time;
-	if(proc->time < time || proc->time == 0) {
-		proc->time = time;
-		return 0;
-	}
-	int p = (-(MAX_THREAD_PRIORITY * time) / proc->time) + MAX_THREAD_PRIORITY;
-	return p;
+	return thr->priority;
 }
 
 _Noreturn void thread_exit(struct thread *thread)

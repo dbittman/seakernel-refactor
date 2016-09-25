@@ -10,7 +10,7 @@
 #include <fs/sys.h>
 #include <charbuffer.h>
 
-#define WINDOWSZ 0x1000
+#define WINDOWSZ 0x4000
 
 static struct hash bindings;
 static struct hash connections;
@@ -65,7 +65,7 @@ int __tcp_sendmsg(struct socket *sock, int flags, const char *buf, size_t len)
 	struct tcp_connection *con = &sock->tcp.con;
 	struct tcp_header header;
 	header.flags = flags;
-	header.srcport = *(uint16_t *)con->local->tcp.binding.sa_data;
+	header.srcport = *(uint16_t *)con->local->binding.sa_data;
 	header.destport = *(uint16_t *)con->key.peer.sa_data;
 	if(FL_ACK) {
 		header.acknum = HOST_TO_BIG32(con->recv_next);
@@ -79,7 +79,7 @@ int __tcp_sendmsg(struct socket *sock, int flags, const char *buf, size_t len)
 	header.urgptr = 0;
 	header._res0 = 0;
 
-	return net_network_send(con->local, &con->peer, &header, header.doff * 4, buf, len, PROT_TCP, 16);
+	return net_network_send(con->local, &sock->peer, &header, header.doff * 4, buf, len, PROT_TCP, 16);
 }
 
 #define __tcp_send(s,f) __tcp_sendmsg(s,f,NULL,0)
@@ -225,8 +225,9 @@ static void copy_in_data(struct socket *sock, uint32_t seq, size_t len, char *da
 			sock->tcp.rxbuffer[sock->tcp.con.recv_next++ % WINDOWSZ] = *data++;
 		}
 
+		printk("copied in %ld bytes\n", len);
 		sock->tcp.con.recv_win -= len;
-		sleepflag_wake(&sock->tcp.sf);
+		blocklist_unblock_all(&sock->tcp.con.workerbl);
 		blocklist_unblock_all(&sock->tcp.rxbl);
 	}
 	spinlock_release(&sock->tcp.rxlock);
@@ -245,6 +246,7 @@ void tcp_recv(struct packet *packet, struct tcp_header *header, size_t len)
 		case TCS_ESTABLISHED:
 			if(header->ack && !header->syn) {
 				spinlock_acquire(&sock->tcp.txlock);
+				printk("recv packet: %d %d %ld\n", BIG_TO_HOST32(header->acknum), BIG_TO_HOST32(header->seqnum), len - header->doff * 4);
 				sock->tcp.con.send_unack = BIG_TO_HOST32(header->acknum); //TODO: validate
 				size_t avail;
 				if(sock->tcp.con.send_next >= sock->tcp.con.send_unack)
@@ -293,8 +295,8 @@ static void _tcp_worker(struct worker *w)
 {
 	struct socket *sock = worker_arg(w);
 	while(worker_notjoining(w)) {
-		spinlock_acquire(&sock->tcp.txlock);
 		spinlock_acquire(&sock->tcp.rxlock);
+		spinlock_acquire(&sock->tcp.txlock);
 
 		size_t len = sock->tcp.pending;
 		if(len > WINDOWSZ - (sock->tcp.con.send_next % WINDOWSZ))
@@ -303,24 +305,40 @@ static void _tcp_worker(struct worker *w)
 		if(len > sock->tcp.con.send_win)
 			len = sock->tcp.con.send_win;
 
-		printk(":: %ld %d %ld: %p\n", len, sock->tcp.con.send_next, sock->tcp.txbufavail, (char *)sock->tcp.txbuffer + (sock->tcp.con.send_next % WINDOWSZ));
+		printk("%ld send: %d %d %ld\n", current_thread->tid, sock->tcp.con.send_next, sock->tcp.con.recv_next, len);
 		__tcp_sendmsg(sock, FL_ACK, (char *)sock->tcp.txbuffer + (sock->tcp.con.send_next % WINDOWSZ), len);
 
 		sock->tcp.con.send_next += len;
 		sock->tcp.pending -= len;
-		
-		spinlock_release(&sock->tcp.rxlock);
+	
 		spinlock_release(&sock->tcp.txlock);
-		//if(len == 0) /* TODO: will this deadlock? */
-			sleepflag_sleep(&sock->tcp.sf);
+		spinlock_release(&sock->tcp.rxlock);
+
+		if(sock->tcp.pending == 0) {
+			printk("%ld Sleeping...\n", current_thread->tid);
+			struct blockpoint bp;
+			blockpoint_create(&bp, 0, 0);
+			blockpoint_startblock(&sock->tcp.con.workerbl, &bp);
+			if(sock->tcp.pending == 0) {
+				printk("%ld Sched\n", current_thread->tid);
+				schedule();
+				printk("%ld Here\n", current_thread->tid);
+			}
+			enum block_result res = blockpoint_cleanup(&bp);
+			printk("%ld Wake! %d\n", current_thread->tid, res);
+		}
 	}
+	kobj_putref(sock);
+	printk("Worker exit\n");
 	worker_exit(w, 0);
 }
 
 static void _tcp_init_sock(struct socket *sock)
 {
+	memset(&sock->tcp, 0, sizeof(&sock->tcp));
 	sock->tcp.con.state = TCS_CLOSED;
 	blocklist_create(&sock->tcp.con.bl);
+	blocklist_create(&sock->tcp.con.workerbl);
 	linkedlist_create(&sock->tcp.establishing, 0);
 	spinlock_create(&sock->tcp.txlock);
 	spinlock_create(&sock->tcp.rxlock);
@@ -331,7 +349,6 @@ static void _tcp_init_sock(struct socket *sock)
 	sock->tcp.pending = 0;
 	blocklist_create(&sock->tcp.txbl);
 	blocklist_create(&sock->tcp.rxbl);
-	sleepflag_create(&sock->tcp.sf);
 	worker_start(&sock->tcp.worker, _tcp_worker, kobj_getref(sock));
 }
 
@@ -339,17 +356,17 @@ static int _tcp_bind(struct socket *sock, const struct sockaddr *_addr, socklen_
 {
 	int ret = 0;
 	spinlock_acquire(&bind_lock);
-	memcpy(&sock->tcp.binding, _addr, len);
+	memcpy(&sock->binding, _addr, len);
 	sock->tcp.blen = len;
 
 	/* XXX HACK: */
-	struct sockaddr_in6 *s6 = (void *)&sock->tcp.binding;
+	struct sockaddr_in6 *s6 = (void *)&sock->binding;
 	s6->scope = 0;
 
-	if(*(uint16_t *)(sock->tcp.binding.sa_data) == 0) {
-		*(uint16_t *)sock->tcp.binding.sa_data = HOST_TO_BIG16((next_eph++ % 16384) + 49152);
+	if(*(uint16_t *)(sock->binding.sa_data) == 0) {
+		*(uint16_t *)sock->binding.sa_data = HOST_TO_BIG16((next_eph++ % 16384) + 49152);
 	}
-	if(hash_insert(&bindings, &sock->tcp.binding, len, &sock->tcp.elem, sock) == -1) {
+	if(hash_insert(&bindings, &sock->binding, len, &sock->tcp.elem, sock) == -1) {
 		ret = -EADDRINUSE;
 	} else {
 		kobj_getref(sock);
@@ -402,10 +419,16 @@ static ssize_t _tcp_send(struct socket *sock, const char *buf, size_t len, int f
 	while(len > 0) {
 		size_t min = len > sock->tcp.txbufavail ? sock->tcp.txbufavail : len;
 		size_t start = sock->tcp.con.send_next + (WINDOWSZ - sock->tcp.txbufavail);
-		for(size_t i=0;i<min;i++, sock->tcp.txbufavail--, count++, len--, sock->tcp.pending++) {
+		for(size_t i=0;i<min;i++) {
 			sock->tcp.txbuffer[(i + start) % WINDOWSZ] = *buf++;
+			count++;
+			len--;
+			sock->tcp.pending++;
+			sock->tcp.txbufavail--;
 		}
-		sleepflag_wake(&sock->tcp.sf);
+		printk("Enqueued %ld bytes\n", min);
+		blocklist_unblock_all(&sock->tcp.con.workerbl);
+		printk("Woke up thread %ld, %ld rem\n", sock->tcp.worker.thread->tid, len);
 		if(len > 0) {
 			if(flags & _MSG_NONBLOCK) {
 				spinlock_release(&sock->tcp.txlock);
@@ -432,12 +455,15 @@ static ssize_t _tcp_send(struct socket *sock, const char *buf, size_t len, int f
 static void _tcp_shutdown(struct socket *sock)
 {
 	/* TODO: flush */
+	while(!worker_join(&sock->tcp.worker)) {
+		blocklist_unblock_all(&sock->tcp.con.workerbl);
+	}
 	mm_virtual_deallocate((uintptr_t)sock->tcp.txbuffer);
 	mm_virtual_deallocate((uintptr_t)sock->tcp.rxbuffer);
 	/* remove cons, reset & destroy charbuffer */
 	if(sock->flags & SF_BOUND) {
 		spinlock_acquire(&bind_lock);
-		if(hash_delete(&bindings, &sock->tcp.binding, sock->tcp.blen) == -1) {
+		if(hash_delete(&bindings, &sock->binding, sock->tcp.blen) == -1) {
 			panic(0, "bound socket not present in bindings");
 		}
 		kobj_putref(sock);
@@ -468,7 +494,7 @@ static int _tcp_connect(struct socket *sock, const struct sockaddr *addr, sockle
 	con->send_unack = 0; //TODO
 	memset(&con->key, 0, sizeof(con->key));
 	memcpy(&con->key.peer, addr, alen);
-	con->peer = *addr;
+	sock->peer = *addr;
 	struct blockpoint bp;
 	blockpoint_create(&bp, BLOCK_TIMEOUT, ONE_SECOND * 10 /* TODO */);
 	blockpoint_startblock(&con->bl, &bp);
@@ -523,9 +549,9 @@ static int _start_establish(struct socket *sock, struct packet *packet)
 	con->recv_next = BIG_TO_HOST32(header->seqnum) + 1;
 	memset(&con->key, 0, sizeof(con->key));
 	con->key.peer = packet->saddr;
-	con->peer = packet->saddr;
+	sock->peer = packet->saddr;
 	con->key.local = packet->daddr;
-	client->tcp.binding = sock->tcp.binding;
+	client->binding = sock->binding;
 	client->tcp.tmpfd = fd;
 
 	err = _tcp_connection_add(client);
@@ -574,7 +600,7 @@ static int _tcp_accept(struct socket *sock, struct sockaddr *addr, socklen_t *ad
 				socklen_t minlen = sockaddrinfo[client->domain].length;
 				if(minlen > *addrlen)
 					minlen = *addrlen;
-				memcpy(addr, &client->tcp.con.peer, minlen);
+				memcpy(addr, &client->peer, minlen);
 				*addrlen = minlen;
 			}
 			kobj_putref(client);

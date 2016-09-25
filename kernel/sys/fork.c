@@ -33,6 +33,8 @@ static void copy_process(struct process *parent, struct process *child)
 static void copy_thread(struct thread *parent, struct thread *child)
 {
 	child->time = parent->time;
+	child->priority = parent->priority;
+	parent->priority = (parent->priority / 2) + 1;
 	memcpy(&child->arch, &parent->arch, sizeof(child->arch));
 }
 

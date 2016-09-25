@@ -125,18 +125,16 @@ enum tcp_con_state {
 struct tcp_connection {
 	struct hashelem elem;
 	struct tcp_con_key key;
-	struct sockaddr peer;
 	struct socket *local;
-	enum tcp_con_state state;
-	struct blocklist bl;
+	_Atomic enum tcp_con_state state;
+	struct blocklist bl, workerbl;
 
-	uint32_t send_next, send_unack, recv_next, recv_win, send_win;
+	_Atomic uint32_t send_next, send_unack, recv_next, recv_win, send_win;
 };
 
 struct socket;
 struct socket_tcp_data {
 	struct hashelem elem;
-	struct sockaddr binding;
 	size_t blen;
 	struct linkedlist establishing;
 	int tmpfd;
@@ -144,13 +142,12 @@ struct socket_tcp_data {
 	struct tcp_connection con;
 	uint8_t *txbuffer;
 	uint8_t *rxbuffer;
-	size_t txbufavail, pending;
+	_Atomic size_t txbufavail, pending;
 	struct spinlock txlock;
 	struct spinlock rxlock;
 	time_t time;
 	struct blocklist txbl, rxbl;
 	struct worker worker;
-	struct sleepflag sf;
 };
 
 struct socket_ipv6raw_data {
@@ -192,6 +189,8 @@ struct socket {
 	int domain, type, protocol;
 	_Atomic int flags;
 	struct sock_calls *ops;
+	struct sockaddr peer;
+	struct sockaddr binding;
 	int backlog;
 	struct linkedlist pend_con;
 	struct blocklist pend_con_wait;

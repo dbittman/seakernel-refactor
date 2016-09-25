@@ -90,6 +90,15 @@ static void __do_schedule(int save_preempt)
 #endif
 	_check_signals(current_thread);
 
+	if(current_thread->state == THREADSTATE_RUNNING && (current_thread->flags & THREAD_RESCHEDULE) && current_thread->priority > 1) {
+		current_thread->priority /= 2;
+	} else if(current_thread->state != THREADSTATE_RUNNING) {
+		current_thread->priority += 1;
+		current_thread->priority *= 2;
+		if(current_thread->priority > MAX_THREAD_PRIORITY-1)
+			current_thread->priority = MAX_THREAD_PRIORITY - 1;
+	}
+
 	struct thread *next = __select_thread(curproc);
 	processor_release(curproc);
 	current_thread->flags &= ~THREAD_RESCHEDULE;

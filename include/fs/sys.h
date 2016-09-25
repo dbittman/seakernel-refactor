@@ -88,6 +88,8 @@ sysret_t sys_recvfrom(int sockfd, char *buf, size_t len, int flags, struct socka
 sysret_t sys_sendto(int sockfd, const char *buf, size_t len, int flags, const struct sockaddr *dest, socklen_t addrlen);
 sysret_t sys_setsockopt(int sockfd, int level, int option, const void *value, socklen_t optlen);
 sysret_t sys_getsockopt(int sockfd, int level, int option, void * restrict value, socklen_t * restrict optlen);
+sysret_t sys_getpeername(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+sysret_t sys_getsockname(int sockfd, struct sockaddr *restrict addr, socklen_t *restrict addrlen);
 
 struct gd_dirent;
 sysret_t sys_getdents(int fd, struct gd_dirent *dp, int count);

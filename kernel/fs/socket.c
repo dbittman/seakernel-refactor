@@ -278,6 +278,50 @@ sysret_t sys_listen(int sockfd, int backlog)
 	return err;
 }
 
+sysret_t sys_getsockname(int sockfd, struct sockaddr *restrict addr, socklen_t *restrict addrlen)
+{
+	int err = -ENOTSUP;
+	struct socket *socket = socket_get_from_fd(sockfd, &err);
+	if(!socket) return err;
+	
+	if(!addr || !addrlen) {
+		err = -EINVAL;
+	} else if(!(socket->flags & SF_BOUND)) {
+		err = -EINVAL;
+	} else {
+		size_t len = sockaddrinfo[socket->domain].length;
+		socklen_t min = *addrlen > len ? len : *addrlen;
+		memcpy(addr, &socket->binding, min);
+		*addrlen = len;
+		err = 0;
+	}
+
+	kobj_putref(socket);
+	return err;
+}
+
+sysret_t sys_getpeername(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
+{
+	int err = -ENOTSUP;
+	struct socket *socket = socket_get_from_fd(sockfd, &err);
+	if(!socket) return err;
+	
+	if(!addr || !addrlen) {
+		err = -EINVAL;
+	} else if(!(socket->flags & SF_CONNEC)) {
+		err = -ENOTCONN;
+	} else {
+		size_t len = sockaddrinfo[socket->domain].length;
+		socklen_t min = *addrlen > len ? len : *addrlen;
+		memcpy(addr, &socket->peer, min);
+		*addrlen = len;
+		err = 0;
+	}
+
+	kobj_putref(socket);
+	return err;
+}
+
 ssize_t _do_recv(struct socket *sock, char *buf, size_t len, int flags)
 {
 	if(sock->flags & SF_SHUTDOWN)

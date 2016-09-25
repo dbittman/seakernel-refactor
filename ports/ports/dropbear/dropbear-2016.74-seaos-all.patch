@@ -1,0 +1,48 @@
+diff -uprN dropbear-2016.74/includes.h dropbear-2016.74-seaos/includes.h
+--- dropbear-2016.74/includes.h	2016-07-21 08:17:09.000000000 -0700
++++ dropbear-2016.74-seaos/includes.h	2016-09-25 15:21:24.263916592 -0700
+@@ -156,11 +156,6 @@ typedef unsigned int u_int32_t;
+ typedef u_int32_t uint32_t;
+ #endif /* HAVE_UINT32_T */
+ 
+-#ifdef SO_PRIORITY
+-#include <linux/types.h>
+-#include <linux/pkt_sched.h>
+-#endif
+-
+ #include "fake-rfc2553.h"
+ 
+ #ifndef LOG_AUTHPRIV
+diff -uprN dropbear-2016.74/netio.c dropbear-2016.74-seaos/netio.c
+--- dropbear-2016.74/netio.c	2016-07-21 08:17:09.000000000 -0700
++++ dropbear-2016.74-seaos/netio.c	2016-09-25 15:21:39.627091816 -0700
+@@ -306,9 +306,6 @@ void set_sock_priority(int sock, enum dr
+ #ifdef IPTOS_LOWDELAY
+ 	int iptos_val = 0;
+ #endif
+-#ifdef SO_PRIORITY
+-	int so_prio_val = 0;
+-#endif
+ 
+ 
+ 	/* Don't log ENOTSOCK errors so that this can harmlessly be called
+@@ -333,19 +330,6 @@ void set_sock_priority(int sock, enum dr
+ 	}
+ #endif
+ 
+-#ifdef SO_PRIORITY
+-	if (prio == DROPBEAR_PRIO_LOWDELAY) {
+-		so_prio_val = TC_PRIO_INTERACTIVE;
+-	} else if (prio == DROPBEAR_PRIO_BULK) {
+-		so_prio_val = TC_PRIO_BULK;
+-	}
+-	/* linux specific, sets QoS class. see tc-prio(8) */
+-	rc = setsockopt(sock, SOL_SOCKET, SO_PRIORITY, (void*) &so_prio_val, sizeof(so_prio_val));
+-	if (rc < 0 && errno != ENOTSOCK)
+-		dropbear_log(LOG_WARNING, "Couldn't set SO_PRIORITY (%s)",
+-				strerror(errno));
+-#endif
+-
+ }
+ 
+ /* Listen on address:port. 
