@@ -6,6 +6,7 @@
 #include <slab.h>
 #include <fs/inode.h>
 #include <arena.h>
+#include <worker.h>
 
 typedef unsigned socklen_t;
 typedef unsigned short sa_family_t;
@@ -128,8 +129,8 @@ struct tcp_connection {
 	struct socket *local;
 	enum tcp_con_state state;
 	struct blocklist bl;
-	uint32_t seqnum, acknum;
-	size_t sndws;
+
+	uint32_t send_next, send_unack, recv_next, recv_win, send_win;
 };
 
 struct socket;
@@ -137,12 +138,19 @@ struct socket_tcp_data {
 	struct hashelem elem;
 	struct sockaddr binding;
 	size_t blen;
-	struct charbuffer inbuf;
 	struct linkedlist establishing;
 	int tmpfd;
 	
 	struct tcp_connection con;
+	uint8_t *txbuffer;
+	uint8_t *rxbuffer;
+	size_t txbufavail, pending;
+	struct spinlock txlock;
+	struct spinlock rxlock;
 	time_t time;
+	struct blocklist txbl, rxbl;
+	struct worker worker;
+	struct sleepflag sf;
 };
 
 struct socket_ipv6raw_data {

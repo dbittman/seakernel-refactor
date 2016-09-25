@@ -10,6 +10,8 @@
 #include <fs/sys.h>
 #include <charbuffer.h>
 
+#define WINDOWSZ 0x1000
+
 static struct hash bindings;
 static struct hash connections;
 static struct spinlock bind_lock;
@@ -66,14 +68,16 @@ int __tcp_sendmsg(struct socket *sock, int flags, const char *buf, size_t len)
 	header.srcport = *(uint16_t *)con->local->tcp.binding.sa_data;
 	header.destport = *(uint16_t *)con->key.peer.sa_data;
 	if(FL_ACK) {
-		header.acknum = HOST_TO_BIG32(con->acknum);
+		header.acknum = HOST_TO_BIG32(con->recv_next);
 	} else {
 		header.acknum = 0;
 	}
-	header.seqnum = HOST_TO_BIG32(con->seqnum);
+	/* TODO: locking */
+	header.seqnum = HOST_TO_BIG32(con->send_next);
 	header.doff = 5;
-	header.winsize = HOST_TO_BIG16(charbuffer_avail(&sock->tcp.inbuf));
+	header.winsize = HOST_TO_BIG16(con->recv_win);
 	header.urgptr = 0;
+	header._res0 = 0;
 
 	return net_network_send(con->local, &con->peer, &header, header.doff * 4, buf, len, PROT_TCP, 16);
 }
@@ -161,75 +165,174 @@ static struct socket *_tcp_get_connection(struct tcp_con_key *key)
 	return sock;
 }
 
+
+
+
+
+
+
+
+
+
+
+
+static void _tcp_recv_bound_only(struct packet *packet, struct tcp_header *header)
+{
+	struct socket *sock = _tcp_get_bound_socket(&packet->daddr);
+	if(!sock)
+		return;
+
+	switch(sock->tcp.con.state) {
+		case TCS_SYNSENT:
+			if(header->syn && header->ack) {
+				sock->tcp.con.key.local = packet->daddr;
+				sock->tcp.con.state = TCS_ESTABLISHED;
+				sock->tcp.con.send_next = BIG_TO_HOST32(header->acknum);
+				sock->tcp.con.send_unack = sock->tcp.con.send_next;
+				sock->tcp.con.recv_next = BIG_TO_HOST32(header->seqnum) + 1;
+				sock->tcp.con.send_win = BIG_TO_HOST16(header->winsize);
+				blocklist_unblock_all(&sock->tcp.con.bl);
+			}
+			break;
+		case TCS_LISTENING:
+			if(header->syn && !header->ack) {
+				linkedlist_insert(&sock->pend_con, &packet->queue_entry, kobj_getref(packet));
+				blocklist_unblock_all(&sock->pend_con_wait);
+			}
+			break;
+		default: break;
+	}
+	kobj_putref(sock);
+}
+
+static void copy_in_data(struct socket *sock, uint32_t seq, size_t len, char *data)
+{
+	spinlock_acquire(&sock->tcp.rxlock);
+	if((seq >= sock->tcp.con.recv_next && seq < sock->tcp.con.recv_next + sock->tcp.con.recv_win)
+		|| ((seq + len - 1) >= sock->tcp.con.recv_next && (seq + len - 1) < sock->tcp.con.recv_next + sock->tcp.con.recv_win)) {
+		
+		if(seq < sock->tcp.con.recv_next) {
+			len -= (sock->tcp.con.recv_next - seq);
+			data += (sock->tcp.con.recv_next - seq);
+			seq = sock->tcp.con.recv_next;
+		}
+
+		if(seq + len >= sock->tcp.con.recv_next + sock->tcp.con.recv_win) {
+			len = (sock->tcp.con.recv_next + sock->tcp.con.recv_win) - (seq);
+		}
+
+		for(size_t i=0;i<len;i++) {
+			sock->tcp.rxbuffer[sock->tcp.con.recv_next++ % WINDOWSZ] = *data++;
+		}
+
+		sock->tcp.con.recv_win -= len;
+		sleepflag_wake(&sock->tcp.sf);
+		blocklist_unblock_all(&sock->tcp.rxbl);
+	}
+	spinlock_release(&sock->tcp.rxlock);
+}
+
 void tcp_recv(struct packet *packet, struct tcp_header *header, size_t len)
 {
-	if(header->syn && header->ack) {
-		struct socket *sock = _tcp_get_bound_socket(&packet->daddr);
-		/* TODO: thread safe? */
-		if(sock && !(sock->flags & SF_CONNEC) && sock->tcp.con.state == TCS_SYNSENT) {
-			sock->tcp.con.key.local = packet->daddr;
-			sock->tcp.con.state = TCS_ESTABLISHED;
-			sock->tcp.con.seqnum = BIG_TO_HOST32(header->acknum);
-			sock->tcp.con.acknum = BIG_TO_HOST32(header->seqnum) + 1;
-			sock->tcp.con.sndws = BIG_TO_HOST16(header->winsize);
-			blocklist_unblock_all(&sock->tcp.con.bl);
-		}
-		if(sock) kobj_putref(sock);
-	} else if(header->syn) {
-		struct socket *sock = _tcp_get_bound_socket(&packet->daddr);
-		if(sock && sock->tcp.con.state == TCS_LISTENING) {
-			linkedlist_insert(&sock->pend_con, &packet->queue_entry, kobj_getref(packet));
-			blocklist_unblock_all(&sock->pend_con_wait);
-		}
-		if(sock) kobj_putref(sock);
-	} else {
-		/* TODO: locking? */
-		size_t datalen = len - header->doff * 4;
-		struct tcp_con_key key = { .peer = packet->saddr, .local = packet->daddr };
-		struct socket *sock = _tcp_get_connection(&key);
-		if(sock) {
-			switch(sock->tcp.con.state) {
-				case TCS_SYNRECV:
-				{
-					/* TODO: verify correctness (seqnum, etc), and ACK set */
-					struct socket *bound = _tcp_get_bound_socket(&packet->daddr);
-					if(bound) {
-						sock->tcp.con.state = TCS_ESTABLISHED;
-						sock->tcp.con.acknum = BIG_TO_HOST32(header->seqnum);
-						sock->tcp.con.seqnum = BIG_TO_HOST32(header->acknum);
-						linkedlist_insert(&bound->tcp.establishing, &sock->pend_con_entry, kobj_getref(sock));
-						blocklist_unblock_all(&bound->pend_con_wait);
-						kobj_putref(bound);
-					}
-				} /* fall through */
-				case TCS_ESTABLISHED:
-					sock->tcp.con.seqnum = BIG_TO_HOST32(header->acknum);
-					if(sock->tcp.con.acknum == BIG_TO_HOST32(header->seqnum)) {
-						if(datalen > 0) {
-							ssize_t r = charbuffer_write(&sock->tcp.inbuf, (char *)header->payload + (header->doff - 5)*4, datalen, CHARBUFFER_DO_NONBLOCK);
-							if(r > 0) {
-								sock->tcp.con.acknum += r;
-								__tcp_send(sock, FL_ACK);
-							}
-						}
-					}
-					break;
-				default:
-					/* TODO: reply w/ TCP RST */
-					break;
-			}
-			kobj_putref(sock);
-		}
+	struct tcp_con_key key = { .peer = packet->saddr, .local = packet->daddr };
+	struct socket *sock = _tcp_get_connection(&key);
+	if(!sock) {
+		_tcp_recv_bound_only(packet, header);
+		return;
 	}
-	kobj_putref(packet);
+
+	switch(sock->tcp.con.state) {
+		case TCS_ESTABLISHED:
+			if(header->ack && !header->syn) {
+				spinlock_acquire(&sock->tcp.txlock);
+				sock->tcp.con.send_unack = BIG_TO_HOST32(header->acknum); //TODO: validate
+				size_t avail;
+				if(sock->tcp.con.send_next >= sock->tcp.con.send_unack)
+					avail = sock->tcp.con.send_next - sock->tcp.con.send_unack;
+				else
+					avail = (0x100000000ull - sock->tcp.con.send_next) + sock->tcp.con.send_unack;
+				sock->tcp.txbufavail = WINDOWSZ - avail;
+				sock->tcp.con.send_win = BIG_TO_HOST16(header->winsize);
+				spinlock_release(&sock->tcp.txlock);
+				if((len - header->doff * 4) > 0)
+					copy_in_data(sock, BIG_TO_HOST32(header->seqnum), len - header->doff * 4, (char *)header->payload + (header->doff - 5)*4);
+			}
+			break;
+		case TCS_SYNRECV:
+			if(header->ack && !header->syn) {
+				struct socket *bound = _tcp_get_bound_socket(&packet->daddr);
+				if(bound) {
+					sock->tcp.con.state = TCS_ESTABLISHED;
+					sock->tcp.con.recv_next = BIG_TO_HOST32(header->seqnum);
+					sock->tcp.con.send_next = BIG_TO_HOST32(header->acknum);
+					sock->tcp.con.send_unack = sock->tcp.con.send_next;
+					sock->tcp.con.send_win = BIG_TO_HOST16(header->winsize);
+					linkedlist_insert(&bound->tcp.establishing, &sock->pend_con_entry, kobj_getref(sock));
+					blocklist_unblock_all(&bound->pend_con_wait);
+					kobj_putref(bound);
+				}
+			}
+			break;
+		default: break;
+	}
+
+	kobj_putref(sock);
+	/* TODO: notify dropped if dropped? */
+}
+
+
+
+
+
+
+
+
+
+
+static void _tcp_worker(struct worker *w)
+{
+	struct socket *sock = worker_arg(w);
+	while(worker_notjoining(w)) {
+		spinlock_acquire(&sock->tcp.txlock);
+		spinlock_acquire(&sock->tcp.rxlock);
+
+		size_t len = sock->tcp.pending;
+		if(len > WINDOWSZ - (sock->tcp.con.send_next % WINDOWSZ))
+			len = WINDOWSZ - (sock->tcp.con.send_next % WINDOWSZ);
+
+		if(len > sock->tcp.con.send_win)
+			len = sock->tcp.con.send_win;
+
+		printk(":: %ld %d %ld: %p\n", len, sock->tcp.con.send_next, sock->tcp.txbufavail, (char *)sock->tcp.txbuffer + (sock->tcp.con.send_next % WINDOWSZ));
+		__tcp_sendmsg(sock, FL_ACK, (char *)sock->tcp.txbuffer + (sock->tcp.con.send_next % WINDOWSZ), len);
+
+		sock->tcp.con.send_next += len;
+		sock->tcp.pending -= len;
+		
+		spinlock_release(&sock->tcp.rxlock);
+		spinlock_release(&sock->tcp.txlock);
+		//if(len == 0) /* TODO: will this deadlock? */
+			sleepflag_sleep(&sock->tcp.sf);
+	}
+	worker_exit(w, 0);
 }
 
 static void _tcp_init_sock(struct socket *sock)
 {
 	sock->tcp.con.state = TCS_CLOSED;
 	blocklist_create(&sock->tcp.con.bl);
-	charbuffer_create(&sock->tcp.inbuf, 0x1000);
 	linkedlist_create(&sock->tcp.establishing, 0);
+	spinlock_create(&sock->tcp.txlock);
+	spinlock_create(&sock->tcp.rxlock);
+	sock->tcp.txbuffer = (void *)mm_virtual_allocate(WINDOWSZ, false);
+	sock->tcp.rxbuffer = (void *)mm_virtual_allocate(WINDOWSZ, false);
+	sock->tcp.con.recv_win = WINDOWSZ;
+	sock->tcp.txbufavail = WINDOWSZ;
+	sock->tcp.pending = 0;
+	blocklist_create(&sock->tcp.txbl);
+	blocklist_create(&sock->tcp.rxbl);
+	sleepflag_create(&sock->tcp.sf);
+	worker_start(&sock->tcp.worker, _tcp_worker, kobj_getref(sock));
 }
 
 static int _tcp_bind(struct socket *sock, const struct sockaddr *_addr, socklen_t len)
@@ -257,7 +360,36 @@ static int _tcp_bind(struct socket *sock, const struct sockaddr *_addr, socklen_
 
 static ssize_t _tcp_recv(struct socket *sock, char *buf, size_t len, int flags)
 {
-	return charbuffer_read(&sock->tcp.inbuf, buf, len, CHARBUFFER_DO_ANY | ((flags & _MSG_NONBLOCK) ? CHARBUFFER_DO_NONBLOCK : 0));
+	size_t count = 0;
+	spinlock_acquire(&sock->tcp.rxlock);
+	while(count == 0) {
+		size_t pending = WINDOWSZ - sock->tcp.con.recv_win;
+		size_t start = sock->tcp.con.recv_next - pending;
+		for(;count < len && pending > 0;count++, pending--) {
+			*buf++ = sock->tcp.rxbuffer[start++ % WINDOWSZ];
+			sock->tcp.con.recv_win++;
+		}
+		
+		if(count == 0) {
+			if(flags & _MSG_NONBLOCK) {
+				spinlock_release(&sock->tcp.rxlock);
+				return -EAGAIN;
+			}
+			struct blockpoint bp;
+			spinlock_release(&sock->tcp.rxlock);
+			blockpoint_create(&bp, 0, 0);
+			blockpoint_startblock(&sock->tcp.rxbl, &bp);
+			if(sock->tcp.con.recv_win == WINDOWSZ) {
+				schedule();
+			}
+			if(blockpoint_cleanup(&bp) == BLOCK_RESULT_INTERRUPTED) {
+				return count == 0 ? -EINTR : (ssize_t)count;
+			}
+			spinlock_acquire(&sock->tcp.rxlock);
+		}
+	}
+	spinlock_release(&sock->tcp.rxlock);
+	return count;
 }
 
 static ssize_t _tcp_send(struct socket *sock, const char *buf, size_t len, int flags)
@@ -265,22 +397,52 @@ static ssize_t _tcp_send(struct socket *sock, const char *buf, size_t len, int f
 	(void)flags;
 	if(sock->tcp.con.state != TCS_ESTABLISHED)
 		return -EINPROGRESS; //TODO: return proper errors for states
-	/* TODO: buffering... winsize, etc */
-	__tcp_sendmsg(sock, FL_ACK, buf, len);
-	return len;
+	size_t count = 0;
+	spinlock_acquire(&sock->tcp.txlock);
+	while(len > 0) {
+		size_t min = len > sock->tcp.txbufavail ? sock->tcp.txbufavail : len;
+		size_t start = sock->tcp.con.send_next + (WINDOWSZ - sock->tcp.txbufavail);
+		for(size_t i=0;i<min;i++, sock->tcp.txbufavail--, count++, len--, sock->tcp.pending++) {
+			sock->tcp.txbuffer[(i + start) % WINDOWSZ] = *buf++;
+		}
+		sleepflag_wake(&sock->tcp.sf);
+		if(len > 0) {
+			if(flags & _MSG_NONBLOCK) {
+				spinlock_release(&sock->tcp.txlock);
+				return count == 0 ? -EAGAIN : (ssize_t)count;
+			}
+			struct blockpoint bp;
+			spinlock_release(&sock->tcp.txlock);
+			blockpoint_create(&bp, 0, 0);
+			blockpoint_startblock(&sock->tcp.txbl, &bp);
+			if(sock->tcp.txbufavail == 0) {
+				schedule();
+			}
+			if(blockpoint_cleanup(&bp) == BLOCK_RESULT_INTERRUPTED) {
+				return count == 0 ? -EINTR : (ssize_t)count;
+			}
+			spinlock_acquire(&sock->tcp.txlock);
+		}
+	}
+
+	spinlock_release(&sock->tcp.txlock);
+	return count;
 }
 
 static void _tcp_shutdown(struct socket *sock)
 {
+	/* TODO: flush */
+	mm_virtual_deallocate((uintptr_t)sock->tcp.txbuffer);
+	mm_virtual_deallocate((uintptr_t)sock->tcp.rxbuffer);
 	/* remove cons, reset & destroy charbuffer */
-	spinlock_acquire(&bind_lock);
 	if(sock->flags & SF_BOUND) {
+		spinlock_acquire(&bind_lock);
 		if(hash_delete(&bindings, &sock->tcp.binding, sock->tcp.blen) == -1) {
 			panic(0, "bound socket not present in bindings");
 		}
 		kobj_putref(sock);
+		spinlock_release(&bind_lock);
 	}
-	spinlock_release(&bind_lock);
 }
 
 static int _tcp_select(struct socket *sock, int flags, struct blockpoint *bp)
@@ -302,7 +464,8 @@ static int _tcp_connect(struct socket *sock, const struct sockaddr *addr, sockle
 	struct tcp_connection *con = &sock->tcp.con;
 	con->state = TCS_SYNSENT;
 	con->local = sock;
-	con->seqnum = 0; //TODO
+	con->send_next = 0; //TODO
+	con->send_unack = 0; //TODO
 	memset(&con->key, 0, sizeof(con->key));
 	memcpy(&con->key.peer, addr, alen);
 	con->peer = *addr;
@@ -355,8 +518,9 @@ static int _start_establish(struct socket *sock, struct packet *packet)
 	struct tcp_connection *con = &client->tcp.con;
 	con->state = TCS_SYNRECV;
 	con->local = client;
-	con->seqnum = 0; //TODO
-	con->acknum = BIG_TO_HOST32(header->seqnum) + 1;
+	con->send_next = 0; //TODO
+	con->send_unack = 0; //TODO
+	con->recv_next = BIG_TO_HOST32(header->seqnum) + 1;
 	memset(&con->key, 0, sizeof(con->key));
 	con->key.peer = packet->saddr;
 	con->peer = packet->saddr;
