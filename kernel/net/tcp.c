@@ -258,6 +258,7 @@ void tcp_recv(struct packet *packet, struct tcp_header *header, size_t len)
 				spinlock_release(&sock->tcp.txlock);
 				if((len - header->doff * 4) > 0)
 					copy_in_data(sock, BIG_TO_HOST32(header->seqnum), len - header->doff * 4, (char *)header->payload + (header->doff - 5)*4);
+				__tcp_sendmsg(sock, FL_ACK, 0, 0); //TODO: do we need this?
 			}
 			break;
 		case TCS_SYNRECV:
@@ -295,24 +296,26 @@ static void _tcp_worker(struct worker *w)
 {
 	struct socket *sock = worker_arg(w);
 	while(worker_notjoining(w)) {
-		spinlock_acquire(&sock->tcp.rxlock);
-		spinlock_acquire(&sock->tcp.txlock);
+		if(sock->tcp.con.state == TCS_ESTABLISHED || sock->tcp.con.state == TCS_SYNRECV) {
+			spinlock_acquire(&sock->tcp.rxlock);
+			spinlock_acquire(&sock->tcp.txlock);
 
-		size_t len = sock->tcp.pending;
-		if(len > WINDOWSZ - (sock->tcp.con.send_next % WINDOWSZ))
-			len = WINDOWSZ - (sock->tcp.con.send_next % WINDOWSZ);
+			size_t len = sock->tcp.pending;
+			if(len > WINDOWSZ - (sock->tcp.con.send_next % WINDOWSZ))
+				len = WINDOWSZ - (sock->tcp.con.send_next % WINDOWSZ);
 
-		if(len > sock->tcp.con.send_win)
-			len = sock->tcp.con.send_win;
+			if(len > sock->tcp.con.send_win)
+				len = sock->tcp.con.send_win;
 
-		printk("%ld send: %d %d %ld\n", current_thread->tid, sock->tcp.con.send_next, sock->tcp.con.recv_next, len);
-		__tcp_sendmsg(sock, FL_ACK, (char *)sock->tcp.txbuffer + (sock->tcp.con.send_next % WINDOWSZ), len);
+			printk("%ld send: %d %d %ld\n", current_thread->tid, sock->tcp.con.send_next, sock->tcp.con.recv_next, len);
+			__tcp_sendmsg(sock, FL_ACK, (char *)sock->tcp.txbuffer + (sock->tcp.con.send_next % WINDOWSZ), len);
 
-		sock->tcp.con.send_next += len;
-		sock->tcp.pending -= len;
-	
-		spinlock_release(&sock->tcp.txlock);
-		spinlock_release(&sock->tcp.rxlock);
+			sock->tcp.con.send_next += len;
+			sock->tcp.pending -= len;
+
+			spinlock_release(&sock->tcp.txlock);
+			spinlock_release(&sock->tcp.rxlock);
+		}
 
 		if(sock->tcp.pending == 0) {
 			printk("%ld Sleeping...\n", current_thread->tid);
@@ -477,10 +480,22 @@ static int _tcp_select(struct socket *sock, int flags, struct blockpoint *bp)
 		return -1; //TODO
 
 	if(flags == SEL_READ) {
-		if(bp)
-			blockpoint_startblock(&sock->tcp.rxbl, bp);
-		size_t pending = WINDOWSZ - sock->tcp.con.recv_win;
-		return pending > 0 ? 1 : 0;
+		if(sock->flags & SF_CONNEC) {
+			if(bp)
+				blockpoint_startblock(&sock->tcp.rxbl, bp);
+			size_t pending = WINDOWSZ - sock->tcp.con.recv_win;
+			return pending > 0 ? 1 : 0;
+		} else if(sock->flags & SF_BOUND) {
+			if(bp)
+				blockpoint_startblock(&sock->pend_con_wait, bp);
+			if(sock->pend_con.count > 0)
+				return 1;
+			if(sock->tcp.establishing.count > 0)
+				return 1;
+			return 1; //TODO
+		} else {
+			return -1;
+		}
 	} else {
 		if(bp)
 			blockpoint_startblock(&sock->tcp.txbl, bp);
@@ -533,6 +548,7 @@ static int _tcp_connect(struct socket *sock, const struct sockaddr *addr, sockle
 
 	sock->flags |= SF_CONNEC;
 	__tcp_send(sock, FL_ACK);
+	printk("Resp OK\n");
 	return 0;
 }
 
@@ -558,7 +574,7 @@ static int _start_establish(struct socket *sock, struct packet *packet)
 	con->recv_next = BIG_TO_HOST32(header->seqnum) + 1;
 	memset(&con->key, 0, sizeof(con->key));
 	con->key.peer = packet->saddr;
-	sock->peer = packet->saddr;
+	client->peer = packet->saddr;
 	con->key.local = packet->daddr;
 	client->binding = sock->binding;
 	client->tcp.tmpfd = fd;

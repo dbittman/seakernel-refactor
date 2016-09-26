@@ -5,13 +5,14 @@
 #include <system.h>
 #include <file.h>
 #include <errno.h>
+#include <random.h>
+#include <printk.h>
 /* default char devices */
 
 static struct device dev;
 
 static ssize_t _char_read(struct file *file, size_t off, size_t len, char *b)
 {
-	(void)file;
 	(void)off;
 	size_t ret = 0;
 	struct inode *node = file_get_inode(file);
@@ -20,6 +21,18 @@ static ssize_t _char_read(struct file *file, size_t off, size_t len, char *b)
 	if(node->minor == 1) {
 		memset(b, 0, len);
 		ret = len;
+	} else if(node->minor == 2) {
+		ret = len;
+		while(len >= 4) {
+			uint32_t _r = random_u32();
+			char *r = (char *)&_r;
+			for(int i=0;i<4;i++)
+				*b++ = *r++;
+			len -= 4;
+		}
+		for(unsigned int i=0;i<len;i++) {
+			*b++ = (char)random_u32();
+		}
 	}
 	inode_put(node);
 
@@ -29,20 +42,14 @@ static ssize_t _char_read(struct file *file, size_t off, size_t len, char *b)
 static ssize_t _char_write(struct file *file, size_t off, size_t len, const char *b)
 {
 	(void)b;
-	(void)len;
 	(void)off;
 	
 	size_t ret;
 	struct inode *node = file_get_inode(file);
 	if(node == NULL)
 		return -EIO;
-	if(node->minor == 1)
-		ret = 0;
-	else
-		ret = len;
+	ret = node->minor != 1 ? len : 0;
 	inode_put(node);
-
-
 	return ret;
 }
 
@@ -59,6 +66,10 @@ static void _late_init(void)
 	int ret = sys_mknod("/dev/null", S_IFCHR | 0666, makedev(dev.devnr, 0));
 	assert(ret == 0);
 	ret = sys_mknod("/dev/zero", S_IFCHR | 0666, makedev(dev.devnr, 1));
+	assert(ret == 0);
+	ret = sys_mknod("/dev/random", S_IFCHR | 0666, makedev(dev.devnr, 2));
+	assert(ret == 0);
+	ret = sys_mknod("/dev/urandom", S_IFCHR | 0666, makedev(dev.devnr, 2));
 	assert(ret == 0);
 }
 

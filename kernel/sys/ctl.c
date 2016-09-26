@@ -19,7 +19,7 @@ sysret_t sys_fcntl(int fd, int cmd, long arg)
 			current_thread->process->files[fd].flags = arg;
 			break;
 		case F_SETFL:
-			file->flags = (arg & ~(F_READ | F_WRITE)) | (arg & (F_READ | F_WRITE));
+			file->flags = (arg & ~(F_READ | F_WRITE)) | (file->flags & (F_READ | F_WRITE));
 			break;
 		case F_GETFL:
 			ret = file->flags;

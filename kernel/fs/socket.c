@@ -163,10 +163,18 @@ sysret_t sys_getsockopt(int sockfd, int level, int option, void * restrict value
 	struct socket *socket = socket_get_from_fd(sockfd, &err);
 	if(!socket) return err;
 
+	/* TODO: error handling for sockets */
+	if(level == 1 && option == 4) {//SOL_SOCKET, SO_ERROR
+		memset(value, 0, *optlen);
+		kobj_putref(socket);
+		return 0;
+	}
+
 	spinlock_acquire(&socket->optlock);
 	struct sockoptkey key = {.level = level, .option = option};
 	struct sockopt *so = hash_lookup(&socket->options, &key, sizeof(key));
 	if(so == NULL) {
+		printk("[socket]: warning - unknown option lookup: %d %d\n", level, option);
 		err = -ENOPROTOOPT;
 	} else {
 		err = 0;
@@ -175,7 +183,7 @@ sysret_t sys_getsockopt(int sockfd, int level, int option, void * restrict value
 	}
 	spinlock_release(&socket->optlock);
 	kobj_putref(socket);
-	return 0;
+	return err;
 }
 
 sysret_t sys_setsockopt(int sockfd, int level, int option, const void *value, socklen_t optlen)

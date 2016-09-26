@@ -109,6 +109,7 @@ static void _pipe_open(struct file *file)
 		assert(!(file->flags & F_WRITE));
 		pipe->readers++;
 	}
+	pipe->buf.eof = 0;
 }
 
 static void _pipe_close(struct file *file)
@@ -124,8 +125,12 @@ static void _pipe_close(struct file *file)
 	assert(pipe->writers >= 0);
 	assert(pipe->readers >= 0);
 
-	if(pipe->writers == 0 || pipe->readers == 0)
-		charbuffer_terminate(&pipe->buf); //TODO : named pipes?
+	if((pipe->writers == 0 || pipe->readers == 0) && !pipe->named)
+		charbuffer_terminate(&pipe->buf);
+	else if(pipe->writers == 0) {
+		pipe->buf.eof = 1;
+		blocklist_unblock_all(&pipe->buf.wait_read);
+	}
 }
 
 static int _pipe_select(struct file *file, int flags, struct blockpoint *bp)

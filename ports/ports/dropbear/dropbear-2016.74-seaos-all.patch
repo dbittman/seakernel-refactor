@@ -1,3 +1,15 @@
+diff -uprN dropbear-2016.74/debug.h dropbear-2016.74-seaos/debug.h
+--- dropbear-2016.74/debug.h	2016-09-25 22:54:25.232577102 -0700
++++ dropbear-2016.74-seaos/debug.h	2016-09-25 22:54:42.929039533 -0700
+@@ -39,7 +39,7 @@
+  * Caution: Don't use this in an unfriendly environment (ie unfirewalled),
+  * since the printing may not sanitise strings etc. This will add a reasonable
+  * amount to your executable size. */
+-/*#define DEBUG_TRACE*/
++#define DEBUG_TRACE 1
+ 
+ /* All functions writing to the cleartext payload buffer call
+  * CHECKCLEARTOWRITE() before writing. This is only really useful if you're
 diff -uprN dropbear-2016.74/includes.h dropbear-2016.74-seaos/includes.h
 --- dropbear-2016.74/includes.h	2016-07-21 08:17:09.000000000 -0700
 +++ dropbear-2016.74-seaos/includes.h	2016-09-25 15:21:24.263916592 -0700
@@ -46,3 +58,13 @@ diff -uprN dropbear-2016.74/netio.c dropbear-2016.74-seaos/netio.c
  }
  
  /* Listen on address:port. 
+diff -uprN dropbear-2016.74/options.h dropbear-2016.74-seaos/options.h
+--- dropbear-2016.74/options.h	2016-07-21 08:17:09.000000000 -0700
++++ dropbear-2016.74-seaos/options.h	2016-09-25 22:46:10.285080057 -0700
+@@ -352,5 +352,5 @@ be overridden at runtime with -I. 0 disa
+ /* Some other defines (that mostly should be left alone) are defined
+  * in sysoptions.h */
+ #include "sysoptions.h"
+-
++#undef  DROPBEAR_SERVER_TCP_FAST_OPEN
+ #endif /* DROPBEAR_OPTIONS_H_ */

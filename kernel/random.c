@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <system.h>
+#include <processor.h>
 /* right, so this is just a temporary PRNG. We should probably
  * have a real RNG at some point. */
 
@@ -25,8 +26,11 @@ uint32_t random_u32(void)
 __initializer static void random_init(void)
 {
 	/* yeah, I dunno. */
-	__state.state = 123;
-	__state.inc = 64;
+#if FEATURE_SUPPORTED_CYCLE_COUNT
+	__state.state = arch_processor_get_cycle_count();;
+#endif
+	__state.state = arch_processor_get_nanoseconds();
+	__state.inc = 64;// arch_processor_get_nanoseconds();
 	pcg32_random_r(&__state);
 }
 
