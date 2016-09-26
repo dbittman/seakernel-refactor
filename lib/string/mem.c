@@ -85,7 +85,11 @@ char *strrchrm(char *str, char v)
 
 char *strncpy(char *dest, const char *src, size_t n)
 {
-	return memcpy(dest, src, n);
+	char *d = dest;
+	while(*src && n--) {
+		*d++ = *src++;
+	}
+	return dest;
 }
 
 void *memset(void *s, int c, size_t n)

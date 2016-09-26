@@ -206,6 +206,7 @@ sysret_t sys_lseek(int fd, ssize_t off, int whence)
 
 sysret_t sys_mkdir(const char *path, int mode)
 {
+	printk("%s\n", path);
 	int ret = fs_path_resolve(path, NULL, PATH_CREATE, S_IFDIR | (mode & 0777), NULL, NULL);
 	if(ret < 0)
 		return ret;

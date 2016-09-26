@@ -261,7 +261,6 @@ ssize_t sys_readlink(const char *path, char *buf, size_t bufsz)
 		return err;
 
 	if(!S_ISLNK(node->mode)) {
-		printk("-> %o %x %x\n", node->mode, node->flags, node->_header.flags);
 		inode_put(node);
 		return -EINVAL;
 	}
@@ -401,7 +400,7 @@ sysret_t sys_renameat(int olddirfd, const char *oldpath, int newdirfd, const cha
 	if(err == -EISDIR) {
 		err = sys_unlinkat(newdirfd, newpath, AT_REMOVEDIR);
 	}
-	if(err != -ENOENT)
+	if(err != -ENOENT && err != 0)
 		return err;
 	err = _do_linkat(olddirfd, oldpath, newdirfd, newpath, true);
 	if(err < 0)

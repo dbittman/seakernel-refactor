@@ -79,10 +79,17 @@ struct dirent *__create_last(struct inode *node, const char *name, size_t namele
 	return dir;
 }
 
-int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode, struct dirent **dir_out, struct inode **ino_out)
+int fs_path_resolve(const char *_path, struct inode *_start, int flags, int mode, struct dirent **dir_out, struct inode **ino_out)
 {
-	(void)flags;
-	TRACE(&path_trace, "resolve path %s", path);
+	TRACE(&path_trace, "resolve path %s", _path);
+
+	char tmp[256];
+	char *path = tmp;
+	memset(tmp, 0, 256);
+	if(strlen(_path) > 255)
+		return -ENAMETOOLONG;
+	strncpy(tmp, _path, 255);
+
 	if(flags & PATH_CREATE)
 		flags |= PATH_NOFOLLOW;
 	struct dirent *dir = NULL;
@@ -92,6 +99,13 @@ int fs_path_resolve(const char *path, struct inode *_start, int flags, int mode,
 	} else {
 		start = kobj_getref(current_thread->process->cwd);
 	}
+
+	size_t end = strlen(path) - 1;
+	while(end > 0 && *(path + end) == '/') {
+		*(path + end) = '\0';
+		end--;
+	}
+
 	if(*path == '/') {
 		path++;
 		inode_put(start);

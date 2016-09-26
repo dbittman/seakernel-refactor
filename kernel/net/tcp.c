@@ -473,10 +473,19 @@ static void _tcp_shutdown(struct socket *sock)
 
 static int _tcp_select(struct socket *sock, int flags, struct blockpoint *bp)
 {
-	(void)flags;
-	(void)sock;
-	(void)bp;
-	return 1; //TODO: don't always indicate ready for writing.
+	if(flags == SEL_ERROR)
+		return -1; //TODO
+
+	if(flags == SEL_READ) {
+		if(bp)
+			blockpoint_startblock(&sock->tcp.rxbl, bp);
+		size_t pending = WINDOWSZ - sock->tcp.con.recv_win;
+		return pending > 0 ? 1 : 0;
+	} else {
+		if(bp)
+			blockpoint_startblock(&sock->tcp.txbl, bp);
+		return sock->tcp.txbufavail > 0 ? 1 : 0;
+	}
 }
 
 static int _tcp_connect(struct socket *sock, const struct sockaddr *addr, socklen_t alen)

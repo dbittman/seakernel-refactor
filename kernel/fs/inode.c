@@ -67,6 +67,10 @@ static void _inode_put(void *obj)
 {
 	struct inode *node = obj;
 	assert(node != NULL);
+	if(node->pipe) {
+		kobj_putref(node->pipe);
+		node->pipe = NULL;
+	}
 	if(node->fs) {
 		if(atomic_fetch_and(&node->flags, ~INODE_FLAG_DIRTY) & INODE_FLAG_DIRTY) {
 			fs_update_inode(node);

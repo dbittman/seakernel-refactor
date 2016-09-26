@@ -80,6 +80,8 @@ __initializer static void _init_dirent_cache(void)
 	kobj_lru_create(&dirent_lru, DIRENT_ID_LEN, 100, &kobj_dirent, _dirent_initialize, _dirent_release, NULL, NULL);
 }
 
+#include <thread.h>
+#include <process.h>
 struct inode *dirent_get_inode(struct dirent *dir)
 {
 	struct inode *node = inode_lookup(&dir->ino);
@@ -90,7 +92,7 @@ struct inode *dirent_get_inode(struct dirent *dir)
 		inode_put(node);
 		node = inode_lookup(&id);
 	}
-	if(!strncmp(dir->name, "..", 2) && dir->namelen == 2 && node->id.inoid == node->fs->driver->rootid) {
+	if(!strncmp(dir->name, "..", 2) && dir->namelen == 2 && node->id.inoid == node->fs->driver->rootid && node != current_thread->process->root) {
 		struct inode *up = inode_lookup(&node->fs->up_mount);
 		inode_put(node);
 		node = up;

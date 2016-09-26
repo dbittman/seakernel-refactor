@@ -28,6 +28,7 @@ struct inodepage {
 
 #define INODE_FLAG_DIRTY 1
 #define INODE_FLAG_UNCACHED 2
+struct pipe;
 struct inode {
 	struct kobj_header _header;
 	_Atomic int flags;
@@ -46,6 +47,7 @@ struct inode {
 	_Atomic int uid, gid;
 
 	int major, minor;
+	struct pipe *pipe;
 };
 
 extern struct kobj kobj_inode_page;

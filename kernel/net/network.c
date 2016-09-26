@@ -11,6 +11,7 @@ static int protocol_map[MAX_AF + 1][MAX_PROT] = {
 	[AF_INET6] = { [PROT_UDP] = 17, [PROT_TCP] = 6 },
 };
 
+#include <printk.h>
 int net_network_send(struct socket *sock, const struct sockaddr *dest, const void *trheader, size_t thlen, const void *msg, size_t mlen, int prot, int checksum_offset)
 {
 	if(senders[dest->sa_family])

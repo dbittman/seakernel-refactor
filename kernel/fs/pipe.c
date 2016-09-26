@@ -13,6 +13,7 @@ struct pipe {
 	struct kobj_header _header;
 	struct charbuffer buf;
 	_Atomic int readers, writers;
+	bool named;
 };
 
 static void _pipe_init(void *obj)
@@ -20,6 +21,7 @@ static void _pipe_init(void *obj)
 	struct pipe *pipe = obj;
 	charbuffer_reset(&pipe->buf);
 	pipe->readers = pipe->writers = 0;
+	pipe->named = false;
 }
 
 static void _pipe_create(void *obj)
@@ -43,8 +45,20 @@ static struct kobj kobj_pipe = {
 
 static void _pipe_file_create(struct file *file)
 {
-	struct pipe *pipe = file->devdata = kobj_allocate(&kobj_pipe);
-	pipe->readers = pipe->writers = 0;
+	struct pipe *pipe = kobj_allocate(&kobj_pipe);
+	pipe->named = file->dirent != NULL;
+	if(pipe->named) {
+		struct inode *node = file_get_inode(file);
+		pipe->readers = pipe->writers = 0;
+		struct pipe *exp = NULL;
+		if(!atomic_compare_exchange_strong(&node->pipe, &exp, kobj_getref(pipe))) {
+			kobj_putref(pipe);
+			kobj_putref(pipe);
+
+			pipe = kobj_getref(exp);
+		}
+	}
+	file->devdata = pipe;
 }
 
 static void _pipe_file_destroy(struct file *file)
@@ -58,7 +72,7 @@ static ssize_t _pipe_read(struct file *file,
 {
 	(void)off;
 	struct pipe *pipe = file->devdata;
-	if(pipe->writers == 0 && charbuffer_pending(&pipe->buf) == 0) {
+	if(pipe->writers == 0 && charbuffer_pending(&pipe->buf) == 0 && !pipe->named) {
 		return 0;
 	}
 	int flags = CHARBUFFER_DO_ANY;
@@ -73,7 +87,7 @@ static ssize_t _pipe_write(struct file *file,
 {
 	(void)off;
 	struct pipe *pipe = file->devdata;
-	if(pipe->readers == 0) {
+	if(pipe->readers == 0 && !pipe->named) {
 		thread_send_signal(current_thread, SIGPIPE);
 		return -EPIPE;
 	}

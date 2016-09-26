@@ -243,6 +243,7 @@ sysret_t sys_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 
 	if(socket->ops->connect)
 		err = socket->ops->connect(socket, addr, addrlen);
+	printk(":: %p %d\n", socket->ops->connect, err);
 
 	kobj_putref(socket);
 	return err;
