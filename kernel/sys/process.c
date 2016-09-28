@@ -13,6 +13,14 @@ int sys_setsid(void)
 	return 0;
 }
 
+sysret_t sys_setgroups(size_t size, const int *list)
+{
+	(void)size;
+	(void)list;
+	// TODO
+	return 0;
+}
+
 int sys_setpgid(int pid, int pg)
 {
 	struct process *proc;

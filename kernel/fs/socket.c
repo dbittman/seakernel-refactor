@@ -295,8 +295,6 @@ sysret_t sys_getsockname(int sockfd, struct sockaddr *restrict addr, socklen_t *
 	
 	if(!addr || !addrlen) {
 		err = -EINVAL;
-	} else if(!(socket->flags & SF_BOUND)) {
-		err = -EINVAL;
 	} else {
 		size_t len = sockaddrinfo[socket->domain].length;
 		socklen_t min = *addrlen > len ? len : *addrlen;

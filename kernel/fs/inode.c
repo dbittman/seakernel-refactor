@@ -185,6 +185,7 @@ void inode_release_page(struct inodepage *page)
 
 static bool _do_inode_check_perm(struct inode *node, int type, int uid, int gid)
 {
+	return true; //TODO
 	if(uid == 0)
 		return true;
 	if((uid == node->uid)

@@ -227,7 +227,6 @@ static void copy_in_data(struct socket *sock, uint32_t seq, size_t len, char *da
 
 		printk("copied in %ld bytes\n", len);
 		sock->tcp.con.recv_win -= len;
-		blocklist_unblock_all(&sock->tcp.con.workerbl);
 		blocklist_unblock_all(&sock->tcp.rxbl);
 	}
 	spinlock_release(&sock->tcp.rxlock);
@@ -254,7 +253,11 @@ void tcp_recv(struct packet *packet, struct tcp_header *header, size_t len)
 				else
 					avail = (0x100000000ull - sock->tcp.con.send_next) + sock->tcp.con.send_unack;
 				sock->tcp.txbufavail = WINDOWSZ - avail;
+				uint16_t old = sock->tcp.con.send_win;
 				sock->tcp.con.send_win = BIG_TO_HOST16(header->winsize);
+				if(old != sock->tcp.con.send_win) {
+					blocklist_unblock_all(&sock->tcp.con.workerbl);
+				}
 				spinlock_release(&sock->tcp.txlock);
 				if((len - header->doff * 4) > 0)
 					copy_in_data(sock, BIG_TO_HOST32(header->seqnum), len - header->doff * 4, (char *)header->payload + (header->doff - 5)*4);
@@ -296,7 +299,7 @@ static void _tcp_worker(struct worker *w)
 {
 	struct socket *sock = worker_arg(w);
 	while(worker_notjoining(w)) {
-		if(sock->tcp.con.state == TCS_ESTABLISHED || sock->tcp.con.state == TCS_SYNRECV) {
+		if((sock->tcp.con.state == TCS_ESTABLISHED && sock->tcp.pending > 0 && sock->tcp.con.send_win > 0) || sock->tcp.con.state == TCS_SYNRECV) {
 			spinlock_acquire(&sock->tcp.rxlock);
 			spinlock_acquire(&sock->tcp.txlock);
 
@@ -313,16 +316,18 @@ static void _tcp_worker(struct worker *w)
 			sock->tcp.con.send_next += len;
 			sock->tcp.pending -= len;
 
+			blocklist_unblock_all(&sock->tcp.txbl);
+
 			spinlock_release(&sock->tcp.txlock);
 			spinlock_release(&sock->tcp.rxlock);
 		}
 
-		if(sock->tcp.pending == 0) {
+		if(sock->tcp.pending == 0 || sock->tcp.con.send_win == 0) {
 			printk("%ld Sleeping...\n", current_thread->tid);
 			struct blockpoint bp;
 			blockpoint_create(&bp, 0, 0);
 			blockpoint_startblock(&sock->tcp.con.workerbl, &bp);
-			if(sock->tcp.pending == 0) {
+			if(sock->tcp.pending == 0 || sock->tcp.con.send_win == 0) {
 				printk("%ld Sched\n", current_thread->tid);
 				schedule();
 				printk("%ld Here\n", current_thread->tid);

@@ -53,5 +53,8 @@ fi
 . /etc/bashrc
 EOF
 
+	touch $INSTALLDIR/etc/group $INSTALLDIR/etc/login.defs
+	mkdir $INSTALLDIR/etc/dropbear
+
 }
 

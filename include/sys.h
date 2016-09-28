@@ -36,6 +36,7 @@ sysret_t sys_getgid(void);
 sysret_t sys_getuid(void);
 sysret_t sys_getppid(void);
 sysret_t sys_getpid(void);
+sysret_t sys_setgroups(size_t size, const int *list);
 
 sysret_t sys_fcntl(int fd, int cmd, long arg);
 sysret_t sys_ioctl(int fd, unsigned long cmd, long arg);

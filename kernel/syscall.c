@@ -96,6 +96,7 @@ static syscall_t syscall_table[MAX_SYSCALL] = {
 	[SYS_setresuid]   = SC sys_setresuid,
 	[SYS_setgid]   = SC sys_setgid,
 	[SYS_setresgid]   = SC sys_setresgid,
+	[SYS_setgroups]   = SC sys_setgroups,
 
 	[SYS_fcntl]    = SC sys_fcntl,
 	[SYS_ioctl]    = SC sys_ioctl,
