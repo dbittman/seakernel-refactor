@@ -31,6 +31,12 @@ sysret_t sys_openat(int dirfd, const char *path, int flags, int mode)
 	assert(dir != NULL);
 	assert(node != NULL);
 
+	if((flags & O_DIRECTORY) && !(S_ISDIR(node->mode))) {
+		dirent_put(dir);
+		inode_put(node);
+		return -ENOTDIR;
+	}
+
 	if((flags & O_NOFOLLOW) && (S_ISLNK(node->mode))) {
 		dirent_put(dir);
 		inode_put(node);
@@ -82,6 +88,7 @@ sysret_t sys_openat(int dirfd, const char *path, int flags, int mode)
 
 	inode_put(node);
 	kobj_putref(file);
+	printk("Open -> %d\n", fd);
 	return fd;
 }
 

@@ -18,6 +18,7 @@ int fs_link(struct inode *, const char *, size_t, struct inode *);
 #define O_APPEND 02000
 #define O_NONBLOCK 04000
 #define O_NOFOLLOW   0400000
+#define O_DIRECTORY   0200000
 #define O_CLOEXEC   02000000
 #define F_DUPFD 0
 #define F_GETFD 1

@@ -71,12 +71,14 @@ static bool block_cache_read(struct blockdev *bd, unsigned long block, uintptr_t
 	return true;
 }
 
-static void _handle_request(void *_req)
+#if 0
+void _handle_request(void *_req)
 {
 	struct request *req = _req;
 	req->bd->drv->handle_req(req->bd, req);
 	kobj_putref(req);
 }
+#endif
 
 static void __elevator(struct worker *worker)
 {
@@ -140,25 +142,26 @@ static int __do_request(struct blockdev *bd, unsigned long start, int count, uin
 	req->count = count;
 	req->write = false;
 	req->ret_count = -1;
+	req->bd->drv->handle_req(req->bd, req);
 
 	struct blockpoint bp;
 	blockpoint_create(&bp, BLOCK_UNINTERRUPT, 0);
 	blockpoint_startblock(&req->wait, &bp);
 
-	struct workitem wi = { .fn = _handle_request, .arg = kobj_getref(req) };
-	workqueue_insert(&bd->requests, &wi);
-	blocklist_unblock_all(&bd->wait);
-	int waited = 0;
+	//struct workitem wi = { .fn = _handle_request, .arg = kobj_getref(req) };
+	//workqueue_insert(&bd->requests, &wi);
+	//blocklist_unblock_all(&bd->wait);
 	if(req->ret_count == -1) {
-		waited = 1;
+		req->bd->drv->handle_req(req->bd, req);
 		schedule();
 	}
 
 	enum block_result res = blockpoint_cleanup(&bp);
 	assert(res == BLOCK_RESULT_BLOCKED || res == BLOCK_RESULT_UNBLOCKED);
+
 	count = req->ret_count;
 	if(count == -1) {
-		panic(0, "failed to wait for request: %d, %d, %d", count, res, waited);
+		panic(0, "failed to wait for request: %d", count);
 	}
 	assert(count != -1);
 
