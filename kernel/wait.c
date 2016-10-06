@@ -96,7 +96,8 @@ static int __read_status(struct process *proc, int options, int *status)
 	if(WIFCONTINUED(st) && !(options & WCONTINUED))
 		return 0;
 
-	*status = st;
+	if(status)
+		*status = st;
 	proc->status = 0;
 	return proc->pid;
 }
