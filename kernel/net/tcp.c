@@ -165,7 +165,29 @@ static struct socket *_tcp_get_connection(struct tcp_con_key *key)
 	return sock;
 }
 
+static void close_connection(struct socket *sock)
+{
+	sock->tcp.con.state = TCS_CLOSED;
+	sock->flags &= ~SF_CONNEC;
+	sock->flags |= SF_SHUTDOWN;
+	spinlock_acquire(&con_lock);
+	struct tcp_con_key *key = &sock->tcp.con.key;
+	/* XXX HACK TODO */
+	struct sockaddr_in6 *s = (void *)&key->peer;
+	struct sockaddr_in6 *d = (void *)&key->local;
+	d->scope = 0;
+	s->scope = 0;
 
+
+	if(hash_delete(&connections, key, sizeof(*key)) == 0) {
+		kobj_putref(sock);
+	}
+	spinlock_release(&con_lock);
+	blocklist_unblock_all(&sock->pend_con_wait);
+	blocklist_unblock_all(&sock->tcp.txbl);
+	blocklist_unblock_all(&sock->tcp.rxbl);
+	blocklist_unblock_all(&sock->tcp.con.workerbl);
+}
 
 
 
@@ -178,6 +200,8 @@ static struct socket *_tcp_get_connection(struct tcp_con_key *key)
 
 static void _tcp_recv_bound_only(struct packet *packet, struct tcp_header *header)
 {
+	if(header->rst)
+		return;
 	struct socket *sock = _tcp_get_bound_socket(&packet->daddr);
 	if(!sock)
 		return;
@@ -240,8 +264,18 @@ void tcp_recv(struct packet *packet, struct tcp_header *header, size_t len)
 		_tcp_recv_bound_only(packet, header);
 		return;
 	}
-
+	if(header->rst) {
+		sock->tcp.con.state = TCS_CLOSED;
+		close_connection(sock);
+		return;
+	}
 	switch(sock->tcp.con.state) {
+		case TCS_FINWAIT1:
+			if(header->fin) {
+				sock->tcp.con.state = TCS_CLOSED;
+				close_connection(sock);
+			}
+			break;
 		case TCS_ESTABLISHED:
 			if(header->ack && !header->syn) {
 				spinlock_acquire(&sock->tcp.txlock);
@@ -259,9 +293,18 @@ void tcp_recv(struct packet *packet, struct tcp_header *header, size_t len)
 					blocklist_unblock_all(&sock->tcp.con.workerbl);
 				}
 				spinlock_release(&sock->tcp.txlock);
-				if((len - header->doff * 4) > 0)
+				if((len - header->doff * 4) > 0) {
 					copy_in_data(sock, BIG_TO_HOST32(header->seqnum), len - header->doff * 4, (char *)header->payload + (header->doff - 5)*4);
-				__tcp_sendmsg(sock, FL_ACK, 0, 0); //TODO: do we need this?
+					__tcp_sendmsg(sock, FL_ACK, 0, 0);
+				}
+			}
+			if(header->fin) {
+				printk("Closing...\n");
+				sock->tcp.con.state = TCS_LASTACK;
+				__tcp_sendmsg(sock, FL_FIN | FL_RST, 0, 0);
+				sock->tcp.con.state = TCS_CLOSED;
+				close_connection(sock);
+				printk("Closed\n");
 			}
 			break;
 		case TCS_SYNRECV:
@@ -277,6 +320,16 @@ void tcp_recv(struct packet *packet, struct tcp_header *header, size_t len)
 					blocklist_unblock_all(&bound->pend_con_wait);
 					kobj_putref(bound);
 				}
+			}
+			if(header->fin) {
+				sock->tcp.con.state = TCS_LASTACK;
+				__tcp_sendmsg(sock, FL_ACK | FL_RST, 0, 0);
+			}
+			break;
+		case TCS_LASTACK:
+			if(header->ack) {
+				sock->tcp.con.state = TCS_CLOSED;
+				close_connection(sock);
 			}
 			break;
 		default: break;
@@ -353,6 +406,7 @@ static void _tcp_init_sock(struct socket *sock)
 	sock->tcp.txbuffer = (void *)mm_virtual_allocate(WINDOWSZ, false);
 	sock->tcp.rxbuffer = (void *)mm_virtual_allocate(WINDOWSZ, false);
 	sock->tcp.con.recv_win = WINDOWSZ;
+	sock->tcp.con.send_win = 0;
 	sock->tcp.txbufavail = WINDOWSZ;
 	sock->tcp.pending = 0;
 	blocklist_create(&sock->tcp.txbl);
@@ -388,6 +442,10 @@ static ssize_t _tcp_recv(struct socket *sock, char *buf, size_t len, int flags)
 	size_t count = 0;
 	spinlock_acquire(&sock->tcp.rxlock);
 	while(count == 0) {
+		if(sock->tcp.con.state != TCS_ESTABLISHED) {
+			spinlock_release(&sock->tcp.rxlock);
+			return count > 0 ? (ssize_t)count : -ENOTCONN; //TODO: EINPROGRESS, etc
+		}
 		size_t pending = WINDOWSZ - sock->tcp.con.recv_win;
 		size_t start = sock->tcp.con.recv_next - pending;
 		for(;count < len && pending > 0;count++, pending--) {
@@ -419,12 +477,18 @@ static ssize_t _tcp_recv(struct socket *sock, char *buf, size_t len, int flags)
 
 static ssize_t _tcp_send(struct socket *sock, const char *buf, size_t len, int flags)
 {
-	(void)flags;
-	if(sock->tcp.con.state != TCS_ESTABLISHED)
-		return -EINPROGRESS; //TODO: return proper errors for states
+	printk("SEND: %d\n", sock->tcp.con.state);
+	/* if(sock->tcp.con.state == TCS_CLOSED) */
+	/* 	return -ENOTCONN; */
+	/* if(sock->tcp.con.state != TCS_ESTABLISHED) */
+	/* 	return -EINPROGRESS; //TODO: return proper errors for states */
 	size_t count = 0;
 	spinlock_acquire(&sock->tcp.txlock);
 	while(len > 0) {
+		/* if(sock->tcp.con.state != TCS_ESTABLISHED) { */
+		/* 	spinlock_release(&sock->tcp.txlock); */
+		/* 	return count > 0 ? (ssize_t)count : -ENOTCONN; //TODO: EINPROGRESS, etc */
+		/* } */
 		size_t min = len > sock->tcp.txbufavail ? sock->tcp.txbufavail : len;
 		size_t start = sock->tcp.con.send_next + (WINDOWSZ - sock->tcp.txbufavail);
 		for(size_t i=0;i<min;i++) {
@@ -460,15 +524,21 @@ static ssize_t _tcp_send(struct socket *sock, const char *buf, size_t len, int f
 	return count;
 }
 
+#include <interrupt.h>
 static void _tcp_shutdown(struct socket *sock)
 {
 	/* TODO: flush */
 	while(!worker_join(&sock->tcp.worker)) {
 		blocklist_unblock_all(&sock->tcp.con.workerbl);
+		schedule();
 	}
 	mm_virtual_deallocate((uintptr_t)sock->tcp.txbuffer);
 	mm_virtual_deallocate((uintptr_t)sock->tcp.rxbuffer);
 	/* remove cons, reset & destroy charbuffer */
+	if(sock->tcp.con.state == TCS_ESTABLISHED) {
+		sock->tcp.con.state = TCS_FINWAIT1;
+		__tcp_sendmsg(sock, FL_FIN | FL_ACK, 0, 0);
+	}
 	if(sock->flags & SF_BOUND) {
 		spinlock_acquire(&bind_lock);
 		if(hash_delete(&bindings, &sock->binding, sock->tcp.blen) == -1) {
@@ -481,14 +551,19 @@ static void _tcp_shutdown(struct socket *sock)
 
 static int _tcp_select(struct socket *sock, int flags, struct blockpoint *bp)
 {
+	//printk(":: Select: %d %d\n", flags, sock->flags);
 	if(flags == SEL_ERROR)
 		return -1; //TODO
+
+	if(sock->flags & SF_SHUTDOWN)
+		return -1;
 
 	if(flags == SEL_READ) {
 		if(sock->flags & SF_CONNEC) {
 			if(bp)
 				blockpoint_startblock(&sock->tcp.rxbl, bp);
 			size_t pending = WINDOWSZ - sock->tcp.con.recv_win;
+	//		printk("PEND: %ld\n", pending);
 			return pending > 0 ? 1 : 0;
 		} else if(sock->flags & SF_BOUND) {
 			if(bp)
@@ -497,7 +572,7 @@ static int _tcp_select(struct socket *sock, int flags, struct blockpoint *bp)
 				return 1;
 			if(sock->tcp.establishing.count > 0)
 				return 1;
-			return 1; //TODO
+			return 0;
 		} else {
 			return -1;
 		}
@@ -603,7 +678,6 @@ static int _tcp_accept(struct socket *sock, struct sockaddr *addr, socklen_t *ad
 		return -EINVAL;
 	}
 
-	sock->tcp.con.state = TCS_LISTENING;
 	while(true) {
 		struct packet *packet = linkedlist_remove_tail(&sock->pend_con);
 		struct socket *client = linkedlist_remove_tail(&sock->tcp.establishing);
@@ -639,9 +713,16 @@ static int _tcp_accept(struct socket *sock, struct sockaddr *addr, socklen_t *ad
 	}
 }
 
+static ssize_t _tcp_sendto(struct socket *sock, const char *msg, size_t length,
+		int flags, const struct sockaddr *dest, socklen_t dest_len)
+{
+	(void)sock; (void)msg; (void)length; (void)flags; (void)dest; (void)dest_len;
+	return -ENOTCONN;
+}
+
 int _tcp_listen(struct socket *sock, int bl)
 {
-	(void)sock;
+	sock->tcp.con.state = TCS_LISTENING;
 	(void)bl;
 	return 0;
 }
@@ -657,7 +738,7 @@ struct sock_calls af_tcp_calls = {
 	.send = _tcp_send,
 	.recv = _tcp_recv,
 	.select = _tcp_select,
-	.sendto = NULL,
+	.sendto = _tcp_sendto,
 	.recvfrom = NULL,
 };
 

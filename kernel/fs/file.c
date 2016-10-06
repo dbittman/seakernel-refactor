@@ -218,7 +218,6 @@ void process_copy_files(struct process *from, struct process *to)
 
 void process_close_files(struct process *proc, bool all)
 {
-	spinlock_acquire(&proc->files_lock);
 	for(int i=0;i<MAX_FD;i++) {
 		if(proc->files[i].file) {
 			if((proc->files[i].flags & FD_CLOEXEC) || all) {
@@ -229,7 +228,6 @@ void process_close_files(struct process *proc, bool all)
 			}
 		}
 	}
-	spinlock_release(&proc->files_lock);
 }
 
 ssize_t file_read(struct file *f, size_t off, size_t len, char *buf)

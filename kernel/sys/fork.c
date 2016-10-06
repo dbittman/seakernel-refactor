@@ -212,8 +212,6 @@ _Noreturn void sys_do_exit(int code)
 	kobj_putref(current_thread->process);
 	current_thread->process = NULL;
 
-	(void)code;
-
 	thread_exit(current_thread);
 }
 

@@ -129,7 +129,7 @@ void x86_64_exception_entry(struct arch_exception_frame *frame)
 	}
 }
 
-#define DEBUG_SYS 1
+#define DEBUG_SYS 0
 void x86_64_syscall_entry(struct arch_exception_frame *frame)
 {
 	if(frame->rax == SYS_rt_sigreturn) {
@@ -137,7 +137,7 @@ void x86_64_syscall_entry(struct arch_exception_frame *frame)
 		return;
 	}
 #if DEBUG_SYS
-	if(current_thread->tid == 13 || 0)
+	if(current_thread->process->pid >= 8 || 0)
 		printk("syscall %ld(%2d) %3lu: %lx %lx %lx %lx %lx %lx (from %lx)\n", current_thread->tid, current_thread->processor->id, frame->rax, frame->rdi, frame->rsi, frame->rdx, frame->r10, frame->r8, frame->r9, frame->rip);
 	long num = frame->rax;
 #endif
@@ -145,7 +145,7 @@ void x86_64_syscall_entry(struct arch_exception_frame *frame)
 #if DEBUG_SYS
 	long ret = frame->rax;
 
-	if((current_thread->tid == 13 || 0) && 1) {
+	if((current_thread->process->pid >= 8 || 0) && 1) {
 		if(ret < 0)
 			printk("syscall %ld     %3lu: RET %ld\n", current_thread->tid, num, ret);
 		else

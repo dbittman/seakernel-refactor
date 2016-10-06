@@ -3,6 +3,7 @@
 #include <process.h>
 #include <sys.h>
 #include <printk.h>
+#include <interrupt.h>
 bool thread_send_signal(struct thread *thread, int signal)
 {
 	bool ret = false;
@@ -82,6 +83,7 @@ bool thread_check_status_retuser(struct thread *thread)
 	}
 
 	if(thread->flags & THREAD_EXIT) {
+		arch_interrupt_set(1);
 		sys_do_exit(thread->exit_code);
 	}
 

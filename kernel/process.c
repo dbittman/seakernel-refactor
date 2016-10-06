@@ -141,6 +141,7 @@ static void __remove_proc_entries(struct process *proc)
 	assertmsg(r == 0, "%d", r);
 }
 
+#include <interrupt.h>
 void process_exit(struct process *proc, int code)
 {
 	proc->exit_code = code;
