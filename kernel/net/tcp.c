@@ -10,7 +10,7 @@
 #include <fs/sys.h>
 #include <charbuffer.h>
 
-#define WINDOWSZ 0x4000
+#define WINDOWSZ 0x1000
 
 static struct hash bindings;
 static struct hash connections;
@@ -78,6 +78,12 @@ int __tcp_sendmsg(struct socket *sock, int flags, const char *buf, size_t len)
 	header.winsize = HOST_TO_BIG16(con->recv_win);
 	header.urgptr = 0;
 	header._res0 = 0;
+
+	/* if(buf) { */
+	/* 	for(size_t i=0;i<len;i++) { */
+	/* 		printk("+ %x", (unsigned char)*(buf+i)); */
+	/* 	} */
+	/* } */
 
 	return net_network_send(con->local, &sock->peer, &header, header.doff * 4, buf, len, PROT_TCP, 16);
 }
@@ -286,7 +292,7 @@ void tcp_recv(struct packet *packet, struct tcp_header *header, size_t len)
 					avail = sock->tcp.con.send_next - sock->tcp.con.send_unack;
 				else
 					avail = (0x100000000ull - sock->tcp.con.send_next) + sock->tcp.con.send_unack;
-				sock->tcp.txbufavail = WINDOWSZ - avail;
+				sock->tcp.txbufavail = (WINDOWSZ - avail) - sock->tcp.pending;
 				uint16_t old = sock->tcp.con.send_win;
 				sock->tcp.con.send_win = BIG_TO_HOST16(header->winsize);
 				if(old != sock->tcp.con.send_win) {
@@ -363,7 +369,7 @@ static void _tcp_worker(struct worker *w)
 			if(len > sock->tcp.con.send_win)
 				len = sock->tcp.con.send_win;
 
-			printk("%ld send: %d %d %ld\n", current_thread->tid, sock->tcp.con.send_next, sock->tcp.con.recv_next, len);
+			printk("%ld send: %d %d %ld: %d\n", current_thread->tid, sock->tcp.con.send_next, sock->tcp.con.recv_next, len, sock->tcp.con.send_next % WINDOWSZ);
 			__tcp_sendmsg(sock, FL_ACK, (char *)sock->tcp.txbuffer + (sock->tcp.con.send_next % WINDOWSZ), len);
 
 			sock->tcp.con.send_next += len;
@@ -478,19 +484,20 @@ static ssize_t _tcp_recv(struct socket *sock, char *buf, size_t len, int flags)
 static ssize_t _tcp_send(struct socket *sock, const char *buf, size_t len, int flags)
 {
 	printk("SEND: %d\n", sock->tcp.con.state);
-	/* if(sock->tcp.con.state == TCS_CLOSED) */
-	/* 	return -ENOTCONN; */
-	/* if(sock->tcp.con.state != TCS_ESTABLISHED) */
-	/* 	return -EINPROGRESS; //TODO: return proper errors for states */
+	if(sock->tcp.con.state == TCS_CLOSED)
+		return -ENOTCONN;
+	if(sock->tcp.con.state != TCS_ESTABLISHED)
+		return -EINPROGRESS; //TODO: return proper errors for states
 	size_t count = 0;
 	spinlock_acquire(&sock->tcp.txlock);
 	while(len > 0) {
-		/* if(sock->tcp.con.state != TCS_ESTABLISHED) { */
-		/* 	spinlock_release(&sock->tcp.txlock); */
-		/* 	return count > 0 ? (ssize_t)count : -ENOTCONN; //TODO: EINPROGRESS, etc */
-		/* } */
+		if(sock->tcp.con.state != TCS_ESTABLISHED) {
+			spinlock_release(&sock->tcp.txlock);
+			return count > 0 ? (ssize_t)count : -ENOTCONN; //TODO: EINPROGRESS, etc
+		}
 		size_t min = len > sock->tcp.txbufavail ? sock->tcp.txbufavail : len;
-		size_t start = sock->tcp.con.send_next + (WINDOWSZ - sock->tcp.txbufavail);
+		size_t start = sock->tcp.con.send_next + sock->tcp.pending;
+		printk("Writing: %ld\n", (start) % WINDOWSZ);
 		for(size_t i=0;i<min;i++) {
 			sock->tcp.txbuffer[(i + start) % WINDOWSZ] = *buf++;
 			count++;
@@ -498,7 +505,7 @@ static ssize_t _tcp_send(struct socket *sock, const char *buf, size_t len, int f
 			sock->tcp.pending++;
 			sock->tcp.txbufavail--;
 		}
-		printk("Enqueued %ld bytes\n", min);
+		printk(" Enqueued %ld bytes\n", min);
 		blocklist_unblock_all(&sock->tcp.con.workerbl);
 		printk("Woke up thread %ld, %ld rem\n", sock->tcp.worker.thread->tid, len);
 		if(len > 0) {

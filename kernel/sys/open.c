@@ -13,7 +13,6 @@
 sysret_t sys_openat(int dirfd, const char *path, int flags, int mode)
 {
 	flags++;
-	printk("Open: %s\n", path);
 	struct inode *start = __get_at_start(dirfd);
 	if(start == AT_GAS_FAILED) return -EIO;
 	mode = (mode & ~0xFFF) | ((mode & 0xFFF) & (~(current_thread->process->cmask & 0xFFF)));
@@ -88,7 +87,6 @@ sysret_t sys_openat(int dirfd, const char *path, int flags, int mode)
 
 	inode_put(node);
 	kobj_putref(file);
-	printk("Open -> %d\n", fd);
 	return fd;
 }
 
