@@ -142,14 +142,14 @@ static int _pipe_select(struct file *file, int flags, struct blockpoint *bp)
 		case SEL_READ:
 			if(bp)
 				blockpoint_startblock(&pipe->buf.wait_read, bp);
-			if(!charbuffer_pending(&pipe->buf)) {
+			if(charbuffer_pending(&pipe->buf)) {
 				ret = 1;
 			}
 			break;
 		case SEL_WRITE:
 			if(bp)
 				blockpoint_startblock(&pipe->buf.wait_write, bp);
-			if(!charbuffer_avail(&pipe->buf)) {
+			if(charbuffer_avail(&pipe->buf)) {
 				ret = 1;
 			}
 			break;
