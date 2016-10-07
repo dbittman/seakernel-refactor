@@ -129,7 +129,7 @@ void x86_64_exception_entry(struct arch_exception_frame *frame)
 	}
 }
 
-#define DEBUG_SYS 0
+#define DEBUG_SYS 1
 void x86_64_syscall_entry(struct arch_exception_frame *frame)
 {
 	if(frame->rax == SYS_rt_sigreturn) {

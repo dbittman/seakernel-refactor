@@ -12,6 +12,7 @@ struct utsname
 
 int sys_uname(struct utsname *buf)
 {
+	memset(buf, 0, sizeof(*buf));
 	strncpy(buf->sysname, "SeaOS", 64);
 	strncpy(buf->nodename, "something", 64);
 	strncpy(buf->release, "0.4", 64);

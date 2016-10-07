@@ -10,7 +10,7 @@
 #include <fs/sys.h>
 #include <charbuffer.h>
 
-#define WINDOWSZ 0x1000
+#define WINDOWSZ 0x4000
 
 static struct hash bindings;
 static struct hash connections;
@@ -271,14 +271,14 @@ void tcp_recv(struct packet *packet, struct tcp_header *header, size_t len)
 		return;
 	}
 	if(header->rst) {
-		sock->tcp.con.state = TCS_CLOSED;
+		sock->tcp.con.state = TCS_RESET;
 		close_connection(sock);
 		return;
 	}
 	switch(sock->tcp.con.state) {
 		case TCS_FINWAIT1:
 			if(header->fin) {
-				sock->tcp.con.state = TCS_CLOSED;
+				sock->tcp.con.state = TCS_FINISHED;
 				close_connection(sock);
 			}
 			break;
@@ -308,7 +308,7 @@ void tcp_recv(struct packet *packet, struct tcp_header *header, size_t len)
 				printk("Closing...\n");
 				sock->tcp.con.state = TCS_LASTACK;
 				__tcp_sendmsg(sock, FL_FIN | FL_RST, 0, 0);
-				sock->tcp.con.state = TCS_CLOSED;
+				sock->tcp.con.state = TCS_FINISHED;
 				close_connection(sock);
 				printk("Closed\n");
 			}
@@ -330,11 +330,13 @@ void tcp_recv(struct packet *packet, struct tcp_header *header, size_t len)
 			if(header->fin) {
 				sock->tcp.con.state = TCS_LASTACK;
 				__tcp_sendmsg(sock, FL_ACK | FL_RST, 0, 0);
+				sock->tcp.con.state = TCS_FINISHED;
+				close_connection(sock);
 			}
 			break;
 		case TCS_LASTACK:
 			if(header->ack) {
-				sock->tcp.con.state = TCS_CLOSED;
+				sock->tcp.con.state = TCS_FINISHED;
 				close_connection(sock);
 			}
 			break;
@@ -448,9 +450,14 @@ static ssize_t _tcp_recv(struct socket *sock, char *buf, size_t len, int flags)
 	size_t count = 0;
 	spinlock_acquire(&sock->tcp.rxlock);
 	while(count == 0) {
-		if(sock->tcp.con.state != TCS_ESTABLISHED) {
-			spinlock_release(&sock->tcp.rxlock);
-			return count > 0 ? (ssize_t)count : -ENOTCONN; //TODO: EINPROGRESS, etc
+		switch(sock->tcp.con.state) {
+			case TCS_CLOSED: case TCS_LISTENING: spinlock_release(&sock->tcp.rxlock); return -ENOTCONN;
+			case TCS_FINISHED: case TCS_LASTACK: case TCS_CLOSING: case TCS_TIMEWAIT: spinlock_release(&sock->tcp.rxlock); return 0;
+			case TCS_RESET: spinlock_release(&sock->tcp.rxlock); return -ECONNRESET;
+			case TCS_ESTABLISHED: break;
+			case TCS_SYNSENT: spinlock_release(&sock->tcp.rxlock); return -EINPROGRESS;
+			case TCS_SYNRECV: spinlock_release(&sock->tcp.rxlock); return -EINPROGRESS;
+			default: spinlock_release(&sock->tcp.rxlock); return -ECONNRESET;
 		}
 		size_t pending = WINDOWSZ - sock->tcp.con.recv_win;
 		size_t start = sock->tcp.con.recv_next - pending;
@@ -483,14 +490,18 @@ static ssize_t _tcp_recv(struct socket *sock, char *buf, size_t len, int flags)
 
 static ssize_t _tcp_send(struct socket *sock, const char *buf, size_t len, int flags)
 {
-	printk("SEND: %d\n", sock->tcp.con.state);
-	if(sock->tcp.con.state == TCS_CLOSED)
-		return -ENOTCONN;
-	if(sock->tcp.con.state != TCS_ESTABLISHED)
-		return -EINPROGRESS; //TODO: return proper errors for states
 	size_t count = 0;
 	spinlock_acquire(&sock->tcp.txlock);
 	while(len > 0) {
+		switch(sock->tcp.con.state) {
+			case TCS_CLOSED: spinlock_release(&sock->tcp.txlock); return -ENOTCONN;
+			case TCS_FINISHED: case TCS_LASTACK: case TCS_CLOSING: case TCS_TIMEWAIT: spinlock_release(&sock->tcp.txlock); return -EPIPE;
+			case TCS_RESET: spinlock_release(&sock->tcp.txlock); return -ECONNRESET;
+			case TCS_ESTABLISHED: break;
+			case TCS_SYNSENT: spinlock_release(&sock->tcp.txlock); return -EINPROGRESS;
+			case TCS_SYNRECV: spinlock_release(&sock->tcp.txlock); return -EINPROGRESS;
+			default: spinlock_release(&sock->tcp.txlock); return -ECONNRESET;
+		}
 		if(sock->tcp.con.state != TCS_ESTABLISHED) {
 			spinlock_release(&sock->tcp.txlock);
 			return count > 0 ? (ssize_t)count : -ENOTCONN; //TODO: EINPROGRESS, etc
@@ -562,8 +573,6 @@ static int _tcp_select(struct socket *sock, int flags, struct blockpoint *bp)
 	if(flags == SEL_ERROR)
 		return -1; //TODO
 
-	if(sock->flags & SF_SHUTDOWN)
-		return -1;
 
 	if(flags == SEL_READ) {
 		if(sock->flags & SF_CONNEC) {
@@ -571,10 +580,14 @@ static int _tcp_select(struct socket *sock, int flags, struct blockpoint *bp)
 				blockpoint_startblock(&sock->tcp.rxbl, bp);
 			size_t pending = WINDOWSZ - sock->tcp.con.recv_win;
 	//		printk("PEND: %ld\n", pending);
+			if(sock->flags & SF_SHUTDOWN)
+				return 1;
 			return pending > 0 ? 1 : 0;
 		} else if(sock->flags & SF_BOUND) {
 			if(bp)
 				blockpoint_startblock(&sock->pend_con_wait, bp);
+			if(sock->flags & SF_SHUTDOWN)
+				return 1;
 			if(sock->pend_con.count > 0)
 				return 1;
 			if(sock->tcp.establishing.count > 0)

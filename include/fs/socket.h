@@ -120,6 +120,8 @@ enum tcp_con_state {
 	TCS_CLOSING,
 	TCS_LASTACK,
 	TCS_TIMEWAIT,
+	TCS_FINISHED,
+	TCS_RESET,
 };
 
 struct tcp_connection {
