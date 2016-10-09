@@ -41,16 +41,24 @@ struct kobj kobj_file = {
 	.destroy = NULL,
 };
 
-struct file_calls *file_get_ops(struct inode *node)
+static struct file_calls *file_get_ops(struct inode *node, struct file *f)
 {
-	if(S_ISCHR(node->mode) || S_ISBLK(node->mode))
+	if(S_ISBLK(node->mode)) {
+		f->devtype = FDT_BLOCK;
 		return dev_get_fops(node);
-	else if(S_ISFIFO(node->mode))
+	} else if(S_ISCHR(node->mode)) {
+		f->devtype = FDT_CHAR;
+		return dev_get_fops(node);
+	} else if(S_ISFIFO(node->mode)) {
+		f->devtype = FDT_FIFO;
 		return &pipe_fops;
-	else if(S_ISSOCK(node->mode))
+	} else if(S_ISSOCK(node->mode)) {
+		f->devtype = FDT_SOCK;
 		return &socket_fops;
-	else
+	} else {
+		f->devtype = FDT_REG;
 		return &fs_fops;
+	}
 }
 
 void process_remove_proc_fd(struct process *proc, int fd)
@@ -104,7 +112,7 @@ struct file *file_create(struct dirent *dir, enum file_device_type type)
 		struct inode *node = dirent_get_inode(dir);
 		if(node) {
 			if(type == FDT_UNKNOWN)
-				file->ops = file_get_ops(node);
+				file->ops = file_get_ops(node, file);
 			inode_put(node);
 		} else {
 			kobj_putref(file);
@@ -112,8 +120,8 @@ struct file *file_create(struct dirent *dir, enum file_device_type type)
 		}
 		file->dirent = dir;
 	}
-	file->devtype = type;
 	if(type != FDT_UNKNOWN) {
+		file->devtype = type;
 		switch(type) {
 			case FDT_REG:
 				file->ops = &fs_fops;

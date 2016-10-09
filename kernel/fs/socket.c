@@ -414,7 +414,7 @@ static void _socket_fops_destroy(struct file *file)
 {
 	if(file->devtype == FDT_SOCK) {
 		struct socket *sock = file->devdata;
-		if(sock->ops->shutdown)
+		if(sock->ops && sock->ops->shutdown)
 			sock->ops->shutdown(sock);
 		kobj_putref(file->devdata);
 	}
