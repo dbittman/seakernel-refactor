@@ -50,6 +50,29 @@ static inline struct inode *file_get_inode(struct file *f)
 	return NULL;
 }
 
+#define POLLIN      0x001
+#define POLLPRI     0x002
+#define POLLOUT     0x004
+
+#define POLLERR     0x008
+#define POLLHUP     0x010
+#define POLLNVAL    0x020
+enum {
+	POLL_BLOCK_READ = 0,
+	POLL_BLOCK_PRIR,
+	POLL_BLOCK_WRITE,
+	POLL_BLOCK_ERROR,
+	POLL_BLOCK_STATUS,
+	NUM_POLL_BLOCKS,
+};
+
+struct pollpoint {
+	struct file *file;
+	short events, *revents;
+	struct blockpoint bps[NUM_POLL_BLOCKS];
+};
+
+
 struct map_region;
 struct file_calls {
 	ssize_t (*read)(struct file *, size_t, size_t, char *);
@@ -58,7 +81,7 @@ struct file_calls {
 	void (*create)(struct file *);
 	void (*destroy)(struct file *);
 
-	int (*select)(struct file *file, int flags, struct blockpoint *bp);
+	bool (*poll)(struct file *file, struct pollpoint *point);
 	int (*ioctl)(struct file *file, long cmd, long arg);
 	void (*open)(struct file *file);
 	void (*close)(struct file *file);

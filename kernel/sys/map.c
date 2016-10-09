@@ -29,7 +29,7 @@ void _zero_unmap(struct file *file, struct map_region *map, ptrdiff_t d, uintptr
 static struct file_calls zero_calls = {
 	.read = 0,
 	.write = 0,
-	.create = 0, .destroy = 0, .ioctl = 0, .select = 0, .open = 0, .close = 0,
+	.create = 0, .destroy = 0, .ioctl = 0, .poll = 0, .open = 0, .close = 0,
 	.map = _zero_map, .unmap = _zero_unmap,
 };
 

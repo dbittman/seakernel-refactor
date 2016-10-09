@@ -9,9 +9,11 @@
 #include <signal.h>
 #include <printk.h>
 #include <thread.h>
+#include <sys.h>
 struct pipe {
 	struct kobj_header _header;
 	struct charbuffer buf;
+	struct blocklist statusbl;
 	_Atomic int readers, writers;
 	bool named;
 };
@@ -27,6 +29,7 @@ static void _pipe_init(void *obj)
 static void _pipe_create(void *obj)
 {
 	struct pipe *pipe = obj;
+	blocklist_create(&pipe->statusbl);
 	charbuffer_create(&pipe->buf, 0x1000);
 }
 
@@ -125,38 +128,47 @@ static void _pipe_close(struct file *file)
 	assert(pipe->writers >= 0);
 	assert(pipe->readers >= 0);
 
-	if((pipe->writers == 0 || pipe->readers == 0) && !pipe->named)
+	if((pipe->writers == 0 || pipe->readers == 0) && !pipe->named) {
 		charbuffer_terminate(&pipe->buf);
-	else if(pipe->writers == 0) {
+		blocklist_unblock_all(&pipe->statusbl);
+	} else if(pipe->writers == 0) {
 		pipe->buf.eof = 1;
 		blocklist_unblock_all(&pipe->buf.wait_read);
+		blocklist_unblock_all(&pipe->statusbl);
 	}
 }
 
-static int _pipe_select(struct file *file, int flags, struct blockpoint *bp)
+static bool _pipe_poll(struct file *file, struct pollpoint *point)
 {
-	int ret = 0;
+	bool ready = false;
 	struct pipe *pipe = file->devdata;
 	
-	switch(flags) {
-		case SEL_READ:
-			if(bp)
-				blockpoint_startblock(&pipe->buf.wait_read, bp);
-			if(charbuffer_pending(&pipe->buf)) {
-				ret = 1;
-			}
-			break;
-		case SEL_WRITE:
-			if(bp)
-				blockpoint_startblock(&pipe->buf.wait_write, bp);
-			if(charbuffer_avail(&pipe->buf)) {
-				ret = 1;
-			}
-			break;
-		case SEL_ERROR:
-			return -1;
+	point->events &= POLLIN | POLLOUT;
+	point->events |= 1 << POLL_BLOCK_STATUS;
+
+	if(point->events & POLLIN) {
+		blockpoint_startblock(&pipe->buf.wait_read, &point->bps[POLL_BLOCK_READ]);
+		if(charbuffer_pending(&pipe->buf) > 0 || pipe->buf.eof) {
+			*point->revents |= POLLIN;
+			ready = true;
+		}
 	}
-	return ret;
+
+	if(point->events & POLLOUT) {
+		blockpoint_startblock(&pipe->buf.wait_write, &point->bps[POLL_BLOCK_WRITE]);
+		if(charbuffer_avail(&pipe->buf) > 0) {
+			*point->revents |= POLLOUT;
+			ready = true;
+		}
+	}
+
+	blockpoint_startblock(&pipe->statusbl, &point->bps[POLL_BLOCK_STATUS]);
+	if((pipe->writers == 0 || pipe->readers == 0) && !pipe->named) {
+		*point->revents |= POLLHUP;
+		ready = true;
+	}
+
+	return ready;
 }
 
 struct file_calls pipe_fops = {
@@ -167,7 +179,8 @@ struct file_calls pipe_fops = {
 	.open = _pipe_open,
 	.close = _pipe_close,
 	.map = 0, .unmap = 0,
-	.ioctl = 0, .select = _pipe_select,
+	.ioctl = 0,
+	.poll = _pipe_poll,
 };
 
 sysret_t sys_pipe(int *fds)

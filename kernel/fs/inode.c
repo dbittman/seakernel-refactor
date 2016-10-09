@@ -61,6 +61,7 @@ static void _inode_create(void *obj)
 {
 	struct inode *node = obj;
 	mutex_create(&node->lock);
+	blocklist_create(&node->readbl);
 }
 
 static void _inode_put(void *obj)
@@ -88,6 +89,7 @@ static void _inode_release(void *obj, void *data)
 {
 	(void)data;
 	struct inode *node = obj;
+	blocklist_unblock_all(&node->readbl);
 	if(node->fs) {
 		if(atomic_fetch_and(&node->flags, ~INODE_FLAG_DIRTY) & INODE_FLAG_DIRTY) {
 			fs_update_inode(node);

@@ -259,6 +259,7 @@ static void _unix_shutdown(struct socket *sock)
 		spinlock_release(&_id_lock);
 		sys_close(sock->unix.fd);
 	}
+	blocklist_unblock_all(&sock->statusbl);
 	cleanup_connection(sock, 0);
 }
 
@@ -282,49 +283,59 @@ static void _unix_init_sock(struct socket *sock)
 	sock->unix.con = NULL;
 }
 
-static int _unix_select(struct socket *sock, int flags, struct blockpoint *bp)
+static bool _unix_poll(struct socket *sock, struct pollpoint *point)
 {
-	if(flags == SEL_ERROR)
-		return -1; // TODO
-	if(!(sock->flags & SF_CONNEC)) {
-		if((sock->flags & SF_LISTEN) && flags == SEL_READ) {
-			if(bp)
-				blockpoint_startblock(&sock->pend_con_wait, bp);
-			if(sock->pend_con.count > 0) {
-				return 1;
-			}
-			return 0;
-		}
-		return -1;
-	}
+	bool ready = false;
+	
+	point->events &= POLLIN | POLLOUT;
 
 	struct unix_connection *con = sock->unix.con;
-	struct charbuffer *buf = NULL;
-	if(con->server == sock && flags == SEL_READ)
-		buf = &con->in;
-	else if(con->server == sock && flags == SEL_WRITE)
-		buf = &con->out;
-	else if(flags == SEL_WRITE)
-		buf = &con->in;
-	else if(flags == SEL_READ)
-		buf = &con->out;
 
-	assert(buf != NULL);
-	if(bp)
-		blockpoint_startblock((flags == SEL_READ) ? &buf->wait_read : &buf->wait_write, bp);
-
-	int ret = 0;
-	if(flags == SEL_READ) {
-		if(charbuffer_pending(buf)) {
-			ret = 1;
-		}
-	} else if(flags == SEL_WRITE) {
-		if(charbuffer_avail(buf)) {
-			ret = 1;
+	if(point->events & POLLIN) {
+		if(sock->flags & SF_CONNEC && con) {
+			struct charbuffer *buf = con->server == sock ? &con->in : &con->out;
+			blockpoint_startblock(&buf->wait_read, &point->bps[POLL_BLOCK_READ]);
+			if(charbuffer_pending(buf) > 0 || (sock->flags & SF_SHUTDOWN) || con->terminating) {
+				*point->revents |= POLLIN;
+				ready = true;
+			}
+		} else if(sock->flags & SF_LISTEN) {
+			blockpoint_startblock(&sock->pend_con_wait, &point->bps[POLL_BLOCK_READ]);
+			if((sock->flags & SF_SHUTDOWN)
+					|| sock->pend_con.count > 0) {
+				*point->revents |= POLLIN;
+				ready = true;
+			}
+		} else {
+			point->events &= ~POLLIN;
 		}
 	}
-	return ret;
+
+	if(point->events & POLLOUT) {
+		if(sock->flags & SF_CONNEC && con) {
+			struct charbuffer *buf = con->server == sock ? &con->out : &con->in;
+			blockpoint_startblock(&buf->wait_write, &point->bps[POLL_BLOCK_WRITE]);
+
+			if(charbuffer_avail(buf) > 0 || (sock->flags & SF_SHUTDOWN) || con->terminating) {
+				*point->revents |= POLLOUT;
+				ready = true;
+			}
+		} else {
+			point->events &= ~POLLOUT;
+		}
+	}
+	if(con) {
+		point->events |= 1 << POLL_BLOCK_STATUS;
+		blockpoint_startblock(&sock->statusbl, &point->bps[POLL_BLOCK_STATUS]);
+		if((sock->flags & SF_SHUTDOWN) || con->terminating) {
+			*point->revents |= POLLHUP;
+			ready = true;
+		}
+	}
+
+	return ready;
 }
+
 
 struct sock_calls af_unix_calls = {
 	.init = _unix_init_sock,
@@ -336,7 +347,7 @@ struct sock_calls af_unix_calls = {
 	.sockpair = _unix_sockpair,
 	.send = _unix_send,
 	.recv = _unix_recv,
-	.select = _unix_select,
+	.poll = _unix_poll,
 	/*
 	.sendto = _unix_sendto,
 	.recvfrom = _unix_recvfrom,

@@ -20,16 +20,18 @@ static ssize_t _read(struct file *file, size_t off, size_t len, char *buf)
 	return charbuffer_read(&keybuf, buf, len, ((file->flags & O_NONBLOCK) ? CHARBUFFER_DO_NONBLOCK : 0) | CHARBUFFER_DO_ANY);
 }
 
-static int _select(struct file *file, int flags, struct blockpoint *bp)
+static bool _poll(struct file *file, struct pollpoint *point)
 {
 	(void)file;
-	if(flags == SEL_READ) {
-		if(bp)
-			blockpoint_startblock(&keybuf.wait_read, bp);
-		return charbuffer_pending(&keybuf) > 0;
-	} else {
-		return -1;
+	point->events &= POLLIN;
+	if(point->events & POLLIN) {
+		blockpoint_startblock(&keybuf.wait_read, &point->bps[POLL_BLOCK_READ]);
+		if(charbuffer_pending(&keybuf)) {
+			*point->revents |= POLLIN;
+			return true;
+		}
 	}
+	return false;
 }
 
 static struct file_calls keyboard_ops = {
@@ -39,10 +41,10 @@ static struct file_calls keyboard_ops = {
 	.destroy = NULL,
 	.map = NULL,
 	.unmap = NULL,
-	.select = _select,
 	.ioctl = NULL,
 	.read = _read,
 	.write = NULL,
+	.poll = _poll,
 };
 
 void flush_port(void)

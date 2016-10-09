@@ -18,6 +18,7 @@ struct pty {
 	struct kobj_header _header;
 	long id;
 	struct charbuffer input, output;
+	struct blocklist statusbl;
 
 	char cbuf[CBUF_SIZE];
 	int cbuf_pos;
@@ -49,6 +50,7 @@ static void _pty_create(void *obj)
 	charbuffer_create(&pty->input, 0x1000);
 	charbuffer_create(&pty->output, 0x1000);
 	mutex_create(&pty->cbuf_lock);
+	blocklist_create(&pty->statusbl);
 	_pty_init(obj);
 }
 
@@ -137,6 +139,7 @@ static void process_input(struct pty *pty, char c)
 			} else {
 				pty->input.eof = 1;
 				blocklist_unblock_all(&pty->input.wait_read);
+				blocklist_unblock_all(&pty->statusbl);
 			}
 		} else {
 			if(c == 27) /* escape */
@@ -291,37 +294,58 @@ static int _pty_fops_ioctl(struct file *file, long cmd, long arg)
 	return ret;
 }
 
-static int _pty_fops_select(struct file *file, int flags, struct blockpoint *bp)
+static bool _pty_fops_poll(struct file *file, struct pollpoint *point)
 {
 	struct pty_file *pf = file->devdata ? file->devdata : current_thread->process->pty;
 	struct pty *pty = pf->pty;
-	if(flags & SEL_ERROR)
-		return -1;
-	struct blocklist *bl;
-	size_t ready = 0;
-	if(pf->master && (flags == SEL_READ)) {
-		bl = &pty->output.wait_read;
-		if(bp)
-			blockpoint_startblock(bl, bp);
-		ready = charbuffer_pending(&pty->output);
-	} else if(pf->master && (flags == SEL_WRITE)) {
-		bl = &pty->input.wait_write;
-		if(bp)
-			blockpoint_startblock(bl, bp);
-		ready = charbuffer_avail(&pty->input);
-	} else if(!pf->master && (flags == SEL_READ)) {
-		bl = &pty->input.wait_read;
-		if(bp)
-			blockpoint_startblock(bl, bp);
-		ready = charbuffer_pending(&pty->input);
-	} else {
-		bl = &pty->output.wait_write;
-		if(bp)
-			blockpoint_startblock(bl, bp);
-		ready = charbuffer_avail(&pty->output);
-	}
 	
-	return ready > 0;
+	bool ready = false;
+	point->events &= POLLIN | POLLOUT;
+	point->events |= POLLHUP;
+	if(point->events & POLLIN) {
+		if(pf->master) {
+			blockpoint_startblock(&pty->output.wait_read, &point->bps[POLL_BLOCK_READ]);
+			if(charbuffer_pending(&pty->output) || pty->output.eof) {
+				*point->revents |= POLLIN;
+				ready = true;
+			}
+		} else {
+			blockpoint_startblock(&pty->input.wait_read, &point->bps[POLL_BLOCK_READ]);
+			if(charbuffer_pending(&pty->input) || pty->input.eof) {
+				*point->revents |= POLLIN;
+				ready = true;
+			}
+		}
+	}
+	if(point->events & POLLOUT) {
+		if(pf->master) {
+			blockpoint_startblock(&pty->input.wait_write, &point->bps[POLL_BLOCK_WRITE]);
+			if(charbuffer_avail(&pty->input)) {
+				*point->revents |= POLLOUT;
+				ready = true;
+			}
+		} else {
+			blockpoint_startblock(&pty->output.wait_write, &point->bps[POLL_BLOCK_WRITE]);
+			if(charbuffer_avail(&pty->output)) {
+				*point->revents |= POLLOUT;
+				ready = true;
+			}
+		}
+	}
+
+	blockpoint_startblock(&pty->statusbl, &point->bps[POLL_BLOCK_STATUS]);
+	if(pf->master) {
+		if(pty->output.eof) {
+			*point->revents |= POLLHUP;
+			ready = true;
+		}
+	} else {
+		if(pty->input.eof) {
+			*point->revents |= POLLHUP;
+			ready = true;
+		}
+	}
+	return ready;
 }
 
 static struct file_calls pty_fops = {
@@ -329,11 +353,11 @@ static struct file_calls pty_fops = {
 	.destroy = _pty_fops_destroy,
 	.open = _pty_fops_open,
 	.close = NULL,
-	.select = _pty_fops_select,
 	.ioctl = _pty_fops_ioctl,
 	.read = _pty_fops_read,
 	.write = _pty_fops_write,
 	.map = NULL, .unmap = NULL,
+	.poll = _pty_fops_poll
 };
 
 #include <system.h>

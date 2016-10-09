@@ -180,17 +180,27 @@ static void _udp_shutdown(struct socket *sock)
 	spinlock_release(&bind_lock);
 }
 
-static int _udp_select(struct socket *sock, int flags, struct blockpoint *bp)
+static bool _udp_poll(struct socket *sock, struct pollpoint *point)
 {
-	if(flags == SEL_ERROR)
-		return -1; //TODO
+	bool ready = false;
+	
+	point->events &= POLLIN | POLLOUT;
 
-	if(flags == SEL_READ) {
-		if(bp)
-			blockpoint_startblock(&sock->udp.rbl, bp);
-		return sock->udp.inq.count == 0 ? 0 : 1;
+	if(point->events & POLLIN) {
+		blockpoint_startblock(&sock->udp.rbl, &point->bps[POLL_BLOCK_READ]);
+		if(sock->udp.inq.count > 0) {
+			*point->revents |= POLLIN;
+			ready = true;
+		}
 	}
-	return 1; //TODO: don't always indicate ready for writing.
+
+	if(point->events & POLLOUT) {
+		point->events &= ~POLLOUT;
+		*point->revents |= POLLOUT;
+		ready = true;
+	}
+
+	return ready;
 }
 
 struct sock_calls af_udp_calls = {
@@ -203,8 +213,8 @@ struct sock_calls af_udp_calls = {
 	.sockpair = NULL,
 	.send = NULL,
 	.recv = _udp_recv,
-	.select = _udp_select,
 	.sendto = _udp_sendto,
 	.recvfrom = _udp_recvfrom,
+	.poll = _udp_poll,
 };
 

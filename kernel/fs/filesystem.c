@@ -87,12 +87,38 @@ static void _fs_inode_unmap(struct file *file, struct map_region *map, ptrdiff_t
 	}
 }
 
+static bool _fs_inode_poll(struct file *file, struct pollpoint *point)
+{
+	/* TODO: support errors */
+	point->events &= POLLIN | POLLOUT;
+	struct inode *inode = file_get_inode(file);
+	if(!inode)
+		return true;
+	bool ready = false;
+	if(point->events & POLLIN) {
+		blockpoint_startblock(&inode->readbl, &point->bps[POLL_BLOCK_READ]);
+		if(file->pos < inode->length) {
+			*point->revents |= POLLIN;
+			ready = true;
+		}
+	}
+	if(point->events & POLLOUT) {
+		point->events &= ~POLLOUT;
+		*point->revents |= POLLOUT;
+
+		ready = true;
+	}
+	inode_put(inode);
+	return ready;
+}
+
 struct file_calls fs_fops = {
 	.read = inode_read_data,
 	.write = inode_write_data,
-	.create = 0, .destroy = 0, .ioctl = 0, .select = 0, .open = 0, .close = 0,
+	.create = 0, .destroy = 0, .ioctl = 0, .open = 0, .close = 0,
 	.map = _fs_inode_map,
 	.unmap = _fs_inode_unmap,
+	.poll = _fs_inode_poll,
 };
 
 int fs_mount(struct inode *point, struct filesystem *fs)

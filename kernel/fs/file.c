@@ -252,6 +252,8 @@ int file_truncate(struct file *f, size_t len)
 	if(!node)
 		return -EINVAL;
 	node->length = len;
+	if(f->pos > node->length)
+		f->pos = node->length;
 	inode_mark_dirty(node);
 	inode_put(node);
 	return 0;

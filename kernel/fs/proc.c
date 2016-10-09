@@ -64,7 +64,7 @@ static ssize_t _proc_read(struct file *file, size_t off, size_t len, char *b)
 static struct file_calls proc_ops = {
 	.read = _proc_read,
 	.write = NULL,
-	.select = NULL,
+	.poll = NULL,
 	.ioctl = NULL,
 	.create = NULL,
 	.destroy = NULL,

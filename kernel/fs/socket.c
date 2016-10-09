@@ -30,6 +30,7 @@ static void _socket_create(void *obj)
 	struct socket *s = obj;
 	linkedlist_create(&s->pend_con, 0);
 	blocklist_create(&s->pend_con_wait);
+	blocklist_create(&s->statusbl);
 	spinlock_create(&s->optlock);
 	_socket_init(obj);
 }
@@ -439,18 +440,21 @@ static ssize_t _socket_write(struct file *file, size_t off, size_t len, const ch
 	return ret;
 }
 
-static int _socket_select(struct file *file, int flags, struct blockpoint *bp)
+static bool _socket_poll(struct file *file, struct pollpoint *point)
 {
 	struct socket *sock = kobj_getref(file->devdata);
 
-	int ret = 1;
-	if(sock->ops->select)
-		ret = sock->ops->select(sock, flags, bp);
+	assert(sock != NULL);
+	bool ret = true;
+	if(sock->ops->poll) {
+		ret = sock->ops->poll(sock, point);
+	} else {
+		panic(0, "poll not implement for socket");
+	}
 
 	kobj_putref(sock);
 	return ret;
 }
-
 #define IFNAMSIZ 16
 struct ifreq {
 	char ifr_name[IFNAMSIZ]; /* Interface name */
@@ -498,7 +502,8 @@ struct file_calls socket_fops = {
 	.read = _socket_read,
 	.create = _socket_fops_create,
 	.destroy = _socket_fops_destroy,
-	.ioctl = _socket_ioctl, .select = _socket_select, .open = 0, .close = 0,
+	.ioctl = _socket_ioctl, .open = 0, .close = 0,
 	.map = 0, .unmap = 0,
+	.poll = _socket_poll,
 };
 

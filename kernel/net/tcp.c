@@ -193,6 +193,7 @@ static void close_connection(struct socket *sock)
 	blocklist_unblock_all(&sock->tcp.txbl);
 	blocklist_unblock_all(&sock->tcp.rxbl);
 	blocklist_unblock_all(&sock->tcp.con.workerbl);
+	blocklist_unblock_all(&sock->statusbl);
 }
 
 
@@ -567,40 +568,54 @@ static void _tcp_shutdown(struct socket *sock)
 	}
 }
 
-static int _tcp_select(struct socket *sock, int flags, struct blockpoint *bp)
+static bool _tcp_poll(struct socket *sock, struct pollpoint *point)
 {
-	//printk(":: Select: %d %d\n", flags, sock->flags);
-	if(flags == SEL_ERROR)
-		return -1; //TODO
+	bool ready = false;
+	
+	point->events &= POLLIN | POLLOUT; //TODO: support PRI data
+	point->events |= 1 << POLL_BLOCK_STATUS;
 
-
-	if(flags == SEL_READ) {
+	if(point->events & POLLIN) {
 		if(sock->flags & SF_CONNEC) {
-			if(bp)
-				blockpoint_startblock(&sock->tcp.rxbl, bp);
+			blockpoint_startblock(&sock->tcp.rxbl, &point->bps[POLL_BLOCK_READ]);
 			size_t pending = WINDOWSZ - sock->tcp.con.recv_win;
-	//		printk("PEND: %ld\n", pending);
-			if(sock->flags & SF_SHUTDOWN)
-				return 1;
-			return pending > 0 ? 1 : 0;
+			if(pending > 0 || (sock->flags & SF_SHUTDOWN)) {
+				*point->revents |= POLLIN;
+				ready = true;
+			}
 		} else if(sock->flags & SF_BOUND) {
-			if(bp)
-				blockpoint_startblock(&sock->pend_con_wait, bp);
-			if(sock->flags & SF_SHUTDOWN)
-				return 1;
-			if(sock->pend_con.count > 0)
-				return 1;
-			if(sock->tcp.establishing.count > 0)
-				return 1;
-			return 0;
+			blockpoint_startblock(&sock->pend_con_wait, &point->bps[POLL_BLOCK_READ]);
+			if((sock->flags & SF_SHUTDOWN)
+					|| sock->pend_con.count > 0
+					|| sock->tcp.establishing.count > 0) {
+				*point->revents |= POLLIN;
+				ready = true;
+			}
 		} else {
-			return -1;
+			point->events &= ~POLLIN;
 		}
-	} else {
-		if(bp)
-			blockpoint_startblock(&sock->tcp.txbl, bp);
-		return sock->tcp.txbufavail > 0 ? 1 : 0;
 	}
+
+	if(point->events & POLLOUT) {
+		if(sock->flags & SF_CONNEC) {
+			blockpoint_startblock(&sock->tcp.txbl, &point->bps[POLL_BLOCK_WRITE]);
+
+			if(sock->tcp.txbufavail > 0 || (sock->flags & SF_SHUTDOWN)) {
+				*point->revents |= POLLOUT;
+				ready = true;
+			}
+		} else {
+			point->events &= ~POLLOUT;
+		}
+	}
+
+	blockpoint_startblock(&sock->statusbl, &point->bps[POLL_BLOCK_STATUS]);
+	if(sock->flags & SF_SHUTDOWN) {
+		*point->revents |= POLLHUP;
+		ready = true;
+	}
+
+	return ready;
 }
 
 static int _tcp_connect(struct socket *sock, const struct sockaddr *addr, socklen_t alen)
@@ -757,8 +772,8 @@ struct sock_calls af_tcp_calls = {
 	.sockpair = NULL,
 	.send = _tcp_send,
 	.recv = _tcp_recv,
-	.select = _tcp_select,
 	.sendto = _tcp_sendto,
 	.recvfrom = NULL,
+	.poll = _tcp_poll,
 };
 

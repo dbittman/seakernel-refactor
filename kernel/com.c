@@ -37,7 +37,7 @@ static struct file_calls serial_calls = {
 	.read = _serial_read,
 	.write = serial_write,
 
-	.create = 0, .destroy = 0, .ioctl = 0, .select = 0, .open = 0, .close = 0,
+	.create = 0, .destroy = 0, .ioctl = 0, .poll = 0, .open = 0, .close = 0,
 	.map = 0, .unmap = 0,
 };
 

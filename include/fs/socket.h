@@ -63,6 +63,7 @@ struct sockaddr_in6 {
 extern struct sockaddrinfo sockaddrinfo[MAX_AF + 1];
 _Static_assert(sizeof(struct sockaddr) >= sizeof(struct sockaddr_in6), "");
 
+struct pollpoint;
 struct socket;
 struct sock_calls {
 	void (*init)(struct socket *);
@@ -77,7 +78,7 @@ struct sock_calls {
 	ssize_t (*sendto)(struct socket *sock, const char *msg, size_t length,
 		int flags, const struct sockaddr *dest, socklen_t dest_len);
 	ssize_t (*recvfrom)(struct socket *, char *, size_t, int, struct sockaddr *, socklen_t *);
-	int (*select)(struct socket *, int, struct blockpoint *);
+	bool (*poll)(struct socket *, struct pollpoint *);
 };
 
 struct unix_connection {
@@ -195,7 +196,7 @@ struct socket {
 	struct sockaddr binding;
 	int backlog;
 	struct linkedlist pend_con;
-	struct blocklist pend_con_wait;
+	struct blocklist pend_con_wait, statusbl;
 	struct linkedentry pend_con_entry;
 	struct hash options;
 	struct arena optarena;

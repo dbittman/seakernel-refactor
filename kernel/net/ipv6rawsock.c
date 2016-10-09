@@ -136,17 +136,24 @@ static void _ipv6_shutdown(struct socket *sock)
 	spinlock_release(&lock);
 }
 
-static int _ipv6_select(struct socket *sock, int flags, struct blockpoint *bp)
+static bool _ipv6_poll(struct socket *sock, struct pollpoint *point)
 {
-	if(flags == SEL_ERROR)
-		return -1; //TODO
+	point->events &= POLLIN | POLLOUT;
 
-	if(flags == SEL_READ) {
-		if(bp)
-			blockpoint_startblock(&sock->ipv6.rbl, bp);
-		return sock->ipv6.inq.count == 0 ? 0 : 1;
+	bool ready = false;
+	if(point->events & POLLIN) {
+		blockpoint_startblock(&sock->ipv6.rbl, &point->bps[POLL_BLOCK_READ]);
+		if(sock->ipv6.inq.count > 0) {
+			*point->revents |= POLLIN;
+			ready = true;
+		}
 	}
-	return 1; //TODO: don't always indicate ready for writing.
+	if(point->events & POLLOUT) {
+		point->events &= ~POLLOUT;
+		*point->revents |= POLLOUT;
+		ready = true;
+	}
+	return ready;
 }
 
 struct sock_calls af_ipv6_calls = {
@@ -159,7 +166,7 @@ struct sock_calls af_ipv6_calls = {
 	.sockpair = NULL,
 	.send = NULL,
 	.recv = NULL,
-	.select = _ipv6_select,
+	.poll = _ipv6_poll,
 	.sendto = _ipv6_sendto,
 	.recvfrom = _ipv6_recvfrom,
 };

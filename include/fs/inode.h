@@ -48,6 +48,7 @@ struct inode {
 
 	int major, minor;
 	struct pipe *pipe;
+	struct blocklist readbl;
 };
 
 extern struct kobj kobj_inode_page;

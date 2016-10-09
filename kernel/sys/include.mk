@@ -4,5 +4,6 @@ C_SOURCES+=kernel/sys/fork.c kernel/sys/open.c \
 		   kernel/sys/select.c kernel/sys/time.c \
 		   kernel/sys/path.c kernel/sys/sync.c \
 		   kernel/sys/thread.c kernel/sys/futex.c \
-		   kernel/sys/info.c kernel/sys/process.c
+		   kernel/sys/info.c kernel/sys/process.c \
+		   kernel/sys/poll.c
 

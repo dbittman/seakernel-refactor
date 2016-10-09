@@ -42,7 +42,7 @@ static int _vga_ioctl(struct file *file, long cmd, long arg)
 static struct file_calls vga_calls = {
 	.read = 0,
 	.write = 0,
-	.create = 0, .destroy = 0, .ioctl = _vga_ioctl, .select = 0, .open = 0, .close = 0,
+	.create = 0, .destroy = 0, .ioctl = _vga_ioctl, .poll = 0, .open = 0, .close = 0,
 	.map = _vga_map, .unmap = 0,
 };
 

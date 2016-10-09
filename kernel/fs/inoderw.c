@@ -65,6 +65,7 @@ ssize_t inode_do_write_data(struct inode *ino, size_t off, size_t len, const cha
 		memcpy((void *)(page->frame + PHYS_MAP_START + pageoff), buf, thiswrite);
 		if(thiswrite + off + amount > ino->length) {
 			ino->length = thiswrite + off + amount;
+			blocklist_unblock_all(&ino->readbl);
 			inode_mark_dirty(ino);
 		}
 		page->flags |= INODEPAGE_DIRTY;
