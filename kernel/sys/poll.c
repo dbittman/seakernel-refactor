@@ -35,6 +35,10 @@ static bool __poll_init(struct pollpoint *points, int nfds, time_t timeout)
 					blockpoint_create(&points[i].bps[b], timeout > 0 ? BLOCK_TIMEOUT : 0, timeout);
 				}
 				ready |= points[i].file->ops->poll(points[i].file, &points[i]);
+			} else {
+				*points[i].revents = points[i].events & (POLLIN | POLLOUT);
+				points[i].events = 0;
+				ready = true;
 			}
 		}
 	}
@@ -53,6 +57,7 @@ static int __poll_cleanup(struct pollpoint *points, int nfds)
 			int event = POLLIN;
 			for(;b < NUM_POLL_BLOCKS;b++, event <<= 1) {
 				if(points[i].events & event) {
+					printk(":: %x %d %d\n", event, b, points[i].file->devtype);
 					enum block_result res = blockpoint_cleanup(&points[i].bps[b]);
 					switch(res) {
 						case BLOCK_RESULT_UNBLOCKED:

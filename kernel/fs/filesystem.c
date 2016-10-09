@@ -92,8 +92,11 @@ static bool _fs_inode_poll(struct file *file, struct pollpoint *point)
 	/* TODO: support errors */
 	point->events &= POLLIN | POLLOUT;
 	struct inode *inode = file_get_inode(file);
-	if(!inode)
+	if(!inode) {
+		*point->revents = POLLERR;
+		point->events = 0;
 		return true;
+	}
 	bool ready = false;
 	if(point->events & POLLIN) {
 		blockpoint_startblock(&inode->readbl, &point->bps[POLL_BLOCK_READ]);
