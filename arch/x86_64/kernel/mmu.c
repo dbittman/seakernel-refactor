@@ -21,12 +21,16 @@ static void tlb_shootdown(void)
 static void __invalidate(uintptr_t virt)
 {
 	asm volatile("invlpg (%%rax)" :: "a"(virt) : "memory");
+	tlb_shootdown();
+#if 0
 	if(current_thread && current_thread->process && current_thread->process->threads.count > 1) {
 		if(virt >= USER_TLS_REGION_END || virt < USER_TLS_REGION_START)
 			tlb_shootdown();
 	} else if(virt >= USER_REGION_END && current_thread) {
 		tlb_shootdown();
 	}
+#endif
+
 }
 
 static int __convert_attr_to_flags(uint64_t attr)

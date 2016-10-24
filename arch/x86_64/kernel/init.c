@@ -22,7 +22,7 @@ static void init_proc(void)
 	
 	
 	asm volatile("mov %%cr4, %0" : "=r"(cr4));
-	cr4 |= (1 << 7); //enable page global
+	//cr4 |= (1 << 7); //enable page global
 	cr4 |= (1 << 10); //enable fast fxsave etc, sse
 	/* TODO: bit 16 of CR4 enables wrfsbase etc instructions.
 	 * But we need to check CPUID before using them. */

@@ -1,5 +1,5 @@
 
-USRPROGS_NAMES=cond init syslogd sctl ps thr pswitch udps lookup ping netcat
+USRPROGS_NAMES=cond init syslogd sctl ps thr udps lookup ping netcat
 
 USRPROGS=$(addprefix initrd/bin/,$(USRPROGS_NAMES))
 

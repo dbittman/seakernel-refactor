@@ -176,6 +176,7 @@ $(BUILDDIR)/hd.img: $(USRPROGS)
 	sudo mkdir -p $(BUILDDIR)/mnt/bin
 	sudo mkdir -p $(BUILDDIR)/mnt/dev
 	sudo mkdir -p $(BUILDDIR)/mnt/tmp
+	sudo mkdir -p $(BUILDDIR)/mnt/etc
 	sudo mkdir -p $(BUILDDIR)/mnt/sys
 	sudo cp $(BUILDDIR)/kernel.elf $(BUILDDIR)/initrd.tar $(BUILDDIR)/mnt/sys/
 	sudo cp $(USRPROGS) $(BUILDDIR)/mnt/bin
