@@ -194,7 +194,7 @@ int printk(const char *fmt, ...)
 {
 	va_list args;
 	va_start(args, fmt);
-	char buf[2024];
+	char buf[1024];
 	for(int i=0;i<1024;i++) buf[i]=0;
 	vbufprintk(buf, fmt, args);
 	serial_write(NULL, 0, strlen(buf), buf);
@@ -204,7 +204,7 @@ int printk(const char *fmt, ...)
 
 int vprintk(const char *fmt, va_list args)
 {
-	char buf[2024];
+	char buf[1024];
 	for(int i=0;i<1024;i++) buf[i]=0;
 	vbufprintk(buf, fmt, args);
 	serial_write(NULL, 0, strlen(buf), buf);
